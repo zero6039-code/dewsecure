@@ -46,7 +46,8 @@ pub fn extract_features(url: &str) -> Vec<f32> {
     features[offset + 13] = contains_any(&url_lower, &["popup", "popunder"]) as u8 as f32;
     features[offset + 14] = contains_any(&url_lower, &["click", "clicks"]) as u8 as f32;
     features[offset + 15] = contains_any(&url_lower, &["pixel", "beacon"]) as u8 as f32;
-    features[offset + 16] = contains_any(&url_lower, &["doubleclick", "googlesyndication"]) as u8 as f32;
+    features[offset + 16] =
+        contains_any(&url_lower, &["doubleclick", "googlesyndication"]) as u8 as f32;
     features[offset + 17] = contains_any(&url_lower, &["facebook", "fbcdn"]) as u8 as f32;
     features[offset + 18] = contains_any(&url_lower, &["google", "gstatic"]) as u8 as f32;
 

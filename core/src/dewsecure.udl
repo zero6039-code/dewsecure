@@ -1,6 +1,4 @@
-namespace dewsecure {
-    Classification classify_url(string url, sequence<string> headers);
-};
+namespace dewsecure {};
 
 enum Classification {
     "Ad",

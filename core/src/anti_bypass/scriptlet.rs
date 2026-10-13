@@ -26,10 +26,7 @@ pub fn generate_scriptlet(script_type: ScriptletType, seed: u64) -> String {
 
     match script_type {
         ScriptletType::Noop => {
-            format!(
-                "const {var} = function() {{ return ''; }};",
-                var = var_name
-            )
+            format!("const {var} = function() {{ return ''; }};", var = var_name)
         }
         ScriptletType::Hide => {
             format!(

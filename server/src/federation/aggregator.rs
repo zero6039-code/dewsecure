@@ -24,7 +24,12 @@ impl FederatedAggregator {
     }
 
     /// 添加客户端更新
-    pub fn add_client_update(&mut self, client_id: String, num_samples: usize, gradients: Vec<f32>) {
+    pub fn add_client_update(
+        &mut self,
+        client_id: String,
+        num_samples: usize,
+        gradients: Vec<f32>,
+    ) {
         self.updates.insert(
             client_id,
             ClientUpdate {

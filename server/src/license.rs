@@ -35,7 +35,9 @@ impl LicenseStore {
 
     /// 验证授权
     pub fn verify(&self, email: &str) -> Option<&License> {
-        self.licenses.get(email).filter(|l| l.expires_at > Utc::now())
+        self.licenses
+            .get(email)
+            .filter(|l| l.expires_at > Utc::now())
     }
 
     /// 检查是否有效

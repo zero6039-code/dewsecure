@@ -63,7 +63,7 @@ pub struct FilterRule {
 pub struct DewEngine {
     rule_matcher: Arc<Mutex<rule_matcher::RuleMatcher>>,
     classifier: Option<Arc<Mutex<classifier::Classifier>>>,
-    config: EngineConfig,
+    _config: EngineConfig,
     stats: Arc<Mutex<EngineStats>>,
 }
 
@@ -81,13 +81,11 @@ impl DewEngine {
     pub fn new(config: EngineConfig) -> Result<Self, EngineError> {
         tracing::info!("初始化 DewSecure 引擎");
 
-        // 解析规则
         let rules = rule_matcher::parse_rules(&config.rule_data)
             .map_err(|e| EngineError::InvalidRule(e.to_string()))?;
 
         let matcher = rule_matcher::RuleMatcher::new(rules);
 
-        // 加载分类器（如果启用 AI）
         let classifier = if config.ai_enabled && !config.model_path.is_empty() {
             match classifier::Classifier::load(&config.model_path) {
                 Ok(c) => Some(Arc::new(Mutex::new(c))),
@@ -103,17 +101,16 @@ impl DewEngine {
         Ok(Self {
             rule_matcher: Arc::new(Mutex::new(matcher)),
             classifier,
-            config,
+            _config: config,
             stats: Arc::new(Mutex::new(EngineStats::default())),
         })
     }
 
     /// 分类 URL
-    pub fn classify(&self, url: String, headers: Vec<String>) -> Classification {
+    pub fn classify(&self, url: String, _headers: Vec<String>) -> Classification {
         let mut stats = self.stats.lock().unwrap();
         stats.total_requests += 1;
 
-        // 1. 先检查规则匹配
         let matcher = self.rule_matcher.lock().unwrap();
         if matcher.is_exception(&url) {
             stats.allowed += 1;
@@ -121,7 +118,6 @@ impl DewEngine {
         }
 
         if matcher.matches(&url) {
-            // 判断是广告还是追踪器
             let classification = if url.contains("track") || url.contains("analytics") {
                 stats.blocked_trackers += 1;
                 Classification::Tracker
@@ -132,7 +128,6 @@ impl DewEngine {
             return classification;
         }
 
-        // 2. 如果规则不匹配，调用 AI 分类器
         if let Some(classifier) = &self.classifier {
             let classifier = classifier.lock().unwrap();
             let features = classifier::extract_features(&url);
@@ -164,7 +159,6 @@ impl DewEngine {
             Classification::Ad | Classification::Tracker => Decision::Block,
             Classification::Normal => Decision::Allow,
             Classification::Unknown => {
-                // 未知类型，根据 URL 特征决定
                 if url.contains("ad") || url.contains("banner") {
                     Decision::Block
                 } else {

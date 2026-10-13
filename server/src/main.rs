@@ -2,13 +2,11 @@
 
 use axum::{
     extract::State,
-    http::StatusCode,
     response::IntoResponse,
     routing::{get, post},
     Json, Router,
 };
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::RwLock;
 use tracing_subscriber;
@@ -77,7 +75,11 @@ async fn submit_gradients(
     );
 
     let mut agg = state.aggregator.write().await;
-    agg.add_client_update(submission.client_id, submission.num_samples, submission.gradients);
+    agg.add_client_update(
+        submission.client_id,
+        submission.num_samples,
+        submission.gradients,
+    );
 
     Json(serde_json::json!({ "ok": true }))
 }

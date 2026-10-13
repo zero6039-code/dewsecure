@@ -4,4 +4,4 @@
 
 mod scriptlet;
 
-pub use scriptlet::{generate_scriptlet, generate_anti_bypass_script};
+pub use scriptlet::{generate_anti_bypass_script, generate_scriptlet};

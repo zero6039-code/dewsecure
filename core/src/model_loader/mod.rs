@@ -2,7 +2,7 @@
 //!
 //! 支持从 CDN 下载加密模型并在设备端解密加载。
 
-use crate::classifier::{Classifier, Prediction};
+use crate::classifier::Classifier;
 use thiserror::Error;
 
 #[derive(Debug, Error)]
@@ -39,13 +39,9 @@ impl ModelLoader {
     /// 加载并返回分类器
     pub fn load_classifier(&self) -> Result<Classifier, LoaderError> {
         match self.format {
-            ModelFormat::Native => {
-                Classifier::from_bytes(&self.data)
-                    .map_err(|e| LoaderError::LoadFailed(e.to_string()))
-            }
+            ModelFormat::Native => Classifier::from_bytes(&self.data)
+                .map_err(|e| LoaderError::LoadFailed(e.to_string())),
             _ => {
-                // 对于 TFLite/ONNX/CoreML，在真实实现中会调用对应的运行时
-                // 这里简化为使用默认模型
                 tracing::warn!("平台特定模型格式暂未实现，使用默认模型");
                 Ok(Classifier::default_model())
             }
