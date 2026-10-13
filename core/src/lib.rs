@@ -5,10 +5,10 @@
 
 uniffi::include_scaffolding!("dewsecure");
 
-pub mod rule_matcher;
+pub mod anti_bypass;
 pub mod classifier;
 pub mod model_loader;
-pub mod anti_bypass;
+pub mod rule_matcher;
 
 use std::sync::Arc;
 use std::sync::Mutex;
