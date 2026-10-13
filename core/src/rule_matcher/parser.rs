@@ -45,7 +45,6 @@ pub fn parse_rule(line: &str) -> Option<FilterRule> {
 
     // 分离 pattern 和 options
     let (pattern, options) = if let Some(idx) = line.rfind('$') {
-        // 确保 $ 不在 pattern 中间（避免误判）
         let (p, o) = line.split_at(idx);
         (p, Some(&o[1..]))
     } else {
@@ -59,8 +58,7 @@ pub fn parse_rule(line: &str) -> Option<FilterRule> {
     if let Some(opts) = options {
         for opt in opts.split(',') {
             let opt = opt.trim();
-            if opt.starts_with("domain=") {
-                let domain_list = &opt[7..];
+            if let Some(domain_list) = opt.strip_prefix("domain=") {
                 for d in domain_list.split('|') {
                     domains.push(d.to_string());
                 }

@@ -1,3 +1,5 @@
+#![allow(clippy::empty_line_after_doc_comments)]
+
 //! DewSecure 核心引擎
 //!
 //! 提供跨平台的广告拦截和内容优化能力。
