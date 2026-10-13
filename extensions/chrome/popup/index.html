@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DewSecure</title>
+    <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+    <div class="container">
+        <header class="header">
+            <div class="logo">
+                <span class="logo-icon">🛡️</span>
+                <span class="logo-text">DewSecure</span>
+            </div>
+            <div class="status" id="status">保护中</div>
+        </header>
+
+        <div class="stats">
+            <div class="stat-card">
+                <div class="stat-value" id="todayBlocked">0</div>
+                <div class="stat-label">今日拦截</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value" id="totalBlocked">0</div>
+                <div class="stat-label">累计拦截</div>
+            </div>
+        </div>
+
+        <div class="limit-bar" id="limitBar">
+            <div class="limit-info">
+                <span>免费版每日限额</span>
+                <span id="limitText">0 / 100</span>
+            </div>
+            <div class="limit-progress">
+                <div class="limit-fill" id="limitFill"></div>
+            </div>
+        </div>
+
+        <div class="actions">
+            <button class="btn btn-primary" id="toggleSite">在此网站暂停</button>
+            <button class="btn btn-secondary" id="upgradeBtn">升级到高级版</button>
+        </div>
+
+        <div class="settings">
+            <label class="toggle">
+                <input type="checkbox" id="aiToggle" checked>
+                <span>AI 智能拦截</span>
+            </label>
+            <label class="toggle">
+                <input type="checkbox" id="trackerToggle" checked>
+                <span>阻止追踪器</span>
+            </label>
+            <label class="toggle">
+                <input type="checkbox" id="antiBypassToggle" checked>
+                <span>反反拦截保护</span>
+            </label>
+        </div>
+
+        <footer class="footer">
+            <span>v0.1.0</span>
+            <a href="#" id="settingsLink">设置</a>
+        </footer>
+    </div>
+
+    <script type="module" src="popup.js"></script>
+</body>
+</html>
