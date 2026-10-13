@@ -1,0 +1,51 @@
+namespace dewsecure {
+    Classification classify_url(string url, sequence<string> headers);
+};
+
+enum Classification {
+    "Ad",
+    "Tracker",
+    "Normal",
+    "Unknown",
+};
+
+enum Decision {
+    "Allow",
+    "Block",
+    "Rewrite",
+};
+
+dictionary EngineConfig {
+    string rule_data;
+    string model_path;
+    boolean ai_enabled;
+};
+
+interface DewEngine {
+    [Throws=EngineError]
+    constructor(EngineConfig config);
+
+    Classification classify(string url, sequence<string> headers);
+
+    Decision decide(Classification classification, string url);
+
+    void add_custom_rule(string rule);
+
+    sequence<FilterRule> get_rules();
+
+    string get_stats();
+};
+
+dictionary FilterRule {
+    string pattern;
+    boolean is_exception;
+    sequence<string> resource_types;
+    sequence<string> domains;
+};
+
+[Error]
+enum EngineError {
+    "InvalidRule",
+    "ModelLoadFailed",
+    "InitializationFailed",
+};
