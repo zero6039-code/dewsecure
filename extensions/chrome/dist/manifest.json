@@ -9,9 +9,13 @@
     "storage",
     "alarms",
     "scripting",
-    "tabs"
+    "tabs",
+    "offscreen"
   ],
   "host_permissions": ["<all_urls>"],
+  "content_security_policy": {
+    "extension_pages": "script-src 'self' 'wasm-unsafe-eval'; object-src 'self'"
+  },
   "background": {
     "service_worker": "src/background.js",
     "type": "module"
@@ -26,21 +30,9 @@
   ],
   "declarative_net_request": {
     "rule_resources": [
-      {
-        "id": "ads",
-        "enabled": true,
-        "path": "rules/ads.json"
-      },
-      {
-        "id": "trackers",
-        "enabled": true,
-        "path": "rules/trackers.json"
-      },
-      {
-        "id": "annoyances",
-        "enabled": false,
-        "path": "rules/annoyances.json"
-      }
+      { "id": "ads", "enabled": true, "path": "rules/ads.json" },
+      { "id": "trackers", "enabled": true, "path": "rules/trackers.json" },
+      { "id": "annoyances", "enabled": false, "path": "rules/annoyances.json" }
     ]
   },
   "action": {
@@ -60,7 +52,7 @@
   },
   "web_accessible_resources": [
     {
-      "resources": ["wasm/*.wasm", "models/*.onnx"],
+      "resources": ["wasm/*.wasm", "wasm/*.mjs", "models/*.onnx"],
       "matches": ["<all_urls>"]
     }
   ]

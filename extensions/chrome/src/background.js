@@ -136,17 +136,80 @@ async function handleMessage(message, sender) {
 
 let classifierSession = null;
 
+// ============ Offscreen Document 管理 ============
+
+let offscreenReady = false;
+
+async function ensureOffscreen() {
+    if (offscreenReady) return true;
+
+    // 检查是否已存在 offscreen document
+    const existingContexts = await chrome.runtime.getContexts({
+        contextTypes: ['OFFSCREEN_DOCUMENT'],
+    });
+
+    let justCreated = false;
+    if (existingContexts.length === 0) {
+        try {
+            await chrome.offscreen.createDocument({
+                url: 'src/offscreen.html',
+                reasons: ['WORKERS'],
+                justification: '运行 ONNX 模型推理（Service Worker 不允许 WASM + 动态 import）',
+            });
+            justCreated = true;
+            console.log('✅ Offscreen Document 已创建');
+        } catch (e) {
+            console.warn('❌ Offscreen Document 创建失败:', e);
+            return false;
+        }
+    }
+
+    // 等待 Offscreen 脚本加载完成（首次创建时需要等待）
+    if (justCreated) {
+        await new Promise((r) => setTimeout(r, 800));
+    }
+
+    // 轮询 PING 确认 offscreen 的 message listener 已就绪
+    for (let i = 0; i < 10; i++) {
+        try {
+            const pong = await chrome.runtime.sendMessage({
+                target: 'offscreen',
+                type: 'PING',
+            });
+            if (pong && pong.ok) {
+                offscreenReady = true;
+                return true;
+            }
+        } catch (e) {
+            // ignore, retry
+        }
+        await new Promise((r) => setTimeout(r, 300));
+    }
+
+    console.warn('❌ Offscreen 未在预期时间内就绪');
+    return false;
+}
+
 async function initClassifier() {
-    if (classifierSession) return classifierSession;
+    const ok = await ensureOffscreen();
+    if (!ok) {
+        console.warn('❌ ensureOffscreen 失败');
+        return null;
+    }
 
     try {
-        const ort = await import('onnxruntime-web');
-        const modelUrl = chrome.runtime.getURL('models/classifier_int8.onnx');
-        classifierSession = await ort.InferenceSession.create(modelUrl);
-        console.log('AI 分类器已加载');
-        return classifierSession;
+        const response = await chrome.runtime.sendMessage({
+            target: 'offscreen',
+            type: 'INIT',
+        });
+        console.log('INIT 响应:', response);
+        if (response && response.ok) {
+            console.log('✅ AI 分类器已在 Offscreen 中加载');
+            return true;
+        }
+        return null;
     } catch (e) {
-        console.warn('AI 分类器加载失败:', e);
+        console.warn('❌ AI 分类器初始化失败:', e);
         return null;
     }
 }
@@ -301,18 +364,24 @@ function calculateEntropy(s) {
 }
 
 async function runClassifier(features) {
-    const session = await initClassifier();
-    if (!session) return null;
+    const ok = await ensureOffscreen();
+    if (!ok) return null;
 
     try {
-        const ort = await import('onnxruntime-web');
-        const tensor = new ort.Tensor('float32', features, [1, FEATURE_DIM]);
-        const result = await session.run({ input: tensor });
-        const prob = result.output.data[0];
+        const response = await chrome.runtime.sendMessage({
+            target: 'offscreen',
+            type: 'CLASSIFY',
+            features: Array.from(features),
+        });
 
+        if (!response || response.error) {
+            console.warn('分类失败:', response?.error);
+            return null;
+        }
+
+        const prob = response.prob;
         let classification = 'Normal';
         if (prob > 0.5) {
-            // 区分广告和追踪器
             const offset = NUM_BUCKETS;
             const trackerScore =
                 features[offset + 10] * 2.5 +
@@ -379,3 +448,10 @@ async function removeFromWhitelist(domain) {
 }
 
 console.log('DewSecure Service Worker 已启动');
+
+// ============ 调试入口（ES Module 函数默认不暴露到全局） ============
+self.initClassifier = initClassifier;
+self.classifyUrl = classifyUrl;
+self.extractFeatures = extractFeatures;
+self.runClassifier = runClassifier;
+console.log('🔧 调试入口已挂载：initClassifier / classifyUrl / extractFeatures / runClassifier');
