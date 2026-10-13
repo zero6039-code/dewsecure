@@ -1,0 +1,6 @@
+[bindings.kotlin]
+package_name = "com.dewsecure.core"
+
+[bindings.swift]
+module_name = "DewSecureCore"
+ffi_module_name = "DewSecureCoreFFI"
