@@ -1,0 +1,14 @@
+{
+  "name": "dewsecure-firefox",
+  "version": "0.1.0",
+  "description": "DewSecure Firefox Extension",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "node build.js",
+    "dev": "node build.js --watch"
+  },
+  "devDependencies": {
+    "esbuild": "^0.24.0"
+  }
+}
