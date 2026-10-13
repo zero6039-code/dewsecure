@@ -1,0 +1,19 @@
+{
+  "name": "dewsecure-chrome",
+  "version": "0.1.0",
+  "description": "DewSecure Chrome Extension",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "node build.js",
+    "dev": "node build.js --watch",
+    "test": "echo \"No tests yet\" && exit 0"
+  },
+  "devDependencies": {
+    "esbuild": "^0.24.0",
+    "chokidar": "^3.6.0"
+  },
+  "dependencies": {
+    "onnxruntime-web": "^1.19.0"
+  }
+}
