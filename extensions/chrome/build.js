@@ -6,6 +6,36 @@ import { fileURLToPath } from 'url';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const watch = process.argv.includes('--watch');
 
+// ============ 智能 fallback：确保 r2-config.js 存在 ============
+const R2_CONFIG = 'src/r2-config.js';
+const R2_EXAMPLE = 'src/r2-config.example.js';
+let generatedR2Config = false;
+
+if (!fs.existsSync(R2_CONFIG)) {
+    // 优先从环境变量生成（用于 CI 发布）
+    const { R2_ACCOUNT_ID, R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY, R2_BUCKET } = process.env;
+
+    if (R2_ACCESS_KEY_ID && R2_SECRET_ACCESS_KEY) {
+        console.log('🔐 从环境变量生成 r2-config.js');
+        const content = `// Auto-generated from env vars (CI)
+export const R2_CONFIG = {
+    accountId: '${R2_ACCOUNT_ID || 'unknown'}',
+    accessKeyId: '${R2_ACCESS_KEY_ID}',
+    secretAccessKey: '${R2_SECRET_ACCESS_KEY}',
+    bucket: '${R2_BUCKET || 'dewsecure-models'}',
+    presignedUrlExpiry: 60,
+};
+`;
+        fs.writeFileSync(R2_CONFIG, content);
+    } else {
+        // 兜底：从 example 复制
+        console.log('⚠️  r2-config.js 不存在，使用 example 作为占位符（构建产物无实际功能）');
+        fs.copyFileSync(R2_EXAMPLE, R2_CONFIG);
+    }
+    generatedR2Config = true;
+}
+
+// ============ esbuild 配置 ============
 const buildOptions = {
     entryPoints: [
         'src/background.js',
@@ -61,7 +91,7 @@ function copyStatic() {
         }
     }
 
-    // 只复制核心 WASM 文件
+    // WASM 文件
     const ortDist = 'node_modules/onnxruntime-web/dist';
     const wasmDest = 'dist/wasm';
     const neededFiles = [
@@ -82,6 +112,12 @@ function copyStatic() {
     }
 
     console.log('Build complete!');
+
+    // 清理临时生成的 r2-config.js（仅当不是本地已有的）
+    if (generatedR2Config && !process.env.R2_ACCESS_KEY_ID) {
+        // 保留 example 副本，不删除（避免下次构建时又要重新生成）
+        console.log('ℹ️  保留 placeholder r2-config.js（不包含真实凭证）');
+    }
 }
 
 build().catch((e) => {
