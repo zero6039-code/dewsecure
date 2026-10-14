@@ -2,7 +2,6 @@ name: Auto Train Model
 
 on:
   schedule:
-    # 每月 1 号 UTC 02:00（北京时间 10:00）
     - cron: '0 2 1 * *'
   workflow_dispatch:
 
@@ -39,15 +38,31 @@ jobs:
         working-directory: models
         run: python conversion/to_onnx.py
 
+      - name: 调试 - 检查文件系统
+        run: |
+          echo "=== 仓库根目录 ==="
+          pwd
+          echo ""
+          echo "=== models/weights/ 内容 ==="
+          ls -la models/weights/ || echo "目录不存在"
+          echo ""
+          echo "=== 查找 model_meta.json ==="
+          find . -name "model_meta.json" -type f 2>/dev/null || echo "找不到"
+
       - name: 读取模型元信息
         id: meta
+        working-directory: models
         run: |
-          MACRO_F1=$(python -c "import json; print(round(json.load(open('models/weights/model_meta.json'))['macroF1'], 4))")
-          VERSION="model-$(date -u +%Y%m%d)-$(echo ${{ github.run_number }})"
+          if [ ! -f weights/model_meta.json ]; then
+            echo "❌ model_meta.json 不存在"
+            exit 1
+          fi
+          MACRO_F1=$(python -c "import json; print(round(json.load(open('weights/model_meta.json'))['macroF1'], 4))")
+          VERSION="model-$(date -u +%Y%m%d)-${{ github.run_number }}"
           echo "macro_f1=$MACRO_F1" >> $GITHUB_OUTPUT
           echo "version=$VERSION" >> $GITHUB_OUTPUT
-          echo "模型 Macro F1: $MACRO_F1"
-          echo "版本: $VERSION"
+          echo "✅ 模型 Macro F1: $MACRO_F1"
+          echo "✅ 版本: $VERSION"
 
       - name: 安装 rclone
         run: |
@@ -69,27 +84,17 @@ jobs:
 
       - name: 上传模型到 R2
         run: |
-          # 上传到 latest/ （扩展默认从这里下载）
           rclone copy models/weights/classifier_int8.onnx \
             r2:${{ secrets.R2_BUCKET }}/latest/ --s3-no-check-bucket
-
-          # 上传元信息
           rclone copy models/weights/model_meta.json \
             r2:${{ secrets.R2_BUCKET }}/latest/ --s3-no-check-bucket
-
-          # 同时归档历史版本
           rclone copy models/weights/classifier_int8.onnx \
             r2:${{ secrets.R2_BUCKET }}/${{ steps.meta.outputs.version }}/ --s3-no-check-bucket
 
-          # 验证上传
           echo "=== latest 目录内容 ==="
           rclone ls r2:${{ secrets.R2_BUCKET }}/latest/ --s3-no-check-bucket
 
-          echo ""
-          echo "=== 历史版本归档 ==="
-          rclone ls r2:${{ secrets.R2_BUCKET }}/${{ steps.meta.outputs.version }}/ --s3-no-check-bucket
-
-      - name: 上传到 GitHub Release（备份）
+      - name: 上传到 GitHub Release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ steps.meta.outputs.version }}
@@ -97,8 +102,7 @@ jobs:
           body: |
             Auto-trained 3-class model
             - Macro F1: ${{ steps.meta.outputs.macro_f1 }}
-            - CDN URL: https://cdn.dewsecure.com/latest/classifier_int8.onnx
-            - Archived: https://cdn.dewsecure.com/${{ steps.meta.outputs.version }}/classifier_int8.onnx
+            - CDN: https://cdn.dewsecure.com/latest/classifier_int8.onnx
           files: |
             models/weights/classifier_int8.onnx
             models/weights/model_meta.json
@@ -107,7 +111,7 @@ jobs:
 
       - name: 验证 CDN 可访问
         run: |
-          sleep 5  # 等 R2 上传稳定
-          curl -I https://cdn.dewsecure.com/latest/classifier_int8.onnx | head -5
+          sleep 5
+          curl -I https://cdn.dewsecure.com/latest/classifier_int8.onnx | head -3
           echo ""
           curl -s https://cdn.dewsecure.com/latest/model_meta.json | head -10
