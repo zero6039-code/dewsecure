@@ -1,20 +1,57 @@
 /**
- * DewSecure 模型管理器
+ * DewSecure 模型管理器（预签名 URL 版本）
  *
  * 职责：
  * 1. 从 IndexedDB 加载缓存的模型
- * 2. 后台检查 CDN 是否有新版本
- * 3. 下载新模型 + SHA-256 校验 + 缓存
+ * 2. 用预签名 URL 从 R2 检查/下载新版本
+ * 3. SHA-256 完整性校验
+ *
+ * 安全：
+ * - 预签名 URL 有效期 60 秒
+ * - URL 动态生成，不暴露到静态文件
+ * - SHA-256 校验防篡改
  */
 
-const CDN_BASE = 'https://cdn.dewsecure.com';
-const META_URL = `${CDN_BASE}/latest/model_meta.json`;
-const MODEL_URL = `${CDN_BASE}/latest/classifier_int8.onnx`;
+import { AwsClient } from 'aws4fetch';
+import { R2_CONFIG } from './r2-config.js';
+
+const S3_ENDPOINT = `https://${R2_CONFIG.accountId}.r2.cloudflarestorage.com`;
+const BUCKET = R2_CONFIG.bucket;
+const META_KEY = 'latest/model_meta.json';
+const MODEL_KEY = 'latest/classifier_int8.onnx';
 
 const DB_NAME = 'dewsecure_models';
 const DB_VERSION = 1;
 const STORE_NAME = 'models';
-const META_KEY = 'latest_meta';
+const CACHE_META_KEY = 'latest_meta';
+
+// ============ R2 客户端 ============
+
+const r2Client = new AwsClient({
+    accessKeyId: R2_CONFIG.accessKeyId,
+    secretAccessKey: R2_CONFIG.secretAccessKey,
+    service: 's3',
+    region: 'auto',
+});
+
+/**
+ * 生成预签名 URL
+ * @param {string} key - 对象 key（如 latest/classifier_int8.onnx）
+ * @param {number} expiresIn - 有效期（秒）
+ * @returns {string} 预签名 URL
+ */
+async function getPresignedUrl(key, expiresIn = R2_CONFIG.presignedUrlExpiry) {
+    const url = new URL(`${S3_ENDPOINT}/${BUCKET}/${key}`);
+    url.searchParams.set('X-Amz-Expires', expiresIn.toString());
+
+    const signed = await r2Client.sign(url.toString(), {
+        aws: { signQuery: true },
+    });
+
+    return signed.url;
+}
+
+// ============ IndexedDB ============
 
 let dbPromise = null;
 
@@ -53,14 +90,15 @@ async function dbPut(key, value) {
     });
 }
 
-/**
- * 计算 ArrayBuffer 的 SHA-256
- */
+// ============ SHA-256 ============
+
 async function computeSHA256(buffer) {
     const hashBuffer = await crypto.subtle.digest('SHA-256', buffer);
     const hashArray = Array.from(new Uint8Array(hashBuffer));
     return hashArray.map((b) => b.toString(16).padStart(2, '0')).join('');
 }
+
+// ============ 公共 API ============
 
 /**
  * 获取本地缓存的模型
@@ -68,7 +106,7 @@ async function computeSHA256(buffer) {
 export async function getCachedModel() {
     try {
         const cached = await dbGet('current_model');
-        const meta = await dbGet(META_KEY);
+        const meta = await dbGet(CACHE_META_KEY);
         if (cached && meta) {
             return { buffer: cached, meta };
         }
@@ -79,14 +117,19 @@ export async function getCachedModel() {
 }
 
 /**
- * 检查并更新模型
+ * 检查并更新模型（用预签名 URL）
  */
 export async function checkAndUpdateModel() {
     try {
         console.log('[ModelManager] 🔍 检查模型更新...');
+        console.log('[ModelManager] 🔐 生成预签名 URL...');
 
-        // 1. 拉取最新元信息
-        const metaResp = await fetch(META_URL, { cache: 'no-cache' });
+        // 1. 生成 meta 的预签名 URL
+        const metaUrl = await getPresignedUrl(META_KEY);
+        console.log('[ModelManager] ✅ Meta URL 已生成（有效期 60 秒）');
+
+        // 2. 拉取 meta
+        const metaResp = await fetch(metaUrl, { cache: 'no-store' });
         if (!metaResp.ok) {
             console.warn('[ModelManager] 获取 meta 失败:', metaResp.status);
             return { updated: false, meta: null };
@@ -94,8 +137,8 @@ export async function checkAndUpdateModel() {
         const remoteMeta = await metaResp.json();
         const remoteVersion = remoteMeta.trainedAt;
 
-        // 2. 对比本地版本
-        const localMeta = await dbGet(META_KEY);
+        // 3. 对比版本
+        const localMeta = await dbGet(CACHE_META_KEY);
         const localVersion = localMeta?.trainedAt;
 
         if (localVersion === remoteVersion) {
@@ -103,16 +146,22 @@ export async function checkAndUpdateModel() {
             return { updated: false, meta: remoteMeta };
         }
 
-        // 3. 下载新模型
+        // 4. 生成模型的预签名 URL（只在需要下载时生成）
         console.log('[ModelManager] 📥 发现新版本:', remoteVersion);
-        const modelResp = await fetch(MODEL_URL, { cache: 'no-cache' });
+        console.log('[ModelManager] 🔐 生成模型预签名 URL...');
+        const modelUrl = await getPresignedUrl(MODEL_KEY);
+        console.log('[ModelManager] ✅ 模型 URL 已生成（有效期 60 秒）');
+
+        // 5. 下载模型
+        const modelResp = await fetch(modelUrl, { cache: 'no-store' });
         if (!modelResp.ok) {
             console.warn('[ModelManager] 下载模型失败:', modelResp.status);
             return { updated: false, meta: null };
         }
         const modelBuffer = await modelResp.arrayBuffer();
+        console.log('[ModelManager] ✅ 模型已下载:', `(${(modelBuffer.byteLength / 1024).toFixed(1)} KB)`);
 
-        // 4. ⭐ SHA-256 校验
+        // 6. SHA-256 校验
         if (remoteMeta.sha256) {
             console.log('[ModelManager] 🔐 校验模型完整性...');
             const actualHash = await computeSHA256(modelBuffer);
@@ -124,19 +173,14 @@ export async function checkAndUpdateModel() {
             }
             console.log('[ModelManager] ✅ SHA-256 校验通过');
         } else {
-            console.warn('[ModelManager] ⚠️ 元信息缺少 sha256 字段，跳过校验');
+            console.warn('[ModelManager] ⚠️ 缺少 sha256 字段，跳过校验');
         }
 
-        // 5. 保存到 IndexedDB
+        // 7. 缓存
         await dbPut('current_model', modelBuffer);
-        await dbPut(META_KEY, remoteMeta);
+        await dbPut(CACHE_META_KEY, remoteMeta);
 
-        console.log(
-            '[ModelManager] ✅ 模型已更新:',
-            remoteVersion,
-            `(${(modelBuffer.byteLength / 1024).toFixed(1)} KB)`
-        );
-
+        console.log('[ModelManager] ✅ 模型已更新:', remoteVersion);
         return { updated: true, meta: remoteMeta };
     } catch (e) {
         console.warn('[ModelManager] 检查更新失败:', e);
@@ -148,7 +192,7 @@ export async function checkAndUpdateModel() {
  * 强制刷新
  */
 export async function forceRefreshModel() {
-    await dbPut(META_KEY, null);
+    await dbPut(CACHE_META_KEY, null);
     await dbPut('current_model', null);
     return checkAndUpdateModel();
 }
@@ -170,7 +214,7 @@ export async function clearModelCache() {
  * 获取当前模型版本
  */
 export async function getModelVersion() {
-    const meta = await dbGet(META_KEY);
+    const meta = await dbGet(CACHE_META_KEY);
     if (meta) {
         return {
             version: meta.trainedAt,
