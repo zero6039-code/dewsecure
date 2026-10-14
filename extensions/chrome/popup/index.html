@@ -29,8 +29,8 @@
 
         <div class="limit-bar" id="limitBar">
             <div class="limit-info">
-                <span>免费版每日限额</span>
-                <span id="limitText">0 / 100</span>
+                <span>AI 每日额度</span>
+                <span id="limitText">0 / 50</span>
             </div>
             <div class="limit-progress">
                 <div class="limit-fill" id="limitFill"></div>
@@ -40,6 +40,20 @@
         <div class="actions">
             <button class="btn btn-primary" id="toggleSite">在此网站暂停</button>
             <button class="btn btn-secondary" id="upgradeBtn">升级到高级版</button>
+        </div>
+
+        <!-- ✅ 新增：用户反馈区域 -->
+        <div class="feedback-section">
+            <div class="feedback-title">🛠️ 帮助改进 DewSecure</div>
+            <div class="feedback-buttons">
+                <button class="btn-feedback" id="reportMissed" title="有广告没拦住？告诉我们">
+                    😤 漏拦广告
+                </button>
+                <button class="btn-feedback" id="reportFalse" title="误拦了正常内容？告诉我们">
+                    😡 误拦内容
+                </button>
+            </div>
+            <div class="feedback-hint" id="feedbackHint">您的反馈将匿名上传，帮助 AI 持续进化</div>
         </div>
 
         <div class="settings">

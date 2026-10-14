@@ -65,8 +65,8 @@ async function classify(features) {
         const inputName = session.inputNames[0];
         const outputName = session.outputNames[0];
         const result = await session.run({ [inputName]: tensor });
-        const prob = result[outputName].data[0];
-        return { prob };
+        const probs = Array.from(result[outputName].data);  // [p_normal, p_ad, p_tracker]
+        return { probs };
     } catch (e) {
         console.error('❌ 推理失败:', e);
         return { error: String(e) };

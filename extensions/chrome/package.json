@@ -7,13 +7,15 @@
   "scripts": {
     "build": "node build.js",
     "dev": "node build.js --watch",
-    "test": "echo \"No tests yet\" && exit 0"
+    "test": "echo \"No tests yet\" && exit 0",
+    "update-rules": "node scripts/convert-rules.js"
   },
   "devDependencies": {
-    "esbuild": "^0.24.0",
-    "chokidar": "^3.6.0"
+    "chokidar": "^3.6.0",
+    "esbuild": "^0.24.0"
   },
   "dependencies": {
+    "@adguard/dnr-converter": "^2.0.0",
     "onnxruntime-web": "^1.19.0"
   }
 }

@@ -5,26 +5,20 @@
 async function init() {
     const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
 
-    // 获取统计和设置
     const { stats, settings } = await chrome.runtime.sendMessage({ type: 'GET_STATS' });
 
-    // 更新 UI
     updateStats(stats);
     updateLimit(settings);
     updateToggles(settings);
 
-    // 检查当前网站是否在白名单
     if (tab?.url) {
         try {
             const host = new URL(tab.url).hostname;
             const isWhitelisted = settings.whitelist.some((d) => host.endsWith(d));
             updateSiteButton(isWhitelisted, host);
-        } catch (e) {
-            // 忽略无效 URL
-        }
+        } catch (e) {}
     }
 
-    // 绑定事件
     bindEvents(settings);
 }
 
@@ -42,7 +36,7 @@ function updateLimit(settings) {
 
     limitBar.classList.remove('premium');
     const used = settings.dailyUsed || 0;
-    const limit = settings.dailyLimit || 100;
+    const limit = settings.dailyLimit || 50;
     const percent = Math.min(100, (used / limit) * 100);
 
     document.getElementById('limitText').textContent = `${used} / ${limit}`;
@@ -72,25 +66,21 @@ function updateSiteButton(isWhitelisted, host) {
 }
 
 function bindEvents(settings) {
-    // AI 开关
     document.getElementById('aiToggle').addEventListener('change', async (e) => {
         settings.aiEnabled = e.target.checked;
         await chrome.runtime.sendMessage({ type: 'UPDATE_SETTINGS', settings });
     });
 
-    // 追踪器开关
     document.getElementById('trackerToggle').addEventListener('change', async (e) => {
         settings.blockTrackers = e.target.checked;
         await chrome.runtime.sendMessage({ type: 'UPDATE_SETTINGS', settings });
     });
 
-    // 反反拦截开关
     document.getElementById('antiBypassToggle').addEventListener('change', async (e) => {
         settings.antiBypassEnabled = e.target.checked;
         await chrome.runtime.sendMessage({ type: 'UPDATE_SETTINGS', settings });
     });
 
-    // 网站白名单切换
     document.getElementById('toggleSite').addEventListener('click', async (e) => {
         const btn = e.target;
         const host = btn.dataset.host;
@@ -105,16 +95,58 @@ function bindEvents(settings) {
         }
     });
 
-    // 升级按钮
     document.getElementById('upgradeBtn').addEventListener('click', () => {
         chrome.tabs.create({ url: 'https://dewsecure.com/upgrade' });
     });
 
-    // 设置链接
     document.getElementById('settingsLink').addEventListener('click', (e) => {
         e.preventDefault();
         chrome.runtime.openOptionsPage();
     });
+
+    // ============ 用户反馈按钮 ============
+    document.getElementById('reportMissed').addEventListener('click', () => {
+        handleReport('missed');
+    });
+
+    document.getElementById('reportFalse').addEventListener('click', () => {
+        handleReport('false_positive');
+    });
+}
+
+async function handleReport(type) {
+    const hint = document.getElementById('feedbackHint');
+    const buttons = document.querySelectorAll('.btn-feedback');
+    buttons.forEach((b) => (b.disabled = true));
+
+    try {
+        const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+        const url = tab?.url || '';
+
+        const response = await chrome.runtime.sendMessage({
+            type: 'REPORT_FEEDBACK',
+            reportType: type,
+            url,
+            timestamp: Date.now(),
+        });
+
+        if (response?.ok) {
+            hint.textContent = '✅ 感谢反馈！已帮助改进 AI 模型';
+            hint.classList.add('success');
+            hint.classList.remove('error');
+        } else {
+            hint.textContent = '⚠️ 反馈失败，请稍后重试';
+            hint.classList.add('error');
+            hint.classList.remove('success');
+        }
+    } catch (e) {
+        hint.textContent = '⚠️ 反馈失败: ' + e.message;
+        hint.classList.add('error');
+    } finally {
+        setTimeout(() => {
+            buttons.forEach((b) => (b.disabled = false));
+        }, 3000);
+    }
 }
 
 init().catch(console.error);

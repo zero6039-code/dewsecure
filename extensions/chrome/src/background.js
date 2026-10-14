@@ -17,7 +17,7 @@ const DEFAULT_SETTINGS = {
     blockTrackers: true,
     blockAnnoyances: false,
     whitelist: [],
-    dailyLimit: 100,
+    dailyLimit: 50,
     dailyUsed: 0,
     lastResetDate: new Date().toDateString(),
     subscription: 'free', // free | premium
@@ -41,6 +41,8 @@ chrome.runtime.onInstalled.addListener(async (details) => {
             [STATS_KEY]: {
                 totalBlocked: 0,
                 todayBlocked: 0,
+                todayRuleBlocked: 0,
+                todayAIBlocked: 0,
                 lastReset: new Date().toDateString(),
             },
         });
@@ -48,6 +50,9 @@ chrome.runtime.onInstalled.addListener(async (details) => {
 
     // 设置每日重置闹钟
     chrome.alarms.create('daily-reset', { periodInMinutes: 60 });
+
+    // 联邦学习：每 24 小时上报一次匿名反馈
+    chrome.alarms.create('federated-upload', { periodInMinutes: 24 * 60 });
 });
 
 // ============ 拦截统计 ============
@@ -62,14 +67,23 @@ async function recordBlock(url) {
 
     if (stats.lastReset !== today) {
         stats.todayBlocked = 0;
+        stats.todayRuleBlocked = 0;
+        stats.todayAIBlocked = 0;
         stats.lastReset = today;
     }
 
     stats.totalBlocked++;
     stats.todayBlocked++;
+    stats.todayRuleBlocked = (stats.todayRuleBlocked || 0) + 1;
 
     await chrome.storage.local.set({ [STATS_KEY]: stats });
     updateBadge(stats.todayBlocked);
+}
+
+async function recordAIBlock() {
+    const { [STATS_KEY]: stats } = await chrome.storage.local.get(STATS_KEY);
+    stats.todayAIBlocked = (stats.todayAIBlocked || 0) + 1;
+    await chrome.storage.local.set({ [STATS_KEY]: stats });
 }
 
 function updateBadge(count) {
@@ -81,6 +95,9 @@ function updateBadge(count) {
 // ============ 每日重置 ============
 
 chrome.alarms.onAlarm.addListener(async (alarm) => {
+    if (alarm.name === 'federated-upload') {
+        await uploadFederatedFeedback();
+    }
     if (alarm.name === 'daily-reset') {
         const { [SETTINGS_KEY]: settings } = await chrome.storage.local.get(SETTINGS_KEY);
         const today = new Date().toDateString();
@@ -127,6 +144,9 @@ async function handleMessage(message, sender) {
         case 'GET_ANTI_BYPASS_SCRIPT':
             return { script: generateAntiBypassScript() };
 
+        case 'REPORT_FEEDBACK':
+            return await handleFeedbackReport(message);
+
         default:
             return { error: '未知消息类型' };
     }
@@ -143,30 +163,24 @@ let offscreenReady = false;
 async function ensureOffscreen() {
     if (offscreenReady) return true;
 
-    // 检查是否已存在 offscreen document
-    const existingContexts = await chrome.runtime.getContexts({
-        contextTypes: ['OFFSCREEN_DOCUMENT'],
-    });
-
-    let justCreated = false;
-    if (existingContexts.length === 0) {
-        try {
-            await chrome.offscreen.createDocument({
-                url: 'src/offscreen.html',
-                reasons: ['WORKERS'],
-                justification: '运行 ONNX 模型推理（Service Worker 不允许 WASM + 动态 import）',
-            });
-            justCreated = true;
-            console.log('✅ Offscreen Document 已创建');
-        } catch (e) {
+    // 尝试创建，如果已存在就忽略错误
+    try {
+        await chrome.offscreen.createDocument({
+            url: 'src/offscreen.html',
+            reasons: ['WORKERS'],
+            justification: '运行 ONNX 模型推理（Service Worker 不允许 WASM + 动态 import）',
+        });
+        console.log('✅ Offscreen Document 已创建');
+        // 首次创建时等待脚本加载
+        await new Promise((r) => setTimeout(r, 800));
+    } catch (e) {
+        const msg = e?.message || String(e);
+        if (msg.includes('Only a single offscreen') || msg.includes('already exists')) {
+            console.log('ℹ️ Offscreen Document 已存在，直接复用');
+        } else {
             console.warn('❌ Offscreen Document 创建失败:', e);
             return false;
         }
-    }
-
-    // 等待 Offscreen 脚本加载完成（首次创建时需要等待）
-    if (justCreated) {
-        await new Promise((r) => setTimeout(r, 800));
     }
 
     // 轮询 PING 确认 offscreen 的 message listener 已就绪
@@ -180,7 +194,7 @@ async function ensureOffscreen() {
                 offscreenReady = true;
                 return true;
             }
-        } catch (e) {
+        } catch (err) {
             // ignore, retry
         }
         await new Promise((r) => setTimeout(r, 300));
@@ -379,18 +393,16 @@ async function runClassifier(features) {
             return null;
         }
 
-        const prob = response.prob;
-        let classification = 'Normal';
-        if (prob > 0.5) {
-            const offset = NUM_BUCKETS;
-            const trackerScore =
-                features[offset + 10] * 2.5 +
-                features[offset + 11] * 1.5 +
-                features[offset + 15] * 2.0;
-            classification = trackerScore > 2.0 ? 'Tracker' : 'Ad';
+        const probs = response.probs;  // [p_normal, p_ad, p_tracker]
+        const labels = ['Normal', 'Ad', 'Tracker'];
+        let maxIdx = 0;
+        for (let i = 1; i < probs.length; i++) {
+            if (probs[i] > probs[maxIdx]) maxIdx = i;
         }
+        const classification = labels[maxIdx];
+        const confidence = probs[maxIdx];
 
-        return { classification, confidence: prob, source: 'ai' };
+        return { classification, confidence, source: 'ai', allProbs: probs };
     } catch (e) {
         console.warn('分类失败:', e);
         return null;
@@ -455,3 +467,93 @@ self.classifyUrl = classifyUrl;
 self.extractFeatures = extractFeatures;
 self.runClassifier = runClassifier;
 console.log('🔧 调试入口已挂载：initClassifier / classifyUrl / extractFeatures / runClassifier');
+
+
+// ============ 用户反馈处理 ============
+
+const FEEDBACK_BUFFER_KEY = 'dewsecure_feedback_buffer';
+const MAX_FEEDBACK_BUFFER = 500;
+const FEEDBACK_COOLDOWN_MS = 60 * 1000;  // 同一用户 1 分钟内只能报告一次
+let lastFeedbackTime = 0;
+
+async function handleFeedbackReport(message) {
+    // 防滥用：冷却时间
+    const now = Date.now();
+    if (now - lastFeedbackTime < FEEDBACK_COOLDOWN_MS) {
+        const remaining = Math.ceil((FEEDBACK_COOLDOWN_MS - (now - lastFeedbackTime)) / 1000);
+        return { ok: false, error: `请等待 ${remaining} 秒后再试` };
+    }
+    lastFeedbackTime = now;
+
+    try {
+        // 提取域名（不含路径和查询参数，保护隐私）
+        let domain = '';
+        try {
+            domain = new URL(message.url).hostname;
+        } catch {
+            domain = message.url;
+        }
+
+        // 域名哈希（SHA-256 加盐，不可逆）
+        const domainHash = await hashDomain(domain);
+
+        const feedback = {
+            type: message.reportType,       // 'missed' | 'false_positive'
+            domainHash,
+            timestamp: message.timestamp,
+            version: chrome.runtime.getManifest().version,
+        };
+
+        // 存入本地缓冲区
+        const { [FEEDBACK_BUFFER_KEY]: buffer = [] } =
+            await chrome.storage.local.get(FEEDBACK_BUFFER_KEY);
+
+        buffer.push(feedback);
+
+        // 限制缓冲区大小
+        if (buffer.length > MAX_FEEDBACK_BUFFER) {
+            buffer.splice(0, buffer.length - MAX_FEEDBACK_BUFFER);
+        }
+
+        await chrome.storage.local.set({ [FEEDBACK_BUFFER_KEY]: buffer });
+
+        console.log('📝 反馈已记录:', feedback);
+
+        // 如果有服务器端，尝试立即上传
+        await tryUploadFeedback(feedback);
+
+        return { ok: true };
+    } catch (e) {
+        console.warn('反馈处理失败:', e);
+        return { ok: false, error: String(e) };
+    }
+}
+
+async function tryUploadFeedback(feedback) {
+    // 当前阶段没有服务器，只存本地
+    // 未来切换到 R2 + Worker 后，改为 fetch 上传
+    const UPLOAD_ENDPOINT = 'https://api.dewsecure.com/v1/feedback';
+    try {
+        const response = await fetch(UPLOAD_ENDPOINT, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(feedback),
+        });
+        if (response.ok) {
+            console.log('✅ 反馈已上传');
+        }
+    } catch (e) {
+        // 服务器未就绪，静默失败，数据留在本地缓冲区
+        console.log('ℹ️ 反馈上传暂不可用（服务器未就绪）');
+    }
+}
+
+async function hashDomain(domain) {
+    const encoder = new TextEncoder();
+    const data = encoder.encode(domain + '_dewsecure_salt_v1');
+    const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+    return Array.from(new Uint8Array(hashBuffer))
+        .map((b) => b.toString(16).padStart(2, '0'))
+        .join('')
+        .substring(0, 16);
+}

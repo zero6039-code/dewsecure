@@ -1,4 +1,4 @@
-"""数据准备：构建广告/非广告域名数据集。"""
+"""数据准备：构建三分类（Ad / Tracker / Normal）数据集。"""
 
 import os
 import requests
@@ -7,97 +7,125 @@ from tqdm import tqdm
 
 DATA_DIR = os.path.join(os.path.dirname(__file__), '..', 'data')
 
+# 大幅扩展的 Tracker 关键词（覆盖主流追踪服务）
+TRACKER_KEYWORDS = [
+    # 通用
+    'track', 'tracking', 'tracker',
+    'analytics', 'stats', 'statistic',
+    'pixel', 'beacon', 'telemetry', 'metric',
+    'audit', 'audience', 'measure',
+    # 具体服务
+    'google-analytics', 'googletagmanager', 'gtag',
+    'scorecardresearch', 'quantserve', 'comscore',
+    'hotjar', 'mixpanel', 'segment.io', 'segment.com',
+    'amplitude', 'fullstory', 'heap.io', 'heapanalytics',
+    'mouseflow', 'crazyegg', 'clicktale', 'luckyorange',
+    'kissmetrics', 'matomo', 'piwik', 'plausible',
+    'newrelic', 'datadog', 'sentry', 'bugsnag',
+    'branch.io', 'adjust.com', 'appsflyer', 'kochava',
+    'firebase', 'firebaseio',
+    'demdex', 'omtrdc', '2o7.net', 'everesttech',
+    'adobedtm', 'moatads', 'chartbeat', 'parsely',
+    'nr-data', 'nrdp', 'newrelic',
+    'snowplowanalytics', 'bluekai', 'krxd', 'exelator',
+    'adsymptotic', 'agkn', 'tapad', 'crwdcntrl',
+    'addthis', 'sharethis', 'addtoany',
+    'onesignal', 'pushengage', 'pushcrew',
+    'cdn.onesignal', 'cdn.mxpnl',
+]
+
+
+def classify_label(domain: str) -> int:
+    """把广告域名细分为 Ad(1) 或 Tracker(2)，正常为 0。"""
+    d = domain.lower()
+    # Tracker 优先匹配（比 Ad 更具体）
+    for kw in TRACKER_KEYWORDS:
+        if kw in d:
+            return 2
+    return 1
+
 
 def download_ad_domains():
-    """下载广告/追踪器域名列表。"""
     ad_domains = set()
-
     sources = [
         "https://raw.githubusercontent.com/StevenBlack/hosts/master/hosts",
         "https://adaway.org/hosts.txt",
-        "https://raw.githubusercontent.com/AdguardTeam/cname-trackers/master/data/combined_disguised_trackers.txt",
     ]
-
     for url in sources:
         try:
             print(f"下载: {url}")
-            response = requests.get(url, timeout=60)
-            response.raise_for_status()
-            for line in tqdm(response.text.split("\n"), desc=url.split("/")[-1]):
+            r = requests.get(url, timeout=60)
+            r.raise_for_status()
+            for line in tqdm(r.text.split("\n"), desc=url.split("/")[-1]):
                 line = line.strip()
                 if not line or line.startswith("#") or line.startswith("!"):
                     continue
-                # 解析 hosts 格式
                 parts = line.split()
-                if len(parts) >= 2:
-                    domain = parts[1]
-                else:
-                    domain = parts[0]
+                domain = parts[1] if len(parts) >= 2 else parts[0]
                 if domain and domain not in ("0.0.0.0", "127.0.0.1", "localhost"):
                     ad_domains.add(domain.lower())
         except Exception as e:
             print(f"下载失败 {url}: {e}")
-
     return ad_domains
 
 
 def download_legit_domains(limit=100000):
-    """下载合法域名列表（Majestic Million）。"""
-    legit_domains = set()
+    legit = set()
     try:
         print("下载 Majestic Million...")
-        response = requests.get(
-            "https://downloads.majestic.com/majestic_million.csv",
-            timeout=120,
+        r = requests.get(
+            "https://downloads.majestic.com/majestic_million.csv", timeout=120
         )
-        response.raise_for_status()
-        for i, line in enumerate(response.text.split("\n")):
+        r.raise_for_status()
+        for i, line in enumerate(r.text.split("\n")):
             if i == 0 or i > limit:
                 continue
             parts = line.split(",")
             if len(parts) > 2:
-                legit_domains.add(parts[2].lower())
+                legit.add(parts[2].lower())
     except Exception as e:
         print(f"下载失败: {e}")
-    return legit_domains
+    return legit
 
 
 def build_dataset():
-    """构建训练和测试数据集。"""
     os.makedirs(DATA_DIR, exist_ok=True)
 
     print("收集广告域名...")
     ad_domains = download_ad_domains()
-    print(f"  → {len(ad_domains)} 个广告/追踪器域名")
+    print(f"  → {len(ad_domains)} 个")
 
     print("收集合法域名...")
-    legit_domains = download_legit_domains(limit=len(ad_domains) * 2)
-    print(f"  → {len(legit_domains)} 个合法域名")
+    legit = download_legit_domains(limit=len(ad_domains) * 2)
+    print(f"  → {len(legit)} 个")
 
-    # 确保正负样本平衡
-    min_size = min(len(ad_domains), len(legit_domains))
-    ad_list = list(ad_domains)[:min_size]
-    legit_list = list(legit_domains)[:min_size]
+    n = min(len(ad_domains), len(legit))
+    ad_list = list(ad_domains)[:n]
+    legit_list = list(legit)[:n]
 
-    df = pd.DataFrame({
-        "domain": ad_list + legit_list,
-        "label": [1] * len(ad_list) + [0] * len(legit_list),
-    })
+    rows = []
+    tracker_count = 0
+    for d in ad_list:
+        label = classify_label(d)
+        if label == 2:
+            tracker_count += 1
+        rows.append({"domain": d, "label": label})
+    for d in legit_list:
+        rows.append({"domain": d, "label": 0})
 
-    # 去重、打乱
-    df = df.drop_duplicates(subset="domain").sample(frac=1, random_state=42).reset_index(drop=True)
+    print(f"\n  Tracker 识别数: {tracker_count}")
 
-    # 分割
+    df = pd.DataFrame(rows).drop_duplicates(subset="domain").sample(
+        frac=1, random_state=42
+    ).reset_index(drop=True)
+
     split = int(len(df) * 0.8)
-    train_df = df[:split]
-    test_df = df[split:]
+    df[:split].to_csv(os.path.join(DATA_DIR, "train.csv"), index=False)
+    df[split:].to_csv(os.path.join(DATA_DIR, "test.csv"), index=False)
 
-    train_df.to_csv(os.path.join(DATA_DIR, "train.csv"), index=False)
-    test_df.to_csv(os.path.join(DATA_DIR, "test.csv"), index=False)
-
-    print(f"\n训练集: {len(train_df)} 条")
-    print(f"测试集: {len(test_df)} 条")
-    return df
+    print(f"\n训练集: {len(df[:split])} 条")
+    print(f"测试集: {len(df[split:])} 条")
+    print(f"标签分布:\n{df['label'].value_counts().sort_index()}")
 
 
 if __name__ == "__main__":
