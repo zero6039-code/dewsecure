@@ -94,17 +94,23 @@ jobs:
           echo "=== latest 目录内容 ==="
           rclone ls r2:${{ secrets.R2_BUCKET }}/latest/ --s3-no-check-bucket
 
-      - name: 上传到 GitHub Release
+      - name: 记录训练历史（不包含模型文件）
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ steps.meta.outputs.version }}
           name: "Model ${{ steps.meta.outputs.version }} (F1=${{ steps.meta.outputs.macro_f1 }})"
           body: |
             Auto-trained 3-class model
+
             - Macro F1: ${{ steps.meta.outputs.macro_f1 }}
-            - CDN: https://cdn.dewsecure.com/latest/classifier_int8.onnx
+            - Trained at: ${{ github.event.repository.updated_at }}
+            - Model file size: 49 KB (INT8)
+            - Delivery: Cloudflare R2 (private, presigned URL only)
+
+            ⚠️ Model files are NOT attached to this release.
+            ⚠️ Model is distributed via R2 with 60-second presigned URLs.
+          draft: true
           files: |
-            models/weights/classifier_int8.onnx
             models/weights/model_meta.json
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
