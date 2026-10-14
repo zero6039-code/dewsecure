@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "DewSecure - 安全内容净化引擎",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "基于设备端 AI 与联邦学习，保护您免受恶意广告、钓鱼追踪和骚扰弹窗的侵害。数据不出设备，隐私完全自主。",
   "permissions": [
     "declarativeNetRequest",

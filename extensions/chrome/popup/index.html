@@ -7,72 +7,209 @@
     <link rel="stylesheet" href="popup.css">
 </head>
 <body>
-    <div class="container">
-        <header class="header">
+    <div class="app">
+        <!-- ========== Header ========== -->
+        <header class="header glass">
             <div class="logo">
                 <span class="logo-icon">🛡️</span>
                 <span class="logo-text">DewSecure</span>
             </div>
-            <div class="status" id="status">保护中</div>
+            <div class="status-badge active" id="status">保护中</div>
         </header>
 
+        <!-- ========== Stats ========== -->
         <div class="stats">
-            <div class="stat-card">
+            <div class="stat-card glass">
                 <div class="stat-value" id="todayBlocked">0</div>
                 <div class="stat-label">今日拦截</div>
             </div>
-            <div class="stat-card">
+            <div class="stat-card glass">
                 <div class="stat-value" id="totalBlocked">0</div>
                 <div class="stat-label">累计拦截</div>
             </div>
         </div>
 
-        <div class="limit-bar" id="limitBar">
+        <!-- ========== AI 额度条 ========== -->
+        <div class="limit-card glass" id="limitBar">
             <div class="limit-info">
-                <span>AI 每日额度</span>
-                <span id="limitText">0 / 50</span>
+                <span class="limit-label">AI 每日额度</span>
+                <span class="limit-value" id="limitText">0 / 50</span>
             </div>
             <div class="limit-progress">
                 <div class="limit-fill" id="limitFill"></div>
             </div>
         </div>
 
-        <div class="actions">
-            <button class="btn btn-primary" id="toggleSite">在此网站暂停</button>
-            <button class="btn btn-secondary" id="upgradeBtn">升级到高级版</button>
+        <!-- ========== 站点保护 Toggle ========== -->
+        <div class="site-card glass">
+            <div class="site-info">
+                <div class="site-domain" id="siteDomain">此网站</div>
+                <div class="site-label" id="siteLabel">保护已开启</div>
+            </div>
+            <label class="ios-switch" id="siteSwitchWrap">
+                <input type="checkbox" id="siteSwitch" checked>
+                <span class="switch-track">
+                    <span class="switch-thumb">
+                        <svg class="icon-check" viewBox="0 0 24 24" fill="none">
+                            <path d="M5 13l4 4L19 7" stroke="currentColor"
+                                  stroke-width="3.5" stroke-linecap="round"
+                                  stroke-linejoin="round"/>
+                        </svg>
+                        <span class="icon-ring"></span>
+                    </span>
+                </span>
+            </label>
         </div>
 
-        <!-- ✅ 新增：用户反馈区域 -->
-        <div class="feedback-section">
+        <!-- ========== 登录 + 升级 双按钮 ========== -->
+        <div class="action-row">
+            <button class="btn-login glass" id="loginBtn">
+                <span class="btn-login-text">登录</span>
+            </button>
+            <button class="btn-upgrade glass" id="upgradeBtn">
+                <span class="btn-upgrade-icon">⭐</span>
+                <span class="btn-upgrade-text">升级到高级版</span>
+            </button>
+        </div>
+
+        <!-- ========== 反馈 ========== -->
+        <div class="feedback-card glass">
             <div class="feedback-title">🛠️ 帮助改进 DewSecure</div>
             <div class="feedback-buttons">
-                <button class="btn-feedback" id="reportMissed" title="有广告没拦住？告诉我们">
-                    😤 漏拦广告
-                </button>
-                <button class="btn-feedback" id="reportFalse" title="误拦了正常内容？告诉我们">
-                    😡 误拦内容
-                </button>
+                <button class="btn-feedback" id="reportMissed">😤 漏拦广告</button>
+                <button class="btn-feedback" id="reportFalse">😡 误拦内容</button>
             </div>
             <div class="feedback-hint" id="feedbackHint">您的反馈将匿名上传，帮助 AI 持续进化</div>
         </div>
 
-        <div class="settings">
-            <label class="toggle">
-                <input type="checkbox" id="aiToggle" checked>
-                <span>AI 智能拦截</span>
-            </label>
-            <label class="toggle">
-                <input type="checkbox" id="trackerToggle" checked>
-                <span>阻止追踪器</span>
-            </label>
-            <label class="toggle">
-                <input type="checkbox" id="antiBypassToggle" checked>
-                <span>反反拦截保护</span>
-            </label>
+        <!-- ========== 保护功能 ========== -->
+        <div class="features-card glass">
+            <div class="features-header">保护功能</div>
+
+            <div class="feature-row" data-requires="premium">
+                <div class="feature-text">
+                    <div class="feature-name">AI 智能拦截 <span class="pro-badge">PRO</span></div>
+                    <div class="feature-desc">识别规则库未收录的广告</div>
+                </div>
+                <label class="ios-switch mini">
+                    <input type="checkbox" id="aiToggle" checked>
+                    <span class="switch-track">
+                        <span class="switch-thumb">
+                            <svg class="icon-check" viewBox="0 0 24 24" fill="none">
+                                <path d="M5 13l4 4L19 7" stroke="currentColor"
+                                      stroke-width="3.5" stroke-linecap="round"
+                                      stroke-linejoin="round"/>
+                            </svg>
+                            <span class="icon-ring"></span>
+                        </span>
+                    </span>
+                </label>
+            </div>
+
+            <div class="feature-row">
+                <div class="feature-text">
+                    <div class="feature-name">阻止追踪器</div>
+                    <div class="feature-desc">拦截跟踪脚本和像素 · 高级版解锁完整功能</div>
+                </div>
+                <label class="ios-switch mini">
+                    <input type="checkbox" id="trackerToggle" checked>
+                    <span class="switch-track">
+                        <span class="switch-thumb">
+                            <svg class="icon-check" viewBox="0 0 24 24" fill="none">
+                                <path d="M5 13l4 4L19 7" stroke="currentColor"
+                                      stroke-width="3.5" stroke-linecap="round"
+                                      stroke-linejoin="round"/>
+                            </svg>
+                            <span class="icon-ring"></span>
+                        </span>
+                    </span>
+                </label>
+            </div>
+
+            <div class="feature-row">
+                <div class="feature-text">
+                    <div class="feature-name">反反拦截保护</div>
+                    <div class="feature-desc">防止网站检测拦截器</div>
+                </div>
+                <label class="ios-switch mini">
+                    <input type="checkbox" id="antiBypassToggle" checked>
+                    <span class="switch-track">
+                        <span class="switch-thumb">
+                            <svg class="icon-check" viewBox="0 0 24 24" fill="none">
+                                <path d="M5 13l4 4L19 7" stroke="currentColor"
+                                      stroke-width="3.5" stroke-linecap="round"
+                                      stroke-linejoin="round"/>
+                            </svg>
+                            <span class="icon-ring"></span>
+                        </span>
+                    </span>
+                </label>
+            </div>
+
+            <div class="feature-row">
+                <div class="feature-text">
+                    <div class="feature-name">隐藏 Cookie 弹窗</div>
+                    <div class="feature-desc">隐藏 Cookie 同意横幅</div>
+                </div>
+                <label class="ios-switch mini">
+                    <input type="checkbox" id="cookieToggle" checked>
+                    <span class="switch-track">
+                        <span class="switch-thumb">
+                            <svg class="icon-check" viewBox="0 0 24 24" fill="none">
+                                <path d="M5 13l4 4L19 7" stroke="currentColor"
+                                      stroke-width="3.5" stroke-linecap="round"
+                                      stroke-linejoin="round"/>
+                            </svg>
+                            <span class="icon-ring"></span>
+                        </span>
+                    </span>
+                </label>
+            </div>
+
+            <div class="feature-row">
+                <div class="feature-text">
+                    <div class="feature-name">隐藏广告占位符</div>
+                    <div class="feature-desc">移除广告留下的空白</div>
+                </div>
+                <label class="ios-switch mini">
+                    <input type="checkbox" id="placeholderToggle" checked>
+                    <span class="switch-track">
+                        <span class="switch-thumb">
+                            <svg class="icon-check" viewBox="0 0 24 24" fill="none">
+                                <path d="M5 13l4 4L19 7" stroke="currentColor"
+                                      stroke-width="3.5" stroke-linecap="round"
+                                      stroke-linejoin="round"/>
+                            </svg>
+                            <span class="icon-ring"></span>
+                        </span>
+                    </span>
+                </label>
+            </div>
+
+            <div class="feature-row" data-requires="premium">
+                <div class="feature-text">
+                    <div class="feature-name">拦截社交追踪 <span class="pro-badge">PRO</span></div>
+                    <div class="feature-desc">阻止社交媒体追踪按钮</div>
+                </div>
+                <label class="ios-switch mini">
+                    <input type="checkbox" id="socialToggle" checked>
+                    <span class="switch-track">
+                        <span class="switch-thumb">
+                            <svg class="icon-check" viewBox="0 0 24 24" fill="none">
+                                <path d="M5 13l4 4L19 7" stroke="currentColor"
+                                      stroke-width="3.5" stroke-linecap="round"
+                                      stroke-linejoin="round"/>
+                            </svg>
+                            <span class="icon-ring"></span>
+                        </span>
+                    </span>
+                </label>
+            </div>
         </div>
 
+        <!-- ========== Footer ========== -->
         <footer class="footer">
-            <span>v0.1.0</span>
+            <span>v0.2.0</span>
             <a href="#" id="settingsLink">设置</a>
         </footer>
     </div>
