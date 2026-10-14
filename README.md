@@ -19,7 +19,8 @@ DewSecure 是一款基于设备端 AI 分类器 + 云端联邦学习的用户端
 - 🚀 轻量级分类器，参数量 < 1M，推理延迟 < 5ms
 - 💰 年付 $11.99，月均不到 $1
 - 🌍 跨平台：Chrome / Firefox / Android / iOS
-
+-    传统工具用昨天的列表拦截今天的威胁，我们用 AI 实时判断。
+  
 ## 仓库结构
 dewsecure/
 ├── core/ # Rust 核心引擎
