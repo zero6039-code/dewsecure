@@ -1,0 +1,113 @@
+name: Auto Train Model
+
+on:
+  schedule:
+    # 每月 1 号 UTC 02:00（北京时间 10:00）
+    - cron: '0 2 1 * *'
+  workflow_dispatch:
+
+jobs:
+  train:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+          cache-dependency-path: models/training/requirements.txt
+
+      - name: 安装 Python 依赖
+        run: |
+          pip install -r models/training/requirements.txt
+          pip install onnx skl2onnx onnxruntime
+
+      - name: 下载数据集
+        working-directory: models
+        run: python training/data_prep.py
+
+      - name: 训练模型
+        working-directory: models
+        run: python training/train.py
+
+      - name: 导出 ONNX
+        working-directory: models
+        run: python conversion/to_onnx.py
+
+      - name: 读取模型元信息
+        id: meta
+        run: |
+          MACRO_F1=$(python -c "import json; print(round(json.load(open('models/weights/model_meta.json'))['macroF1'], 4))")
+          VERSION="model-$(date -u +%Y%m%d)-$(echo ${{ github.run_number }})"
+          echo "macro_f1=$MACRO_F1" >> $GITHUB_OUTPUT
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "模型 Macro F1: $MACRO_F1"
+          echo "版本: $VERSION"
+
+      - name: 安装 rclone
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y rclone
+
+      - name: 配置 rclone
+        run: |
+          mkdir -p ~/.config/rclone
+          cat > ~/.config/rclone/rclone.conf << RCLONE_EOF
+          [r2]
+          type = s3
+          provider = Cloudflare
+          access_key_id = ${{ secrets.R2_ACCESS_KEY_ID }}
+          secret_access_key = ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          endpoint = ${{ secrets.R2_ENDPOINT }}
+          no_check_bucket = true
+          RCLONE_EOF
+
+      - name: 上传模型到 R2
+        run: |
+          # 上传到 latest/ （扩展默认从这里下载）
+          rclone copy models/weights/classifier_int8.onnx \
+            r2:${{ secrets.R2_BUCKET }}/latest/ --s3-no-check-bucket
+
+          # 上传元信息
+          rclone copy models/weights/model_meta.json \
+            r2:${{ secrets.R2_BUCKET }}/latest/ --s3-no-check-bucket
+
+          # 同时归档历史版本
+          rclone copy models/weights/classifier_int8.onnx \
+            r2:${{ secrets.R2_BUCKET }}/${{ steps.meta.outputs.version }}/ --s3-no-check-bucket
+
+          # 验证上传
+          echo "=== latest 目录内容 ==="
+          rclone ls r2:${{ secrets.R2_BUCKET }}/latest/ --s3-no-check-bucket
+
+          echo ""
+          echo "=== 历史版本归档 ==="
+          rclone ls r2:${{ secrets.R2_BUCKET }}/${{ steps.meta.outputs.version }}/ --s3-no-check-bucket
+
+      - name: 上传到 GitHub Release（备份）
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.meta.outputs.version }}
+          name: "Model ${{ steps.meta.outputs.version }} (F1=${{ steps.meta.outputs.macro_f1 }})"
+          body: |
+            Auto-trained 3-class model
+            - Macro F1: ${{ steps.meta.outputs.macro_f1 }}
+            - CDN URL: https://cdn.dewsecure.com/latest/classifier_int8.onnx
+            - Archived: https://cdn.dewsecure.com/${{ steps.meta.outputs.version }}/classifier_int8.onnx
+          files: |
+            models/weights/classifier_int8.onnx
+            models/weights/model_meta.json
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: 验证 CDN 可访问
+        run: |
+          sleep 5  # 等 R2 上传稳定
+          curl -I https://cdn.dewsecure.com/latest/classifier_int8.onnx | head -5
+          echo ""
+          curl -s https://cdn.dewsecure.com/latest/model_meta.json | head -10
