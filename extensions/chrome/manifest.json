@@ -13,7 +13,8 @@
     "offscreen"
   ],
   "host_permissions": [
-    "<all_urls>"
+    "<all_urls>",
+    "https://cdn.dewsecure.com/*"
   ],
   "content_security_policy": {
     "extension_pages": "script-src 'self' 'wasm-unsafe-eval'; object-src 'self'"

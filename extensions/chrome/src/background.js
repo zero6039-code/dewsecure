@@ -1,3 +1,4 @@
+import { checkAndUpdateModel, forceRefreshModel, getModelVersion, getCachedModel } from './modelManager.js';
 /**
  * DewSecure Service Worker
  *
@@ -6,6 +7,7 @@
  * 2. 拦截统计
  * 3. AI 分类器推理（对 DNR 未拦截的请求进行补充判断）
  */
+
 
 const STATS_KEY = 'dewsecure_stats';
 const SETTINGS_KEY = 'dewsecure_settings';
@@ -53,6 +55,12 @@ chrome.runtime.onInstalled.addListener(async (details) => {
 
     // 联邦学习：每 24 小时上报一次匿名反馈
     chrome.alarms.create('federated-upload', { periodInMinutes: 24 * 60 });
+
+    // 模型更新：每 24 小时检查一次
+    chrome.alarms.create('model-update-check', { periodInMinutes: 24 * 60 });
+
+    // 立即检查一次
+    checkAndUpdateModel().catch((e) => console.warn('初始模型检查失败:', e));
 });
 
 // ============ 拦截统计 ============
@@ -97,6 +105,12 @@ function updateBadge(count) {
 chrome.alarms.onAlarm.addListener(async (alarm) => {
     if (alarm.name === 'federated-upload') {
         await uploadFederatedFeedback();
+    }
+    if (alarm.name === 'model-update-check') {
+        await checkAndUpdateModel();
+    }
+    if (alarm.name === 'model-update-check') {
+        await checkAndUpdateModel();
     }
     if (alarm.name === 'daily-reset') {
         const { [SETTINGS_KEY]: settings } = await chrome.storage.local.get(SETTINGS_KEY);
@@ -146,6 +160,15 @@ async function handleMessage(message, sender) {
 
         case 'REPORT_FEEDBACK':
             return await handleFeedbackReport(message);
+
+        case 'CHECK_MODEL_UPDATE':
+            return await checkAndUpdateModel();
+
+        case 'FORCE_REFRESH_MODEL':
+            return await forceRefreshModel();
+
+        case 'GET_MODEL_VERSION':
+            return await getModelVersion();
 
         default:
             return { error: '未知消息类型' };
@@ -557,3 +580,21 @@ async function hashDomain(domain) {
         .join('')
         .substring(0, 16);
 }
+
+
+// 注：getModelVersion 从 modelManager.js 导入
+
+
+// ============ 保活机制 ============
+// 定期发送一个空消息给 Offscreen Document，防止 Service Worker 被 Chrome 终止
+setInterval(() => {
+    chrome.runtime.sendMessage({ target: 'offscreen', type: 'PING' }).catch(() => {});
+}, 20000);
+console.log('🔧 保活机制已启动');
+
+// ============ 调试入口（ES Module 函数默认不暴露到全局） ============
+self.checkAndUpdateModel = checkAndUpdateModel;
+self.getModelVersion = getModelVersion;
+self.forceRefreshModel = forceRefreshModel;
+self.getCachedModel = getCachedModel;
+console.log('🔧 调试入口已挂载：checkAndUpdateModel / getModelVersion / forceRefreshModel / getCachedModel');

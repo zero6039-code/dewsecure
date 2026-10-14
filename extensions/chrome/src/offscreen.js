@@ -5,6 +5,7 @@
  */
 
 import * as ort from 'onnxruntime-web/wasm';
+import { getCachedModel } from './modelManager.js';
 
 console.log('🔧 Offscreen Document 启动');
 console.log('   ort 类型:', typeof ort);
@@ -29,21 +30,39 @@ async function initModel() {
 
     initPromise = (async () => {
         try {
-            const modelUrl = chrome.runtime.getURL('models/classifier_int8.onnx');
-            console.log('📥 开始加载模型:', modelUrl);
+            let modelData = null;
+            let modelSource = 'unknown';
 
-            // 验证模型文件可访问
-            const headResponse = await fetch(modelUrl, { method: 'HEAD' });
-            console.log('   模型文件 HTTP 状态:', headResponse.status);
+            // 1. 优先从缓存加载
+            try {
+                const cached = await getCachedModel();
+                if (cached && cached.buffer) {
+                    modelData = new Uint8Array(cached.buffer);
+                    modelSource = 'cache';
+                    console.log('📥 从缓存加载模型:', cached.meta?.trainedAt);
+                }
+            } catch (e) {
+                console.warn('读取缓存失败:', e);
+            }
 
-            classifierSession = await ort.InferenceSession.create(modelUrl, {
+            // 2. 回退到打包模型
+            if (!modelData) {
+                const modelUrl = chrome.runtime.getURL('models/classifier_int8.onnx');
+                console.log('📥 从扩展包加载模型');
+                const resp = await fetch(modelUrl);
+                modelData = new Uint8Array(await resp.arrayBuffer());
+                modelSource = 'bundled';
+            }
+
+            console.log('   模型来源:', modelSource, `(${(modelData.byteLength / 1024).toFixed(1)} KB)`);
+
+            classifierSession = await ort.InferenceSession.create(modelData, {
                 executionProviders: ['wasm'],
             });
             console.log('✅ Offscreen: AI 分类器已加载');
             return classifierSession;
         } catch (e) {
             console.error('❌ Offscreen: 模型加载失败:', e);
-            console.error('   错误堆栈:', e.stack);
             initPromise = null;
             return null;
         }

@@ -112,6 +112,11 @@ jobs:
       - name: 验证 CDN 可访问
         run: |
           sleep 5
-          curl -I https://cdn.dewsecure.com/latest/classifier_int8.onnx | head -3
+          echo "=== 模型元信息 ==="
+          curl -s https://cdn.dewsecure.com/latest/model_meta.json
           echo ""
-          curl -s https://cdn.dewsecure.com/latest/model_meta.json | head -10
+          echo "=== 模型文件 HTTP 状态 ==="
+          curl -s -o /dev/null -w "%{http_code}" https://cdn.dewsecure.com/latest/classifier_int8.onnx
+          echo ""
+          echo "=== 本地计算的 SHA-256 ==="
+          sha256sum models/weights/classifier_int8.onnx
