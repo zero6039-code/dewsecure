@@ -499,7 +499,7 @@ console.log('🔧 调试入口已挂载：initClassifier / classifyUrl / extract
 
 const FEEDBACK_BUFFER_KEY = 'dewsecure_feedback_buffer';
 const MAX_FEEDBACK_BUFFER = 500;
-const FEEDBACK_COOLDOWN_MS = 60 * 1000;  // 同一用户 1 分钟内只能报告一次
+const FEEDBACK_COOLDOWN_MS = 8 * 1000;   // 同一用户 8 秒冷却（本地测试友好）
 let lastFeedbackTime = 0;
 
 async function handleFeedbackReport(message) {
