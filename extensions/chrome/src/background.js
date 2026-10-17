@@ -31,6 +31,7 @@ function isSafeNavigation(url) {
 }
 
 const AD_KEYS = [
+    'a_aid=', 'a_bid=', 'gsid=', 'gsc=', 'data1=', 'data2=',
     'mmp_pid=', 'Allianceid=', 'utm_source=an_', 'clickref=',
     'partner_id=', 'aid=api|', 'banid=', 'campid=',
     // --- Skidrow 诊断补充 ---
@@ -39,6 +40,7 @@ const AD_KEYS = [
     'utm_source=adcash', 'trip_sub1=', 'ud1=',
 ];
 const TARGET_BRANDS = [
+    'generali.com.my', 'steampowered.com', 'store.steampowered.com',
     // --- 原有 ---
     'shopee.com.my', 'kkday.com', 'trip.com', 'my.trip.com', 'klook.com',
     'traveloka.com', 'tiktok.com', 'lazada.com.my', 'shein.com',

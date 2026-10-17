@@ -1,27 +1,211 @@
 [
-  { "id": 980001, "priority": 300, "action": { "type": "block" },
-    "condition": { "urlFilter": "||s.shopee.com.my^", "resourceTypes": ["main_frame", "sub_frame"] } },
-  { "id": 980002, "priority": 300, "action": { "type": "block" },
-    "condition": { "urlFilter": "||track.omguk.com^", "resourceTypes": ["main_frame", "sub_frame"] } },
-  { "id": 980003, "priority": 300, "action": { "type": "block" },
-    "condition": { "urlFilter": "||adexchangerapid.com^", "resourceTypes": ["main_frame", "sub_frame", "script", "xmlhttprequest"] } },
-  { "id": 980004, "priority": 300, "action": { "type": "block" },
-    "condition": { "urlFilter": "||usrpubtrk.com^", "resourceTypes": ["main_frame", "sub_frame", "script", "xmlhttprequest"] } },
-  { "id": 980005, "priority": 300, "action": { "type": "block" },
-    "condition": { "urlFilter": "||ntwkbc21.com^", "resourceTypes": ["main_frame", "sub_frame", "script", "xmlhttprequest"] } },
-  { "id": 980006, "priority": 300, "action": { "type": "block" },
-    "condition": { "urlFilter": "||ntwkbc42.com^", "resourceTypes": ["main_frame", "sub_frame", "script", "xmlhttprequest"] } },
-
-  { "id": 981001, "priority": 300, "action": { "type": "block" },
-    "condition": { "regexFilter": "^https?://([^/]+\\.)?tiktok\\.com/view/product/.*[?&]chain_key=", "resourceTypes": ["main_frame"] } },
-  { "id": 981002, "priority": 300, "action": { "type": "block" },
-    "condition": { "regexFilter": "^https?://([^/]+\\.)?shopee\\.com\\.my/.*[?&]mmp_pid=", "resourceTypes": ["main_frame"] } },
-  { "id": 981003, "priority": 300, "action": { "type": "block" },
-    "condition": { "regexFilter": "^https?://([^/]+\\.)?trip\\.com/.*[?&]Allianceid=", "resourceTypes": ["main_frame"] } },
-  { "id": 981004, "priority": 300, "action": { "type": "block" },
-    "condition": { "regexFilter": "^https?://([^/]+\\.)?klook\\.com/.*[?&]aid=api", "resourceTypes": ["main_frame"] } },
-  { "id": 981005, "priority": 300, "action": { "type": "block" },
-    "condition": { "regexFilter": "^https?://([^/]+\\.)?kkday\\.com/.*[?&]utm_source=InvolveAsia", "resourceTypes": ["main_frame"] } },
-  { "id": 981006, "priority": 300, "action": { "type": "block" },
-    "condition": { "regexFilter": "^https?://([^/]+\\.)?opera\\.com/partner", "resourceTypes": ["main_frame"] } }
+  {
+    "id": 980001,
+    "priority": 300,
+    "action": {
+      "type": "block"
+    },
+    "condition": {
+      "urlFilter": "||s.shopee.com.my^",
+      "resourceTypes": [
+        "main_frame",
+        "sub_frame"
+      ]
+    }
+  },
+  {
+    "id": 980002,
+    "priority": 300,
+    "action": {
+      "type": "block"
+    },
+    "condition": {
+      "urlFilter": "||track.omguk.com^",
+      "resourceTypes": [
+        "main_frame",
+        "sub_frame"
+      ]
+    }
+  },
+  {
+    "id": 980003,
+    "priority": 300,
+    "action": {
+      "type": "block"
+    },
+    "condition": {
+      "urlFilter": "||adexchangerapid.com^",
+      "resourceTypes": [
+        "main_frame",
+        "sub_frame",
+        "script",
+        "xmlhttprequest"
+      ]
+    }
+  },
+  {
+    "id": 980004,
+    "priority": 300,
+    "action": {
+      "type": "block"
+    },
+    "condition": {
+      "urlFilter": "||usrpubtrk.com^",
+      "resourceTypes": [
+        "main_frame",
+        "sub_frame",
+        "script",
+        "xmlhttprequest"
+      ]
+    }
+  },
+  {
+    "id": 980005,
+    "priority": 300,
+    "action": {
+      "type": "block"
+    },
+    "condition": {
+      "urlFilter": "||ntwkbc21.com^",
+      "resourceTypes": [
+        "main_frame",
+        "sub_frame",
+        "script",
+        "xmlhttprequest"
+      ]
+    }
+  },
+  {
+    "id": 980006,
+    "priority": 300,
+    "action": {
+      "type": "block"
+    },
+    "condition": {
+      "urlFilter": "||ntwkbc42.com^",
+      "resourceTypes": [
+        "main_frame",
+        "sub_frame",
+        "script",
+        "xmlhttprequest"
+      ]
+    }
+  },
+  {
+    "id": 981001,
+    "priority": 300,
+    "action": {
+      "type": "block"
+    },
+    "condition": {
+      "regexFilter": "^https?://([^/]+\\.)?tiktok\\.com/view/product/.*[?&]chain_key=",
+      "resourceTypes": [
+        "main_frame"
+      ]
+    }
+  },
+  {
+    "id": 981002,
+    "priority": 300,
+    "action": {
+      "type": "block"
+    },
+    "condition": {
+      "regexFilter": "^https?://([^/]+\\.)?shopee\\.com\\.my/.*[?&]mmp_pid=",
+      "resourceTypes": [
+        "main_frame"
+      ]
+    }
+  },
+  {
+    "id": 981003,
+    "priority": 300,
+    "action": {
+      "type": "block"
+    },
+    "condition": {
+      "regexFilter": "^https?://([^/]+\\.)?trip\\.com/.*[?&]Allianceid=",
+      "resourceTypes": [
+        "main_frame"
+      ]
+    }
+  },
+  {
+    "id": 981004,
+    "priority": 300,
+    "action": {
+      "type": "block"
+    },
+    "condition": {
+      "regexFilter": "^https?://([^/]+\\.)?klook\\.com/.*[?&]aid=api",
+      "resourceTypes": [
+        "main_frame"
+      ]
+    }
+  },
+  {
+    "id": 981005,
+    "priority": 300,
+    "action": {
+      "type": "block"
+    },
+    "condition": {
+      "regexFilter": "^https?://([^/]+\\.)?kkday\\.com/.*[?&]utm_source=InvolveAsia",
+      "resourceTypes": [
+        "main_frame"
+      ]
+    }
+  },
+  {
+    "id": 981006,
+    "priority": 300,
+    "action": {
+      "type": "block"
+    },
+    "condition": {
+      "regexFilter": "^https?://([^/]+\\.)?opera\\.com/partner",
+      "resourceTypes": [
+        "main_frame"
+      ]
+    }
+  },
+  {
+    "id": 980101,
+    "priority": 300,
+    "action": {
+      "type": "block"
+    },
+    "condition": {
+      "urlFilter": "||direct.generali.com.my^",
+      "resourceTypes": [
+        "main_frame"
+      ]
+    }
+  },
+  {
+    "id": 980102,
+    "priority": 300,
+    "action": {
+      "type": "block"
+    },
+    "condition": {
+      "urlFilter": "||store.steampowered.com/*[?&]gsid=",
+      "resourceTypes": [
+        "main_frame"
+      ]
+    }
+  },
+  {
+    "id": 980103,
+    "priority": 300,
+    "action": {
+      "type": "block"
+    },
+    "condition": {
+      "regexFilter": "^https?://[^/]+/.*[?&](a_aid|a_bid|gsid|gsc)=",
+      "resourceTypes": [
+        "main_frame"
+      ]
+    }
+  }
 ]

@@ -882,46 +882,6 @@
     }
   },
   {
-    "id": 997001,
-    "priority": 300,
-    "action": {
-      "type": "block"
-    },
-    "condition": {
-      "urlFilter": "||blockadblock.com^",
-      "resourceTypes": [
-        "script"
-      ]
-    }
-  },
-  {
-    "id": 997002,
-    "priority": 300,
-    "action": {
-      "type": "block"
-    },
-    "condition": {
-      "urlFilter": "blockadblock",
-      "resourceTypes": [
-        "script"
-      ]
-    }
-  },
-  {
-    "id": 997004,
-    "priority": 300,
-    "action": {
-      "type": "block"
-    },
-    "condition": {
-      "urlFilter": "||wired.com/*/adblock",
-      "resourceTypes": [
-        "script",
-        "xmlhttprequest"
-      ]
-    }
-  },
-  {
     "id": 998001,
     "priority": 500,
     "action": {
@@ -938,20 +898,6 @@
         "script",
         "image",
         "other"
-      ]
-    }
-  },
-  {
-    "id": 998002,
-    "priority": 300,
-    "action": {
-      "type": "block"
-    },
-    "condition": {
-      "urlFilter": "||securepubads.g.doubleclick.net^",
-      "resourceTypes": [
-        "script",
-        "xmlhttprequest"
       ]
     }
   },
@@ -1035,15 +981,29 @@
     }
   },
   {
-    "id": 999003,
-    "priority": 500,
+    "id": 995001,
+    "priority": 300,
     "action": {
       "type": "block"
     },
     "condition": {
-      "urlFilter": "||blockadblock.com^",
+      "urlFilter": "||popunderjs.com^",
       "resourceTypes": [
         "script"
+      ]
+    }
+  },
+  {
+    "id": 995002,
+    "priority": 300,
+    "action": {
+      "type": "block"
+    },
+    "condition": {
+      "urlFilter": "/popunder",
+      "resourceTypes": [
+        "script",
+        "xmlhttprequest"
       ]
     }
   }

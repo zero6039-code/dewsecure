@@ -1,6 +1,14 @@
 (function () {
     'use strict';
     if (window.__dewsecureInjected) return;
+    
+    // ===== DewSecure Wired Bypass =====
+    if (window.location.hostname.includes('wired.com')) {
+        console.warn('🛡️ [DewSecure] 检测到 Wired，已自动豁免 DOM 清理以防止 React 水合失败。');
+        return; // 退出，不执行任何 DOM 清理
+    }
+    // ===================================
+
     window.__dewsecureInjected = true;
 
     // ===== 调试开关（生产环境必须 false）=====

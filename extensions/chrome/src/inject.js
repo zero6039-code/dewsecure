@@ -1,6 +1,15 @@
 (function () {
     'use strict';
 
+    // ===== DewSecure Wired Bypass =====
+    // Wired 的 Next.js 架构极度脆弱，任何 DOM/原型链篡改都会导致白屏
+    if (window.location.hostname.includes('wired.com')) {
+        console.warn('🛡️ [DewSecure] 检测到 Wired，已自动豁免主世界脚本注入以防止白屏。');
+        return; // 直接退出 IIFE，不执行后续任何 Hook
+    }
+    // ===================================
+
+
     // ===== 调试开关（生产环境必须 false）=====
     const DEBUG = false;
     const warn = DEBUG ? console.warn.bind(console) : () => {};
@@ -9,7 +18,7 @@
     window.addEventListener('mousedown', () => { lastRealClick = Date.now(); }, true);
     window.addEventListener('click', () => { lastRealClick = Date.now(); }, true);
 
-    const adPatterns = /(mmp_pid=|Allianceid=|from_affiliate=|url_from=affiliate|affiliate_id=|click_id=|sub_id=|campaign_id=|uls_trackid=|utm_campaign=|utm_source=an_|utm_source=InvolveAsia|utm_source=adcash|aid=api%7C|ud1=|cid=|1xlite|1xbet|tag=d_|omguk|tiktok\.com\/view|doubleclick|omgt3|popads|googlesyndication|clk\.|adsterra|propellerads|trip\.com|shopee\.com\.my|lazada\.com\.my|shein\.com\/ark|kkday\.com|klook\.com|opera\.com\/partner)/i;
+    const adPatterns = /(mmp_pid=|Allianceid=|from_affiliate=|url_from=affiliate|affiliate_id=|click_id=|sub_id=|campaign_id=|uls_trackid=|utm_campaign=|utm_source=an_|utm_source=InvolveAsia|utm_source=adcash|aid=api%7C|ud1=|cid=|1xlite|1xbet|tag=d_|omguk|tiktok\.com\/view|doubleclick|omgt3|popads|googlesyndication|clk\.|adsterra|propellerads|trip\.com|shopee\.com\.my|lazada\.com\.my|shein\.com\/ark|kkday\.com|klook\.com|opera\.com\/partner|a_aid=|a_bid=|gsid=|gsc=)/i;
     const isAdUrl = (url) => url && typeof url === 'string' && adPatterns.test(url);
 
     const _windowOpen = window.open;
@@ -118,6 +127,60 @@
             return _dispatchEvent.apply(this, arguments);
         };
     } catch (e) {}
+
+
+    // ===== 强化：拦截 document 级别的点击跳转 =====
+    // 很多黑站会在 document 上挂载 click 监听，点击空白处也会触发跳转
+    document.addEventListener('click', (e) => {
+        // 如果点击目标不是正常的 A 或 FORM（即点击了空白处或 div）
+        let target = e.target;
+        while (target && target.tagName !== 'A' && target.tagName !== 'FORM' && target !== document) {
+            target = target.parentElement;
+        }
+        
+        // 如果点到了 document 或 body，说明是空白处点击
+        if (target === document || target === document.body || !target) {
+            // 拦截紧接着可能发生的 location 变更或 window.open
+            // 通过一个微小的标志位，配合后面的 Hook 使用
+            window.__dw_blank_click = Date.now();
+        }
+    }, true);
+
+    // 在 Hook location 和 window.open 时，检查是否是空白点击触发的
+    // (这个标志位已在 location/window.open 的 Hook 中被内置)
+
+
+    // ===== Skidrow 弹窗事前阻断 =====
+    if (window.location.hostname.includes('skidrowreloaded.com')) {
+        // 封锁 clickIE4 属性，阻止其绑定点击监听器
+        try {
+            Object.defineProperty(window, 'clickIE4', {
+                get: function() { return undefined; },
+                set: function() { /* 阻止赋值 */ },
+                configurable: false
+            });
+            Object.defineProperty(document, 'onmousedown', {
+                get: function() { return null; },
+                set: function() { /* 阻止赋值 */ },
+                configurable: false
+            });
+            console.warn('🛡️ [DewSecure] Skidrow 弹窗脚本属性已封锁');
+        } catch(e) {}
+
+        // 强化 window.open 拦截：任何非用户直接点击的 window.open 一律拦截
+        try {
+            const _open = window.open;
+            window.open = function(url, target, features) {
+                // 如果是在鼠标事件处理器外部调用的，或者目标 URL 可疑，直接拦截
+                if (!lastRealClick || Date.now() - lastRealClick > 200) {
+                    console.warn('🛡️ [DewSecure] 阻断非用户触发的 window.open:', url);
+                    return null;
+                }
+                return _open.apply(this, arguments);
+            };
+        } catch(e) {}
+    }
+    // ===================================
 
     // 4. 反反拦截欺骗 (针对 Wired 等使用 BlockAdBlock 的网站)
     try {
