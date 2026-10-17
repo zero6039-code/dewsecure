@@ -87,8 +87,26 @@ function copyStatic() {
 
     for (const [src, dest] of dirs) {
         if (fs.existsSync(src) && fs.statSync(src).isDirectory()) {
+            // 先彻底清空目标目录，避免旧文件残留（如已删除文件、.bak）
+            if (fs.existsSync(dest)) {
+                fs.rmSync(dest, { recursive: true, force: true });
+            }
             fs.mkdirSync(dest, { recursive: true });
-            fs.cpSync(src, dest, { recursive: true });
+            // rules 目录特殊处理：只复制 *.json，且跳过 .bak 备份文件
+            if (src === 'rules') {
+                let copied = 0, skipped = 0;
+                for (const f of fs.readdirSync(src)) {
+                    if (f.endsWith('.json') && !f.includes('.bak')) {
+                        fs.copyFileSync(path.join(src, f), path.join(dest, f));
+                        copied++;
+                    } else {
+                        skipped++;
+                    }
+                }
+                console.log(`Copied ${copied} rule files (skipped ${skipped} non-json/bak)`);
+            } else {
+                fs.cpSync(src, dest, { recursive: true });
+            }
         }
     }
 

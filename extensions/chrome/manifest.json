@@ -49,9 +49,14 @@
   "declarative_net_request": {
     "rule_resources": [
       {
-        "id": "ads_1",
+        "id": "ads_1a",
         "enabled": true,
-        "path": "rules/ads-1.json"
+        "path": "rules/ads-1a.json"
+      },
+      {
+        "id": "ads_1b",
+        "enabled": true,
+        "path": "rules/ads-1b.json"
       },
       {
         "id": "ads_2",
@@ -59,14 +64,29 @@
         "path": "rules/ads-2.json"
       },
       {
-        "id": "trackers_1",
+        "id": "ads_3",
         "enabled": true,
-        "path": "rules/trackers-1.json"
+        "path": "rules/ads-3.json"
       },
       {
-        "id": "trackers_2",
+        "id": "trackers_1a",
         "enabled": true,
-        "path": "rules/trackers-2.json"
+        "path": "rules/trackers-1a.json"
+      },
+      {
+        "id": "trackers_1b",
+        "enabled": true,
+        "path": "rules/trackers-1b.json"
+      },
+      {
+        "id": "trackers_2a",
+        "enabled": true,
+        "path": "rules/trackers-2a.json"
+      },
+      {
+        "id": "trackers_2b",
+        "enabled": true,
+        "path": "rules/trackers-2b.json"
       },
       {
         "id": "annoyances",
@@ -74,9 +94,14 @@
         "path": "rules/annoyances.json"
       },
       {
-        "id": "ads_3",
+        "id": "anti_affiliate",
         "enabled": true,
-        "path": "rules/ads-3.json"
+        "path": "rules/anti-affiliate.json"
+      },
+      {
+        "id": "ads_4",
+        "enabled": true,
+        "path": "rules/ads-4.json"
       }
     ]
   },

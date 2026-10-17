@@ -1,19 +1,100 @@
 // ==========================================
+// 调试开关（生产环境必须 false）
+// ==========================================
+const DEBUG = false;
+const log  = DEBUG ? console.log.bind(console)  : () => {};
+const warn = DEBUG ? console.warn.bind(console) : () => {};
+
+// ==========================================
 // 1. 核心后台拦截与变量（绝对防御）
 // ==========================================
-const AD_KEYS = ['mmp_pid=', 'Allianceid=', 'utm_source=an_', 'clickref=', 'partner_id=', 'aid=api|', 'banid=', 'campid='];
-const TARGET_BRANDS = ['shopee.com.my', 'kkday.com', 'trip.com', 'my.trip.com', 'klook.com', 'traveloka.com', 'tiktok.com', 'lazada.com.my', 'shein.com', 'ragasstore.com', 'kkday.com', 'klook.com', 'opera.com/partner', '1xlite', '1xbet', 'omguk.com'];
+// ==========================================
+// 全局安全白名单（防止误伤官方主站与新建空白页）
+// ==========================================
+const SAFE_OFFICIAL_DOMAINS = [
+    'trip.com', 'shopee.com.my', 'tiktok.com', 'kkday.com', 'klook.com',
+    'lazada.com.my', 'opera.com', 'traveloka.com', 'shein.com'
+];
 
+function isSafeNavigation(url) {
+    if (!url) return true;
+    if (url.startsWith('chrome://') || url.startsWith('chrome-extension://') || url.startsWith('about:') || url.startsWith('edge://')) return true;
+    try {
+        const u = new URL(url);
+        // 如果是平台官方页面且不带任何联盟/追踪参数，视为安全访问
+        const host = u.hostname.replace(/^www\./, '');
+        const isOfficial = SAFE_OFFICIAL_DOMAINS.some(d => host === d || host.endsWith('.' + d));
+        const hasAdParam = /[?&](mmp_pid|Allianceid|uls_trackid|affiliate_id|chain_key|trip_sub1|utm_source=an_|utm_source=InvolveAsia|utm_source=adcash|aid=api|ud1)=/i.test(u.search);
+        if (isOfficial && !hasAdParam) return true;
+    } catch(_) {}
+    return false;
+}
+
+const AD_KEYS = [
+    'mmp_pid=', 'Allianceid=', 'utm_source=an_', 'clickref=',
+    'partner_id=', 'aid=api|', 'banid=', 'campid=',
+    // --- Skidrow 诊断补充 ---
+    'affiliate_id=', 'sub_id=scs', 'utm_source=InvolveAsia',
+    'utm_source=open_api', 'uls_trackid=', 'chain_key=',
+    'utm_source=adcash', 'trip_sub1=', 'ud1=',
+];
+const TARGET_BRANDS = [
+    // --- 原有 ---
+    'shopee.com.my', 'kkday.com', 'trip.com', 'my.trip.com', 'klook.com',
+    'traveloka.com', 'tiktok.com', 'lazada.com.my', 'shein.com',
+    'ragasstore.com', 'opera.com/partner', '1xlite', '1xbet', 'omguk.com',
+    // --- 本次 Skidrow 诊断补充 ---
+    's.shopee.com.my',
+    'track.omguk.com',
+    'www.trip.com',
+    'www.kkday.com',
+    'www.klook.com',
+    'www.opera.com/partner',
+    'adexchangerapid.com',
+    'usrpubtrk.com',
+    'ntwkbc21.com',
+    'ntwkbc42.com',
+];
+
+// ===== 双保险 A：onCreatedNavigationTarget（原有）=====
 chrome.webNavigation.onCreatedNavigationTarget.addListener((info) => {
     const url = info.url || '';
     const hasAdParam = AD_KEYS.some(k => url.includes(k));
     const isTargetBrand = TARGET_BRANDS.some(h => url.includes(h));
     
     if (hasAdParam || isTargetBrand) {
-        console.warn('🛡️ [后台绞杀] 发现流氓跳转，正在强制关闭:', url);
+        warn('🛡️ [后台绞杀] 发现流氓跳转，正在强制关闭:', url);
         chrome.tabs.remove(info.tabId, () => {
             if (chrome.runtime.lastError) {}
         });
+    }
+});
+
+// ===== 双保险 B：tabs.onUpdated（更早捕获 URL 变更）=====
+chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
+    const url = changeInfo.url || tab.url || '';
+    if (!url || isSafeNavigation(url)) return;
+
+    const hasAdParam = AD_KEYS.some(k => url.includes(k));
+    const isTargetBrand = TARGET_BRANDS.some(h => url.includes(h));
+
+    if (hasAdParam || isTargetBrand) {
+        warn('🛡️ [tabs.onUpdated] 关闭广告标签页:', url);
+        chrome.tabs.remove(tabId, () => { if (chrome.runtime.lastError) {} });
+    }
+});
+
+// ===== 双保险 C：tabs.onCreated（标签页创建 0ms 立刻检查）=====
+chrome.tabs.onCreated.addListener((tab) => {
+    const url = tab.pendingUrl || tab.url || '';
+    if (!url || isSafeNavigation(url)) return;
+
+    const hasAdParam = AD_KEYS.some(k => url.includes(k));
+    const isTargetBrand = TARGET_BRANDS.some(k => url.includes(k));
+
+    if (hasAdParam || isTargetBrand) {
+        warn('🛡️ [tabs.onCreated] 关闭广告标签页:', url);
+        chrome.tabs.remove(tab.id, () => { if (chrome.runtime.lastError) {} });
     }
 });
 
@@ -85,7 +166,7 @@ async function applySessionRuleForDomain(domain, shouldAllow) {
         } else {
             await chrome.declarativeNetRequest.updateSessionRules({ removeRuleIds: [ruleId] });
         }
-    } catch (e) { console.warn('规则更新失败:', e); }
+    } catch (e) { warn('规则更新失败:', e); }
 }
 
 async function restoreSessionRules() {
