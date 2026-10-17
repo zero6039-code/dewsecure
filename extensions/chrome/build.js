@@ -40,6 +40,7 @@ const buildOptions = {
     entryPoints: [
         'src/background.js',
         'src/content.js',
+        'src/inject.js',
         'src/offscreen.js',
         'popup/popup.js',
     ],

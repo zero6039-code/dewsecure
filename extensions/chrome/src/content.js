@@ -1,154 +1,131 @@
-/**
- * DewSecure Content Script
- *
- * 负责：
- * 1. 注入反反拦截脚本
- * 2. 隐藏广告元素
- * 3. 与 Service Worker 通信
- */
-
 (function () {
     'use strict';
-
-    // 只在顶层文档注入一次
     if (window.__dewsecureInjected) return;
     window.__dewsecureInjected = true;
 
-    // ============ 注入反反拦截脚本 ============
+    // 1. 最早期注入暴力 CSS（秒杀常见烦扰元素，不依赖 JS 扫描）
+    function injectBrutalCSS() {
+        const style = document.createElement('style');
+        style.textContent = `
+            /* 基础广告单元与追踪像素 */
+            .ad-banner, .ad-container, .ad-slot, .ad-wrapper, .ad-unit, 
+            .ad-panel, .ad-box, .ad-frame, .ad-iframe, .ad-sticky, .ad-overlay,
+            [data-ad], [data-ad-slot], [data-ad-unit], [data-google-query-id],
+            ins.adsbygoogle, iframe[src*="doubleclick"], iframe[id*="google_ads_iframe"],
+            .native-ad, .sponsored, .promoted, .advertisement {
+                display: none !important;
+                opacity: 0 !important;
+                pointer-events: none !important;
+                visibility: hidden !important;
+            }
+            
+            /* 烦扰元素：Cookie、退出意图、订阅弹窗、通知提示 */
+            #cookie-banner, .cookie-consent, [id*="cookie-notice"], [class*="cookie-banner"],
+            .gdpr-banner, #gdpr, [class*="gdpr"], .consent-bar, .cookie-snackbar, .cookie-toast,
+            #onetrust-consent-sdk, .optanon-alert-box-wrapper, #didomi-notice, #cookiebot,
+            .cc-window, .cli-modal, .moove-gdpr-infobar, .borlabs-cookie-box,
+            .exit-intent-popup, .exit-overlay, .newsletter-popup, .subscribe-box,
+            .notification-prompt, .push-notification-bar, .app-download-banner,
+            #onesignal-slidedown-container, .onesignal-slidedown-container, 
+            #pushcrew-chrome-style-notification, #webpushr-prompt-wrapper, 
+            #cleverpush-panel, .pushowl-notification-prompt, .fcm-notification-prompt,
+            .smart-banner, .promo-banner, .promo-widget, .welcome-mat,
+            .adblock-wall, .adblock-notice, .anti-adblock-overlay, .adblock-banner,
+            .adblock-warning, .adblock-detected-modal {
+                display: none !important;
+                pointer-events: none !important;
+            }
 
-    function injectAntiBypass() {
-        const script = document.createElement('script');
-        script.textContent = generateAntiBypassCode();
-        script.setAttribute('data-dewsecure', 'anti-bypass');
+            /* 特定广告容器 */
+            .floating-ad, .video-ad, .google_ads_iframe, .OUTBRAIN, .taboola,
+            .in-article-ad, .dfp-ad, .gpt-ad {
+                display: none !important;
+                pointer-events: none !important;
+            }
 
-        const target = document.head || document.documentElement;
-        target.insertBefore(script, target.firstChild);
-        script.remove();
+            /* 社交组件 */
+            .social-widget, .social-bar, .share-bar, .twitter-share-button, 
+            .fb-like, .fb-share-button, .social-share-overlay {
+                display: none !important;
+            }
+        `;
+        (document.head || document.documentElement).appendChild(style);
     }
+    injectBrutalCSS();
 
-    function generateAntiBypassCode() {
-        const seed = Date.now();
-        const varName = `_0x${(seed & 0xFFFFFFFF).toString(16)}`;
+    // 2. 监听并清理动态生成的烦扰元素
+    async function init() {
+        chrome.runtime.sendMessage({ type: 'GET_SETTINGS' }, (settings) => {
+            if (!settings) return;
+            const host = window.location.hostname;
+            const matchDomain = (d) => host === d || host.endsWith('.' + d);
+            
+            const wl = Array.isArray(settings.whitelist) ? settings.whitelist : [];
+            const twl = Array.isArray(settings.tempWhitelist) ? settings.tempWhitelist : [];
+            
+            if (wl.some(matchDomain) || twl.some(matchDomain)) return;
 
-        return `
-(function() {
-    'use strict';
-    const ${varName} = {
-        adBlock: false,
-        adblock: false,
-        adsBlocked: 0,
-        isAdBlockActive: false,
-        canRunAds: true,
-        canShowAds: true,
-        adblockDetected: false,
-    };
-    const props = ['adBlock', 'adblock', 'adsBlocked', 'isAdBlockActive',
-                   'canRunAds', 'canShowAds', 'adblockDetected'];
-    for (const p of props) {
-        try {
-            Object.defineProperty(window, p, {
-                get: () => ${varName}[p],
-                configurable: true,
-            });
-        } catch(e) {}
-    }
-})();
-`;
-    }
-
-    // ============ 隐藏广告元素 ============
-
-    const AD_SELECTORS = [
-        '[class*="ad-"]',
-        '[class*="ads-"]',
-        '[class*="advert"]',
-        '[id*="ad-"]',
-        '[id*="ads-"]',
-        '[id*="advert"]',
-        '[class*="banner"]',
-        '[class*="popup"]',
-        '[class*="sponsor"]',
-        'iframe[src*="doubleclick"]',
-        'iframe[src*="googlesyndication"]',
-        'iframe[src*="ads"]',
-        '[data-ad]',
-        '[data-ads]',
-        '[data-ad-slot]',
-    ];
-
-    function hideAdElements() {
-        for (const selector of AD_SELECTORS) {
-            try {
-                const elements = document.querySelectorAll(selector);
-                for (const el of elements) {
-                    // 跳过太小或太大的元素
-                    const rect = el.getBoundingClientRect();
-                    if (rect.width < 10 || rect.height < 10) continue;
-
-                    // 跳过包含主要内容的元素
-                    if (el.querySelector('article, main, [role="main"]')) continue;
-
-                    el.style.setProperty('display', 'none', 'important');
-                    el.style.setProperty('visibility', 'hidden', 'important');
-                    el.style.setProperty('opacity', '0', 'important');
+            const observer = new MutationObserver((mutations) => {
+                for (const m of mutations) {
+                    if (m.type === 'childList') {
+                        for (const node of m.addedNodes) {
+                            if (node.nodeType === Node.ELEMENT_NODE) {
+                                checkAndKill(node);
+                            }
+                        }
+                    } else if (m.type === 'attributes') {
+                        const node = m.target;
+                        if (node.nodeType === Node.ELEMENT_NODE) {
+                            // 如果 class 或 id 变成广告特征，直接杀掉
+                            if (/(ad-|ads-|banner|popup|sponsor|promo|overlay|modal|cookie|consent|push)/i.test(node.className + ' ' + node.id)) {
+                                node.style.setProperty('display', 'none', 'important');
+                            }
+                        }
+                    }
                 }
-            } catch (e) {
-                // 忽略无效选择器
-            }
-        }
-    }
-
-    // ============ MutationObserver ============
-
-    let hideTimeout = null;
-
-    function scheduleHide() {
-        if (hideTimeout) return;
-        hideTimeout = setTimeout(() => {
-            hideAdElements();
-            hideTimeout = null;
-        }, 100);
-    }
-
-    const observer = new MutationObserver((mutations) => {
-        for (const mutation of mutations) {
-            if (mutation.addedNodes.length > 0) {
-                scheduleHide();
-                break;
-            }
-        }
-    });
-
-    // ============ 初始化 ============
-
-    function init() {
-        injectAntiBypass();
-
-        // 初始隐藏
-        if (document.readyState === 'loading') {
-            document.addEventListener('DOMContentLoaded', hideAdElements);
-        } else {
-            hideAdElements();
-        }
-
-        // 监听动态内容
-        observer.observe(document.documentElement, {
-            childList: true,
-            subtree: true,
+            });
+            
+            observer.observe(document.documentElement, { 
+                childList: true, 
+                subtree: true,
+                attributes: true,
+                attributeFilter: ['class', 'id'] // 监听类名和 ID 改变
+            });
+            checkAndKill(document.body);
         });
     }
 
-    init();
+    function checkAndKill(root) {
+        if (!root) return;
+        
+        const elements = root.querySelectorAll ? root.querySelectorAll('div, iframe') : [];
+        elements.forEach(el => {
+            if (el.dataset.dwKilled) return;
+            const style = window.getComputedStyle(el);
+            const rect = el.getBoundingClientRect();
+            
+            // 清理全屏透明遮罩
+            if (style.position === 'fixed' || style.position === 'absolute') {
+                const isLarge = rect.width > window.innerWidth * 0.8 && rect.height > window.innerHeight * 0.8;
+                const isInvisible = parseFloat(style.opacity) < 0.1 || (el.innerText || '').trim() === '';
+                const zIndex = parseInt(style.zIndex, 10) || 0;
+                
+                if (isLarge && (isInvisible || zIndex > 1000)) {
+                    if (/(verify|captcha|challenge|puzzle)/i.test(el.className + el.id + el.innerText)) return;
+                    
+                    el.style.setProperty('pointer-events', 'none', 'important');
+                    el.style.setProperty('display', 'none', 'important');
+                    el.dataset.dwKilled = 'true';
+                    console.warn('🛡️ [DOM清理] 秒杀透明劫持层');
+                }
+            }
+        });
 
-    // ============ 与 Service Worker 通信 ============
-
-    chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
-        if (message.type === 'HIDE_ELEMENTS') {
-            hideAdElements();
-            sendResponse({ ok: true });
+        // 穿透 Shadow DOM
+        if (root.shadowRoot) {
+            checkAndKill(root.shadowRoot);
         }
-        return true;
-    });
+    }
 
-    console.log('DewSecure Content Script 已加载');
+    init();
 })();

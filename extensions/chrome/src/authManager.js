@@ -91,19 +91,26 @@ export async function verifyOTP(email, inputOtp) {
 export async function loginUser(email) {
     const deviceId = await getOrCreateDeviceId();
     const now = Date.now();
+    
+    const isTestFreeUser = email === 'test2@example.com';
+    let tier = 'premium';
+    let expiresAt = now + 30 * 24 * 60 * 60 * 1000;
+    let hasUsedTrial = true;
+
+    if (isTestFreeUser) {
+        tier = 'free';
+        expiresAt = null;
+        hasUsedTrial = false;
+    }
 
     const user = {
-        email,
-        tier: 'premium',
-        createdAt: now,
-        expiresAt: now + SUBSCRIPTION_DURATION_MS,
-        deviceId,
+        email, tier, createdAt: now, expiresAt, deviceId, hasUsedTrial
     };
-
+    
     await chrome.storage.local.set({ [USER_KEY]: user });
 
     const { [SETTINGS_KEY]: settings = {} } = await chrome.storage.local.get(SETTINGS_KEY);
-    settings.tier = 'premium';
+    settings.tier = tier;
     settings.email = email;
     settings.activatedAt = user.createdAt;
     settings.expiresAt = user.expiresAt;
@@ -111,6 +118,11 @@ export async function loginUser(email) {
     await chrome.storage.local.set({ [SETTINGS_KEY]: settings });
 
     return { ok: true, user };
+}
+
+export async function markTrialUsed(email) {
+    const key = `trial_used_${email}`;
+    await chrome.storage.local.set({ [key]: true });
 }
 
 /* ============================================================

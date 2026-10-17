@@ -7,38 +7,29 @@
     <link rel="stylesheet" href="popup.css">
 </head>
 <body>
-    <div class="app">
+    <div class="app" id="mainView">
         <!-- ========== Header ========== -->
         <header class="header glass">
-            <div class="logo">
-                <span class="logo-icon">🛡️</span>
+            <a class="logo" href="https://dewsecure.com" target="_blank" style="text-decoration: none;">
+                <img src="../icons/DewSecure.png" class="logo-img" alt="DewSecure">
                 <span class="logo-text">DewSecure</span>
-            </div>
+            </a>
             <div class="status-badge active" id="status">保护中</div>
         </header>
 
         <!-- ========== Stats ========== -->
         <div class="stats">
-            <div class="stat-card glass">
+            <div class="stat-card glass" id="cardToday" style="cursor: pointer;">
                 <div class="stat-value" id="todayBlocked">0</div>
                 <div class="stat-label">今日拦截</div>
             </div>
-            <div class="stat-card glass">
+            <div class="stat-card glass" id="cardTotal" style="cursor: pointer;">
                 <div class="stat-value" id="totalBlocked">0</div>
                 <div class="stat-label">累计拦截</div>
             </div>
         </div>
 
-        <!-- ========== AI 额度条 ========== -->
-        <div class="limit-card glass" id="limitBar">
-            <div class="limit-info">
-                <span class="limit-label">AI 每日额度</span>
-                <span class="limit-value" id="limitText">0 / 50</span>
-            </div>
-            <div class="limit-progress">
-                <div class="limit-fill" id="limitFill"></div>
-            </div>
-        </div>
+        
 
         <!-- ========== 站点保护 Toggle ========== -->
         <div class="site-card glass">
@@ -72,6 +63,14 @@
             </button>
         </div>
 
+        <!-- 试用提示 Banner -->
+        <div class="trial-banner glass hidden" id="trialBanner">
+            <div class="trial-content" id="trialContent">
+                首次登录/注册，即可激活 30 天高级版。
+            </div>
+            <button class="trial-close" id="trialClose">✕</button>
+        </div>
+
         <!-- ========== 反馈 ========== -->
         <div class="feedback-card glass">
             <div class="feedback-title">🛠️ 帮助改进 DewSecure</div>
@@ -82,9 +81,53 @@
             <div class="feedback-hint" id="feedbackHint">您的反馈将匿名上传，帮助 AI 持续进化</div>
         </div>
 
-        <!-- ========== 保护功能 ========== -->
+                <!-- ========== 保护功能 ========== -->
         <div class="features-card glass">
             <div class="features-header">保护功能</div>
+            
+            <div class="feature-row">
+                <div class="feature-text">
+                    <div class="feature-name">DNR 规则拦截</div>
+                    <div class="feature-desc">包含已知恶意域名、广告与追踪器（基础免费）</div>
+                </div>
+                <label class="ios-switch mini">
+                    <input type="checkbox" id="dnrToggle" checked>
+                    <span class="switch-track"><span class="switch-thumb"><svg class="icon-check" viewBox="0 0 24 24" fill="none"><path d="M5 13l4 4L19 7" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"/></svg><span class="icon-ring"></span></span></span>
+                </label>
+            </div>
+
+            <div class="feature-row">
+                <div class="feature-text">
+                    <div class="feature-name">防点击劫持 (防弹窗)</div>
+                    <div class="feature-desc">阻断恶意网站透明遮罩与点击重定向</div>
+                </div>
+                <label class="ios-switch mini">
+                    <input type="checkbox" id="antiHijackToggle" checked>
+                    <span class="switch-track"><span class="switch-thumb"><svg class="icon-check" viewBox="0 0 24 24" fill="none"><path d="M5 13l4 4L19 7" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"/></svg><span class="icon-ring"></span></span></span>
+                </label>
+            </div>
+
+            <div class="feature-row" data-requires="premium">
+                <div class="feature-text">
+                    <div class="feature-name">钓鱼网站 AI 检测 <span class="pro-badge">PRO</span></div>
+                    <div class="feature-desc">智能识别恶意与钓鱼网页</div>
+                </div>
+                <label class="ios-switch mini">
+                    <input type="checkbox" id="phishingToggle" checked>
+                    <span class="switch-track"><span class="switch-thumb"><svg class="icon-check" viewBox="0 0 24 24" fill="none"><path d="M5 13l4 4L19 7" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"/></svg><span class="icon-ring"></span></span></span>
+                </label>
+            </div>
+
+            <div class="feature-row" data-requires="premium">
+                <div class="feature-text">
+                    <div class="feature-name">AI 实时检测（四分类） <span class="pro-badge">PRO</span></div>
+                    <div class="feature-desc">识别规则库未收录的广告与威胁</div>
+                </div>
+                <label class="ios-switch mini">
+                    <input type="checkbox" id="aiFourToggle" checked>
+                    <span class="switch-track"><span class="switch-thumb"><svg class="icon-check" viewBox="0 0 24 24" fill="none"><path d="M5 13l4 4L19 7" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"/></svg><span class="icon-ring"></span></span></span>
+                </label>
+            </div>
 
             <div class="feature-row" data-requires="premium">
                 <div class="feature-text">
@@ -93,36 +136,18 @@
                 </div>
                 <label class="ios-switch mini">
                     <input type="checkbox" id="aiToggle" checked>
-                    <span class="switch-track">
-                        <span class="switch-thumb">
-                            <svg class="icon-check" viewBox="0 0 24 24" fill="none">
-                                <path d="M5 13l4 4L19 7" stroke="currentColor"
-                                      stroke-width="3.5" stroke-linecap="round"
-                                      stroke-linejoin="round"/>
-                            </svg>
-                            <span class="icon-ring"></span>
-                        </span>
-                    </span>
+                    <span class="switch-track"><span class="switch-thumb"><svg class="icon-check" viewBox="0 0 24 24" fill="none"><path d="M5 13l4 4L19 7" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"/></svg><span class="icon-ring"></span></span></span>
                 </label>
             </div>
 
             <div class="feature-row">
                 <div class="feature-text">
                     <div class="feature-name">阻止追踪器</div>
-                    <div class="feature-desc">拦截跟踪脚本和像素 · 高级版解锁完整功能</div>
+                    <div class="feature-desc">拦截跟踪脚本和像素</div>
                 </div>
                 <label class="ios-switch mini">
                     <input type="checkbox" id="trackerToggle" checked>
-                    <span class="switch-track">
-                        <span class="switch-thumb">
-                            <svg class="icon-check" viewBox="0 0 24 24" fill="none">
-                                <path d="M5 13l4 4L19 7" stroke="currentColor"
-                                      stroke-width="3.5" stroke-linecap="round"
-                                      stroke-linejoin="round"/>
-                            </svg>
-                            <span class="icon-ring"></span>
-                        </span>
-                    </span>
+                    <span class="switch-track"><span class="switch-thumb"><svg class="icon-check" viewBox="0 0 24 24" fill="none"><path d="M5 13l4 4L19 7" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"/></svg><span class="icon-ring"></span></span></span>
                 </label>
             </div>
 
@@ -133,16 +158,7 @@
                 </div>
                 <label class="ios-switch mini">
                     <input type="checkbox" id="antiBypassToggle" checked>
-                    <span class="switch-track">
-                        <span class="switch-thumb">
-                            <svg class="icon-check" viewBox="0 0 24 24" fill="none">
-                                <path d="M5 13l4 4L19 7" stroke="currentColor"
-                                      stroke-width="3.5" stroke-linecap="round"
-                                      stroke-linejoin="round"/>
-                            </svg>
-                            <span class="icon-ring"></span>
-                        </span>
-                    </span>
+                    <span class="switch-track"><span class="switch-thumb"><svg class="icon-check" viewBox="0 0 24 24" fill="none"><path d="M5 13l4 4L19 7" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"/></svg><span class="icon-ring"></span></span></span>
                 </label>
             </div>
 
@@ -153,16 +169,7 @@
                 </div>
                 <label class="ios-switch mini">
                     <input type="checkbox" id="cookieToggle" checked>
-                    <span class="switch-track">
-                        <span class="switch-thumb">
-                            <svg class="icon-check" viewBox="0 0 24 24" fill="none">
-                                <path d="M5 13l4 4L19 7" stroke="currentColor"
-                                      stroke-width="3.5" stroke-linecap="round"
-                                      stroke-linejoin="round"/>
-                            </svg>
-                            <span class="icon-ring"></span>
-                        </span>
-                    </span>
+                    <span class="switch-track"><span class="switch-thumb"><svg class="icon-check" viewBox="0 0 24 24" fill="none"><path d="M5 13l4 4L19 7" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"/></svg><span class="icon-ring"></span></span></span>
                 </label>
             </div>
 
@@ -173,16 +180,7 @@
                 </div>
                 <label class="ios-switch mini">
                     <input type="checkbox" id="placeholderToggle" checked>
-                    <span class="switch-track">
-                        <span class="switch-thumb">
-                            <svg class="icon-check" viewBox="0 0 24 24" fill="none">
-                                <path d="M5 13l4 4L19 7" stroke="currentColor"
-                                      stroke-width="3.5" stroke-linecap="round"
-                                      stroke-linejoin="round"/>
-                            </svg>
-                            <span class="icon-ring"></span>
-                        </span>
-                    </span>
+                    <span class="switch-track"><span class="switch-thumb"><svg class="icon-check" viewBox="0 0 24 24" fill="none"><path d="M5 13l4 4L19 7" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"/></svg><span class="icon-ring"></span></span></span>
                 </label>
             </div>
 
@@ -193,25 +191,62 @@
                 </div>
                 <label class="ios-switch mini">
                     <input type="checkbox" id="socialToggle" checked>
-                    <span class="switch-track">
-                        <span class="switch-thumb">
-                            <svg class="icon-check" viewBox="0 0 24 24" fill="none">
-                                <path d="M5 13l4 4L19 7" stroke="currentColor"
-                                      stroke-width="3.5" stroke-linecap="round"
-                                      stroke-linejoin="round"/>
-                            </svg>
-                            <span class="icon-ring"></span>
-                        </span>
-                    </span>
+                    <span class="switch-track"><span class="switch-thumb"><svg class="icon-check" viewBox="0 0 24 24" fill="none"><path d="M5 13l4 4L19 7" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"/></svg><span class="icon-ring"></span></span></span>
                 </label>
             </div>
         </div>
 
-        <!-- ========== Footer ========== -->
+
         <footer class="footer">
             <span>v0.2.0</span>
             <a href="#" id="settingsLink">设置</a>
         </footer>
+    </div> <!-- End mainView -->
+
+    <!-- ========== 今日拦截日志视图 ========== -->
+    <div class="app hidden" id="logsView">
+        <div class="sub-view-nav glass">
+            <button class="btn-back" id="backFromLogs">
+                <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
+                返回
+            </button>
+            <div class="sub-view-title">今日拦截详情</div>
+            <div class="status-badge active" id="logCountBadge">0 条</div>
+        </div>
+        
+        <div class="glass" style="padding: 12px; flex: 1; overflow-y: auto; max-height: 450px;">
+            <div id="logsList" style="display: flex; flex-direction: column; gap: 8px;">
+                <!-- 日志内容由 JS 动态注入 -->
+                <div style="text-align: center; color: #9ca3af; font-size: 12px; padding: 20px;">暂无拦截记录</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ========== 累计统计视图 ========== -->
+    <div class="app hidden" id="statsView">
+        <div class="sub-view-nav glass">
+            <button class="btn-back" id="backFromStats">
+                <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
+                返回
+            </button>
+            <div class="sub-view-title">累计拦截统计</div>
+        </div>
+        
+        <div class="glass" style="padding: 16px; flex: 1; overflow-y: auto; max-height: 450px;">
+            <div style="text-align: center; margin-bottom: 20px;">
+                <div style="font-size: 12px; color: #6b7280;">总计拦截</div>
+                <div style="font-size: 36px; font-weight: 700; color: #1c1c1e;" id="totalStatsValue">0</div>
+<div id="statsTimeRange" style="font-size: 11px; color: #9ca3af; margin-top: 4px;"></div>
+            </div>
+            
+            <div class="features-header" style="margin-top: 10px;">Top 10 拦截域名</div>
+            <div id="topDomainsList" style="display: flex; flex-direction: column; gap: 8px;">
+                <!-- 动态注入 -->
+            </div>
+        </div>
+
+        <!-- ========== Footer ========== -->
+        
     </div>
 
         <!-- ========== 认证模态框 ========== -->
@@ -296,6 +331,9 @@
                         </div>
                     </div>
 
+                    <button class="auth-primary-btn" id="activateTrialBtn" style="background: linear-gradient(135deg, #FFD966, #FFC107); color: #8a5a00; margin-bottom: 8px;">
+                        点击激活 30 天高级版
+                    </button>
                     <button class="auth-primary-btn" id="manageAccountBtn">
                         管理账号
                     </button>
@@ -328,38 +366,96 @@
 
         <!-- ========== 设置弹窗 ========== -->
         <div class="modal-overlay hidden" id="settingsModal">
-            <div class="modal-card glass">
+            <div class="modal-card glass settings-card">
                 <button class="modal-close" id="settingsClose" aria-label="关闭">✕</button>
-
-                <div class="auth-step">
-                    <div class="auth-icon">⚙️</div>
-                    <h2 class="auth-title">设置</h2>
-
-                    <div class="settings-section">
-                        <div class="settings-section-title">语言 / Language</div>
-                        <div class="lang-options">
-                            <button class="lang-option active" data-lang="zh-CN">
-                                <span class="lang-flag">🇨🇳</span>
-                                <span class="lang-name">简体中文</span>
-                                <span class="lang-check">✓</span>
-                            </button>
-                            <button class="lang-option" data-lang="en">
-                                <span class="lang-flag">🇺🇸</span>
-                                <span class="lang-name">English</span>
-                                <span class="lang-check">✓</span>
-                            </button>
+                <h2 class="auth-title" style="margin-bottom: 16px;">设置</h2>
+                
+                <div class="settings-container">
+                    <!-- 左侧导航 -->
+                    <div class="settings-sidebar">
+                        <button class="settings-tab active" data-target="tabLang">🌐 语言</button>
+                        <button class="settings-tab" data-target="tabWhitelist">🛡️ 白名单</button>
+                    </div>
+                    
+                    <!-- 右侧内容 -->
+                    <div class="settings-content">
+                        <!-- 语言 Tab -->
+                        <div class="settings-pane active" id="tabLang">
+                            <div class="lang-options">
+                                <button class="lang-option active" data-lang="zh-CN">
+                                    <span class="lang-flag">🇨🇳</span>
+                                    <span class="lang-name">简体中文</span>
+                                    <span class="lang-check">✓</span>
+                                </button>
+                                <button class="lang-option" data-lang="en">
+                                    <span class="lang-flag">🇺🇸</span>
+                                    <span class="lang-name">English</span>
+                                    <span class="lang-check">✓</span>
+                                </button>
+                            </div>
                         </div>
-                        <p class="settings-hint">更多语言即将支持</p>
-                    </div>
+                        
+                        <!-- 白名单 Tab -->
+                        <div class="settings-pane" id="tabWhitelist">
+                            <div class="whitelist-header">
+                                白名单列表
+                            </div>
+                            <p class="settings-hint" style="text-align:left; margin-bottom: 8px;">在此列表中的域名将 <strong>停止所有保护</strong>。</p>
+                            
+                            <div id="wlLoginNotice" class="hidden" style="background: rgba(240, 96, 62, 0.1); color: #c4421f; padding: 8px; border-radius: 8px; font-size: 11px; margin-bottom: 8px;">
+                                请先登录账号以使用白名单功能。
+                            </div>
 
-                    <div class="settings-section">
-                        <div class="settings-section-title">帮助</div>
-                        <button class="settings-link-btn" id="reportLinkBtn">
-                            <span class="settings-link-icon">💬</span>
-                            <span class="settings-link-text">反馈问题</span>
-                            <span class="settings-link-arrow">→</span>
-                        </button>
+                            <div class="whitelist-add-row" id="wlAddRow">
+                                <input type="text" id="whitelistInput" placeholder="example.com" class="auth-input" style="padding: 8px 12px; font-size: 12px;">
+                                <button class="auth-primary-btn" id="addWhitelistBtn" style="width: auto; padding: 0 12px; border-radius: 8px;">添加</button>
+                            </div>
+                            
+                            <div class="whitelist-list" id="whitelistList">
+                                <!-- 动态渲染 -->
+                            </div>
+                        </div>
                     </div>
+                </div>
+                
+            </div>
+        </div>
+        </div>
+
+
+        <!-- ========== 激活试用确认弹窗 ========== -->
+        <div class="modal-overlay hidden" id="trialActivateModal">
+            <div class="modal-card glass confirm-card">
+                <div class="auth-step">
+                    <div class="auth-icon" style="filter: drop-shadow(0 4px 8px rgba(255, 193, 7, 0.4));">🎁</div>
+                    <h2 class="auth-title">激活 30 天高级版</h2>
+                    <p class="auth-subtitle">您将被引导至官网 Pricing 页面，<br>激活成功后插件会自动更新状态。<br>是否继续？</p>
+
+                    <button class="auth-primary-btn" id="confirmActivateBtn" style="background: linear-gradient(135deg, #FFD966, #FFC107); color: #8a5a00;">
+                        前往激活
+                    </button>
+                    <button class="auth-link-btn" id="cancelActivateBtn">
+                        取消
+                    </button>
+                </div>
+            </div>
+        </div>
+
+
+        <!-- ========== 暂停保护警告弹窗 ========== -->
+        <div class="modal-overlay hidden" id="pauseConfirmModal">
+            <div class="modal-card glass confirm-card">
+                <div class="auth-step">
+                    <div class="auth-icon warn">⚠️</div>
+                    <h2 class="auth-title">暂停保护？</h2>
+                    <p class="auth-subtitle">关闭后，当前网站将完全暴露在广告、追踪器和钓鱼威胁之下。此操作仅对当前网站生效。</p>
+
+                    <button class="auth-primary-btn danger" id="confirmPauseBtn">
+                        确认暂停
+                    </button>
+                    <button class="auth-link-btn" id="cancelPauseBtn">
+                        取消
+                    </button>
                 </div>
             </div>
         </div>

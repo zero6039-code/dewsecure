@@ -7,24 +7,29 @@ import { sendOTP, verifyOTP, loginUser, logoutUser, getCurrentUser, formatDate }
 
 async function init() {
     const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-    const { stats, settings } = await chrome.runtime.sendMessage({ type: 'GET_STATS' });
-
+    
+    // 直接从 storage 读取，避免 Service Worker 启动延迟导致读不到
+    const { dewsecure_stats: stats, dewsecure_settings: settings } = await chrome.storage.local.get(['dewsecure_stats', 'dewsecure_settings']);
+    
+    const finalSettings = settings || {};
+    
     updateStats(stats);
-    updateLimit(settings);
-    updateFeatureToggles(settings);
-    applyTierLock(settings);
-    updateUpgradeButton(settings);
-
-    // 登录按钮状态（登录后改为「查看状态」）
+    updateFeatureToggles(finalSettings);
+    applyTierLock(finalSettings);
+    updateUpgradeButton(finalSettings);
+    
     const currentUser = await getCurrentUser();
     updateLoginButton(currentUser);
+    updateTrialBanner(currentUser);
 
-    // ---- 站点开关 ----
     if (tab?.url && /^https?:/.test(tab.url)) {
         try {
             const host = new URL(tab.url).hostname;
-            const isWhitelisted = (settings.whitelist || []).some((d) => host.endsWith(d));
-            updateSiteSwitch(!isWhitelisted, host);
+            const matchDomain = (d) => host === d || host.endsWith('.' + d);
+            const isWhitelisted = (finalSettings.whitelist || []).some(matchDomain);
+            const isTempWhitelisted = (finalSettings.tempWhitelist || []).some(matchDomain);
+            const isProtected = !isWhitelisted && !isTempWhitelisted;
+            updateSiteSwitch(isProtected, host);
         } catch (e) {
             disableSiteSwitch();
         }
@@ -32,7 +37,7 @@ async function init() {
         disableSiteSwitch();
     }
 
-    bindEvents(settings);
+    bindEvents(finalSettings);
 }
 
 /* ============================================================
@@ -44,36 +49,14 @@ function updateStats(stats) {
     document.getElementById('totalBlocked').textContent = stats?.totalBlocked || 0;
 }
 
-function updateLimit(settings) {
-    const limitCard = document.getElementById('limitBar');
-    const limitText = document.getElementById('limitText');
-    const fill = document.getElementById('limitFill');
 
-    const isPremium = isPremiumUser(settings);
-
-    if (isPremium) {
-        limitCard.classList.add('premium');
-        limitText.textContent = '无限';
-        fill.style.width = '100%';
-        fill.classList.remove('warning');
-        return;
-    }
-
-    limitCard.classList.remove('premium');
-    const used = settings.dailyUsed || 0;
-    const limit = settings.dailyLimit || 50;
-    const percent = Math.min(100, (used / limit) * 100);
-
-    limitText.textContent = `${used} / ${limit}`;
-    fill.style.width = `${percent}%`;
-    fill.classList.toggle('warning', percent > 80);
-}
 
 function updateSiteSwitch(isProtected, host) {
     const switchEl = document.getElementById('siteSwitch');
     const domainEl = document.getElementById('siteDomain');
     const labelEl  = document.getElementById('siteLabel');
     const statusEl = document.getElementById('status');
+    const featuresCard = document.querySelector('.features-card');
 
     if (domainEl) domainEl.textContent = host || '此网站';
 
@@ -86,11 +69,13 @@ function updateSiteSwitch(isProtected, host) {
         statusEl.textContent = '保护中';
         statusEl.classList.remove('paused');
         statusEl.classList.add('active');
+        if (featuresCard) featuresCard.classList.remove('disabled');
     } else {
         if (labelEl) labelEl.textContent = '保护已暂停';
         statusEl.textContent = '已暂停';
         statusEl.classList.remove('active');
         statusEl.classList.add('paused');
+        if (featuresCard) featuresCard.classList.add('disabled');
     }
 }
 
@@ -122,6 +107,10 @@ function disableSiteSwitch() {
    ============================================================ */
 
 function updateFeatureToggles(settings) {
+    document.getElementById('dnrToggle').checked         = settings.dnrEnabled !== false;
+    document.getElementById('antiHijackToggle').checked   = settings.antiHijackEnabled !== false;
+    document.getElementById('phishingToggle').checked    = settings.phishingEnabled !== false;
+    document.getElementById('aiFourToggle').checked      = settings.aiFourEnabled !== false;
     document.getElementById('aiToggle').checked          = settings.aiEnabled !== false;
     document.getElementById('trackerToggle').checked     = settings.blockTrackers !== false;
     document.getElementById('antiBypassToggle').checked  = settings.antiBypassEnabled !== false;
@@ -188,33 +177,54 @@ function updateLoginButton(user) {
 
 function bindEvents(settings) {
     // ---- 站点 Toggle ----
-    document.getElementById('siteSwitch').addEventListener('change', async (e) => {
+    document.getElementById('siteSwitch').addEventListener('change', (e) => {
         const switchEl = e.target;
         const host = switchEl.dataset.host;
         if (!host) return;
 
         const willProtect = switchEl.checked;
-        updateSiteSwitch(willProtect, host);
 
-        try {
-            if (willProtect) {
-                await chrome.runtime.sendMessage({ type: 'REMOVE_WHITELIST', domain: host });
-            } else {
-                await chrome.runtime.sendMessage({ type: 'ADD_WHITELIST', domain: host });
-            }
-        } catch (err) {
-            updateSiteSwitch(!willProtect, host);
+        if (!willProtect) {
+            switchEl.checked = true; // 视觉上先回滚
+            document.getElementById('pauseConfirmModal').classList.remove('hidden');
+            
+            document.getElementById('confirmPauseBtn').onclick = () => {
+                document.getElementById('pauseConfirmModal').classList.add('hidden');
+                chrome.runtime.sendMessage({ type: 'ADD_TEMP_WHITELIST', domain: host }, (res) => {
+                    if (res && res.ok) {
+                        switchEl.checked = false;
+                        updateSiteSwitch(false, host);
+                    } else {
+                        console.error('暂停失败:', res?.error);
+                    }
+                });
+            };
+            document.getElementById('cancelPauseBtn').onclick = () => {
+                document.getElementById('pauseConfirmModal').classList.add('hidden');
+            };
+            return;
         }
+
+        chrome.runtime.sendMessage({ type: 'REMOVE_TEMP_WHITELIST', domain: host }, (res) => {
+            if (res && res.ok) {
+                updateSiteSwitch(true, host);
+            }
+        });
     });
 
     // ---- 功能开关 ----
     const bindFeature = (id, key) => {
         document.getElementById(id).addEventListener('change', async (e) => {
+            await chrome.runtime.sendMessage({ type: 'UPDATE_SETTING_KEY', key: key, value: e.target.checked });
+            // 更新本地引用
             settings[key] = e.target.checked;
-            await chrome.runtime.sendMessage({ type: 'UPDATE_SETTINGS', settings });
         });
     };
 
+    bindFeature('dnrToggle',         'dnrEnabled');
+    bindFeature('antiHijackToggle',  'antiHijackEnabled');
+    bindFeature('phishingToggle',    'phishingEnabled');
+    bindFeature('aiFourToggle',      'aiFourEnabled');
     bindFeature('aiToggle',          'aiEnabled');
     bindFeature('trackerToggle',     'blockTrackers');
     bindFeature('antiBypassToggle',  'antiBypassEnabled');
@@ -224,6 +234,15 @@ function bindEvents(settings) {
 
     // ---- 登录 / 升级 ----
     document.getElementById('loginBtn').addEventListener('click', openAuthModal);
+    
+    if (document.getElementById('trialClose')) {
+        document.getElementById('trialClose').addEventListener('click', handleTrialClose);
+    }
+    if (document.getElementById('activateTrialBtn')) {
+        document.getElementById('activateTrialBtn').addEventListener('click', openTrialActivateModal);
+        document.getElementById('confirmActivateBtn').addEventListener('click', () => { closeTrialActivateModal(); chrome.tabs.create({ url: 'https://dewsecure.com/pricing' }); });
+        document.getElementById('cancelActivateBtn').addEventListener('click', closeTrialActivateModal);
+    }
     document.getElementById('modalClose').addEventListener('click', closeAuthModal);
 
     // 点击遮罩层关闭 authModal
@@ -336,7 +355,9 @@ async function handleReport(type) {
             // 成功：按钮变绿 + 显示对勾
             button.textContent = '✅ 已记录';
             button.classList.add('success');
-            hint.textContent = '感谢反馈！已帮助改进 AI 模型';
+            hint.textContent = type === 'missed'
+                ? '已记录此页面的漏拦情况，AI 将在 24 小时内学习'
+                : '已记录此页面的误拦情况，我们会人工审核';
             hint.classList.add('success');
             hint.classList.remove('error');
 
@@ -410,7 +431,7 @@ function closeAuthModal() {
     // 如果刚刚登录成功，用户关闭弹窗后才刷新主界面
     if (justLoggedIn) {
         justLoggedIn = false;
-        setTimeout(() => window.location.reload(), 200);
+        setTimeout(() => init(), 200);
     }
 }
 
@@ -576,11 +597,28 @@ async function handleGoogleLogin() {
 /* ---- 填充已登录视图 ---- */
 function populateLoggedInView(user) {
     document.getElementById('loggedInEmail').textContent = user.email;
-    document.getElementById('accountTier').textContent =
-        user.tier === 'premium' ? '⭐ 高级版' : '免费版';
-    document.getElementById('accountTier').classList.toggle('free', user.tier !== 'premium');
-    document.getElementById('accountExpiry').textContent = formatDate(user.expiresAt);
-    document.getElementById('accountDevices').textContent = '1 / 3';
+    
+    // 订阅状态
+    const isPremium = user.tier === 'premium' || user.tier === 'family';
+    document.getElementById('accountTier').textContent = isPremium ? '⭐ 高级版' : '免费版';
+    document.getElementById('accountTier').classList.toggle('free', !isPremium);
+    
+    // 到期时间
+    document.getElementById('accountExpiry').textContent = isPremium ? formatDate(user.expiresAt) : '—';
+    
+    // 设备数量
+    if (isPremium) {
+        document.getElementById('accountDevices').textContent = '1 / 3';
+        document.getElementById('activateTrialBtn').classList.add('hidden');
+    } else {
+        document.getElementById('accountDevices').textContent = '- / -';
+        // 如果是免费版，且没用过试用，显示激活按钮
+        if (!user.hasUsedTrial) {
+            document.getElementById('activateTrialBtn').classList.remove('hidden');
+        } else {
+            document.getElementById('activateTrialBtn').classList.add('hidden');
+        }
+    }
 }
 
 /* ---- 登出 ---- */
@@ -597,8 +635,117 @@ async function handleLogoutConfirmed() {
     closeConfirmModal();
     await logoutUser();
     closeAuthModal();
-    setTimeout(() => window.location.reload(), 200);
+    setTimeout(() => init(), 200);
 }
+
+
+/* ---- 试用 Banner ---- */
+function updateTrialBanner(user) {
+    const banner = document.getElementById('trialBanner');
+    if (!banner) return;
+
+    // 如果是高级版（付费/试用），直接隐藏 Banner
+    if (user && user.tier !== 'free') {
+        banner.classList.add('hidden');
+        return;
+    }
+
+    banner.classList.remove('hidden');
+    const content = document.getElementById('trialContent');
+    content.textContent = user
+        ? '您有资格激活 30 天高级版。点击前往领取。'
+        : '首次登录/注册，即可激活 30 天高级版。点击前往。';
+
+    content.onclick = () => chrome.tabs.create({ url: 'https://dewsecure.com/pricing' });
+}
+
+function handleTrialClose() {
+    document.getElementById('trialBanner').classList.add('hidden');
+}
+
+function openTrialActivateModal() {
+    document.getElementById('trialActivateModal').classList.remove('hidden');
+}
+function closeTrialActivateModal() {
+    document.getElementById('trialActivateModal').classList.add('hidden');
+}
+
+
+/* ---- 设置弹窗 Tabs ---- */
+document.querySelectorAll('.settings-tab').forEach(tab => {
+    tab.addEventListener('click', () => {
+        document.querySelectorAll('.settings-tab').forEach(t => t.classList.remove('active'));
+        document.querySelectorAll('.settings-pane').forEach(p => p.classList.remove('active'));
+        tab.classList.add('active');
+        document.getElementById(tab.dataset.target).classList.add('active');
+        
+        if (tab.dataset.target === 'tabWhitelist') {
+            renderWhitelist();
+        }
+    });
+});
+
+async function renderWhitelist() {
+    const listContainer = document.getElementById('whitelistList');
+    const loginNotice = document.getElementById('wlLoginNotice');
+    const addRow = document.getElementById('wlAddRow');
+    listContainer.innerHTML = '';
+    
+    const user = await getCurrentUser();
+    if (!user) {
+        // 未登录限制
+        loginNotice.classList.remove('hidden');
+        addRow.classList.add('disabled');
+        return;
+    } else {
+        loginNotice.classList.add('hidden');
+        addRow.classList.remove('disabled');
+    }
+    
+    const { settings } = await chrome.runtime.sendMessage({ type: 'GET_STATS' });
+    const wl = settings.whitelist || [];
+    
+    if (wl.length === 0) {
+        listContainer.innerHTML = '<div style="text-align:center;color:#9ca3af;font-size:12px;">暂无白名单</div>';
+        return;
+    }
+
+    wl.forEach(domain => {
+        const div = document.createElement('div');
+        div.className = 'whitelist-item';
+        const span = document.createElement('span');
+        span.textContent = domain;
+        const btn = document.createElement('button');
+        btn.className = 'btn-remove-wl';
+        btn.textContent = '✕';
+        btn.onclick = async () => {
+            await chrome.runtime.sendMessage({ type: 'REMOVE_WHITELIST', domain });
+            renderWhitelist();
+        };
+        div.appendChild(span);
+        div.appendChild(btn);
+        listContainer.appendChild(div);
+    });
+}
+
+document.getElementById('addWhitelistBtn').addEventListener('click', async () => {
+    const user = await getCurrentUser();
+    if (!user) return alert('请先登录');
+
+    const input = document.getElementById('whitelistInput');
+    const domain = input.value.trim().toLowerCase();
+    if (!domain) return;
+    
+    if (!/^[a-z0-9.-]+$/i.test(domain)) return alert('域名格式非法');
+    
+    const res = await chrome.runtime.sendMessage({ type: 'ADD_WHITELIST', domain });
+    if (res.ok) {
+        input.value = '';
+        renderWhitelist();
+    } else {
+        alert(res.error || '添加失败');
+    }
+});
 
 /* ============================================================
    设置弹窗逻辑
@@ -629,5 +776,177 @@ async function handleLanguageSelect(btn) {
     await chrome.storage.local.set({ [LANG_KEY]: lang });
     console.log('🌐 语言已切换为:', lang);
 }
+
+
+/* ============================================================
+   视图切换与日志渲染 (防 XSS 注入)
+   ============================================================ */
+function switchView(viewId) {
+    document.getElementById('mainView').classList.add('hidden');
+    document.getElementById('logsView').classList.add('hidden');
+    document.getElementById('statsView').classList.add('hidden');
+    
+    const target = document.getElementById(viewId);
+    if (target) target.classList.remove('hidden');
+}
+
+document.getElementById('cardToday').addEventListener('click', loadTodayLogs);
+document.getElementById('backFromLogs').addEventListener('click', () => switchView('mainView'));
+document.getElementById('cardTotal').addEventListener('click', loadTotalStats);
+document.getElementById('backFromStats').addEventListener('click', () => switchView('mainView'));
+
+
+
+
+
+
+/* ---- 累计统计渲染 ---- */
+
+
+
+
+
+/* ============================================================
+   视图渲染逻辑
+   ============================================================ */
+async function loadTodayLogs() {
+    switchView('logsView');
+    
+    // 移除 tabId，直接拉取全量日志
+    let logs = await chrome.runtime.sendMessage({ type: 'GET_LOGS' }) || [];
+    if (!Array.isArray(logs)) logs = [];
+    
+    const today = new Date().toDateString();
+    const todayLogs = logs.filter(l => l.date === today);
+    
+    document.getElementById('logCountBadge').textContent = `${todayLogs.length} 条`;
+    const container = document.getElementById('logsList'); // 确保 container 定义
+    container.innerHTML = '';
+
+    if (todayLogs.length === 0) {
+        container.innerHTML = '<div style="text-align:center;color:#9ca3af;font-size:12px;padding:20px;">今天暂无拦截记录</div>';
+        return;
+    }
+
+    const grouped = {};
+    todayLogs.forEach(l => {
+        if (!grouped[l.domain]) grouped[l.domain] = { count: 0, items: [] };
+        grouped[l.domain].count++;
+        grouped[l.domain].items.push(l);
+    });
+
+    Object.keys(grouped).sort((a, b) => grouped[b].count - grouped[a].count).forEach(domain => {
+        const row = document.createElement('div');
+        row.className = 'log-domain-row';
+        const nameSpan = document.createElement('span');
+        nameSpan.textContent = domain;
+        const countSpan = document.createElement('span');
+        countSpan.className = 'log-domain-count';
+        countSpan.textContent = grouped[domain].count;
+        row.appendChild(nameSpan); row.appendChild(countSpan);
+        
+        const details = document.createElement('div');
+        details.className = 'log-details';
+        grouped[domain].items.forEach(item => {
+            const itemDiv = document.createElement('div');
+            itemDiv.textContent = `[${item.type}] ${item.url}`;
+            details.appendChild(itemDiv);
+        });
+        row.addEventListener('click', () => details.classList.toggle('open'));
+        container.appendChild(row); container.appendChild(details);
+    });
+}
+
+async function loadTotalStats() {
+    switchView('statsView');
+    
+    let logs = await chrome.runtime.sendMessage({ type: 'GET_LOGS' }) || [];
+    if (!Array.isArray(logs)) logs = [];
+    
+    const res = await chrome.runtime.sendMessage({ type: 'GET_STATS' });
+    const stats = (res && res.stats) ? res.stats : {};
+    
+    document.getElementById('totalStatsValue').textContent = stats.totalBlocked || 0;
+    
+    // 显示时间范围
+    const timeEl = document.getElementById('statsTimeRange');
+    if (timeEl) {
+        if (logs.length > 0) {
+            const oldest = new Date(logs[0].ts).toLocaleDateString();
+            timeEl.textContent = `记录范围：${oldest} 至今 (保留最近1000条)`;
+        } else {
+            timeEl.textContent = '';
+        }
+    }
+
+    const container = document.getElementById('topDomainsList');
+    container.innerHTML = '';
+    if (logs.length === 0) return;
+    
+    const grouped = {};
+    logs.forEach(l => grouped[l.domain] = (grouped[l.domain] || 0) + 1);
+    
+    // 改为 Top 10，并支持展开
+    const sorted = Object.keys(grouped).sort((a, b) => grouped[b] - grouped[a]).slice(0, 10);
+    
+    sorted.forEach((domain, index) => {
+        const row = document.createElement('div');
+        row.className = 'log-domain-row';
+        
+        const nameSpan = document.createElement('span');
+        nameSpan.textContent = `${index + 1}. ${domain}`;
+        
+        const countSpan = document.createElement('span');
+        countSpan.className = 'log-domain-count';
+        countSpan.textContent = grouped[domain];
+        
+        row.appendChild(nameSpan);
+        row.appendChild(countSpan);
+        
+        const details = document.createElement('div');
+        details.className = 'log-details';
+        const domainLogs = logs.filter(l => l.domain === domain).slice(0, 10); // 展开只显示最近5条
+        domainLogs.forEach(item => {
+            const itemDiv = document.createElement('div');
+            itemDiv.textContent = `[${item.type}] ${item.url}`;
+            details.appendChild(itemDiv);
+        });
+        if (grouped[domain] > 5) {
+            const moreDiv = document.createElement('div');
+            moreDiv.textContent = `... 还有 ${grouped[domain] - 5} 条`;
+            details.appendChild(moreDiv);
+        }
+        
+        row.addEventListener('click', () => details.classList.toggle('open'));
+        container.appendChild(row);
+        container.appendChild(details);
+    });
+}
+
+
+// 监听后台发来的实时更新
+
+
+
+// 监听本地存储变化，只要后台更新了数据，UI 瞬间同步刷新
+chrome.storage.onChanged.addListener((changes, namespace) => {
+    if (namespace === 'local' && changes.dewsecure_stats) {
+        const newStats = changes.dewsecure_stats.newValue;
+        if (newStats) {
+            updateStats(newStats);
+        }
+    }
+    if (namespace === 'local' && changes.dewsecure_logs) {
+        // 如果当前在详情页，尝试实时刷新列表
+        const logsView = document.getElementById('logsView');
+        if (logsView && !logsView.classList.contains('hidden')) {
+            loadTodayLogs();
+        }
+        const statsView = document.getElementById('statsView');
+        if (statsView && !statsView.classList.contains('hidden')) {
+            loadTotalStats();
+        }
+    }
+});
 
 init().catch(console.error);
