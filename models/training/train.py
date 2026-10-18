@@ -51,28 +51,32 @@ def train_model():
 
     print(f"🔬 开始分块提取并训练，Chunk Size: {CHUNK_SIZE}...")
     
-    # 分块迭代训练
+    # 分块迭代训练（增加 3 轮全量复习 Epochs）
     total_chunks = (len(train_df) + CHUNK_SIZE - 1) // CHUNK_SIZE
-    for i in range(total_chunks):
-        start = i * CHUNK_SIZE
-        end = min((i + 1) * CHUNK_SIZE, len(train_df))
-        chunk = train_df.iloc[start:end]
-        
-        # 提取当前块的特征
-        X_chunk = np.zeros((len(chunk), N_FEATURES), dtype=np.float32)
-        for j, domain in enumerate(chunk["domain"]):
-            X_chunk[j] = extract_features(domain)
-        y_chunk = chunk["label"].values
-
-        # 喂给模型（第一次需要传 classes）
-        if i == 0:
-            model.partial_fit(X_chunk, y_chunk, classes=classes)
-        else:
-            model.partial_fit(X_chunk, y_chunk)
+    EPOCHS = 3 # 🔥 让模型复习 3 遍全量数据
+    
+    for epoch in range(EPOCHS):
+        print(f"🏃 开始第 {epoch+1}/{EPOCHS} 轮训练...")
+        for i in range(total_chunks):
+            start = i * CHUNK_SIZE
+            end = min((i + 1) * CHUNK_SIZE, len(train_df))
+            chunk = train_df.iloc[start:end]
             
-        # 打印进度并强制清理内存
-        print(f"✅ Chunk {i+1}/{total_chunks} 完成 (数据量: {len(chunk)})")
-        del X_chunk, y_chunk, chunk
+            # 提取当前块的特征
+            X_chunk = np.zeros((len(chunk), N_FEATURES), dtype=np.float32)
+            for j, domain in enumerate(chunk["domain"]):
+                X_chunk[j] = extract_features(domain)
+            y_chunk = chunk["label"].values
+
+            # 喂给模型（第一次需要传 classes）
+            if epoch == 0 and i == 0:
+                model.partial_fit(X_chunk, y_chunk, classes=classes)
+            else:
+                model.partial_fit(X_chunk, y_chunk)
+                
+            # 打印进度并强制清理内存
+            print(f"✅ Epoch {epoch+1} - Chunk {i+1}/{total_chunks} 完成")
+            del X_chunk, y_chunk, chunk
 
     print("🔬 正在提取测试集特征...")
     X_test = np.zeros((len(test_df), N_FEATURES), dtype=np.float32)
