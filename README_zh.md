@@ -59,7 +59,8 @@ DewSecure 是一款基于设备端 AI 分类器 + 云端联邦学习的用户端
 误报（把正常网页判成广告）会导致用户网站白屏或功能损坏，引发大量投诉；漏报（漏掉一个广告）仅仅是影响一点体验。我们高达 98.75% 的 Precision 确保了用户上网体验“零破坏”。
 
 📁 仓库结构
-text
+### 📁 仓库结构
+
 dewsecure/
 ├── core/         # Rust 核心引擎（跨平台高性能）
 ├── extensions/   # Chrome/Firefox 扩展（MV3 + 设备端 ONNX）
@@ -69,6 +70,7 @@ dewsecure/
 ├── server/       # 联邦学习聚合服务（FedAvg）
 ├── rules/        # DNR 过滤规则集（自动编译与优化）
 └── docs/         # 架构与 API 文档
+
 🚀 CI/CD 与自动化流水线
 每周规则更新：自动拉取并转换 EasyList 为 DNR JSON 格式。
 
