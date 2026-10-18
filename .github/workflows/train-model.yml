@@ -115,14 +115,4 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: 验证 CDN 可访问
-        run: |
-          sleep 5
-          echo "=== 模型元信息 ==="
-          curl -s https://cdn.dewsecure.com/latest/model_meta.json
-          echo ""
-          echo "=== 模型文件 HTTP 状态 ==="
-          curl -s -o /dev/null -w "%{http_code}" https://cdn.dewsecure.com/latest/classifier_int8.onnx
-          echo ""
-          echo "=== 本地计算的 SHA-256 ==="
-          sha256sum models/weights/classifier_int8.onnx
+      # 跳过 CDN 验证，因为 Cloudflare WAF 会拦截 GitHub Actions

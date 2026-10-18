@@ -2,8 +2,7 @@ import numpy as np
 import pandas as pd
 import os
 import json
-from sklearn.linear_model import SGDClassifier
-from sklearn.utils.class_weight import compute_class_weight
+from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import f1_score, classification_report
 from tqdm import tqdm
 from features import extract_features
@@ -13,7 +12,6 @@ def prepare_dataset():
     train_df = pd.read_csv("data/train.csv")
     test_df = pd.read_csv("data/test.csv")
 
-    # 采用全量数据（11.7 万条），不截断
     train_df = train_df.sample(frac=1, random_state=42).reset_index(drop=True)
     test_df = test_df.sample(frac=1, random_state=42).reset_index(drop=True)
     
@@ -24,65 +22,41 @@ def train_model():
     train_df, test_df = prepare_dataset()
 
     N_FEATURES = 16418
-    CHUNK_SIZE = 10000  # 每次只处理 1 万条，绝对防 OOM
+    CHUNK_SIZE = 15000  # 稍微大一点，提取更快
 
-    # 使用 SGDClassifier 支持增量训练（partial_fit）
-    print("🚀 初始化增量训练模型 (SGDClassifier)...")
+    print("🔬 正在分块提取训练集特征 (极致防 OOM)...")
+    # 预分配一个巨大的空矩阵，只占 7GB 左右的极限内存在临界点，但我们用 float32 减半内存
+    X_train = np.zeros((len(train_df), N_FEATURES), dtype=np.float32)
+    y_train = train_df["label"].values
     
-    # 🔥 修复：partial_fit 不支持 'balanced' 字符串，必须计算好权重字典
-    classes = np.array([0, 1, 2]) # Normal, Ad, Tracker
-    class_weights_arr = compute_class_weight(
-        class_weight='balanced',
-        classes=classes,
-        y=train_df['label'].values
-    )
-    class_weight_dict = {cls: weight for cls, weight in zip(classes, class_weights_arr)}
-    print(f"✅ 已计算类别权重: {class_weight_dict}")
-
-    model = SGDClassifier(
-        loss='log_loss',       # 等价于逻辑回归
-        penalty='l2',
-        alpha=1e-5,
-        max_iter=100,
-        random_state=42,
-        n_jobs=1,
-        class_weight=class_weight_dict # 传入计算好的字典
-    )
-
-    print(f"🔬 开始分块提取并训练，Chunk Size: {CHUNK_SIZE}...")
-    
-    # 分块迭代训练（增加 3 轮全量复习 Epochs）
     total_chunks = (len(train_df) + CHUNK_SIZE - 1) // CHUNK_SIZE
-    EPOCHS = 3 # 🔥 让模型复习 3 遍全量数据
-    
-    for epoch in range(EPOCHS):
-        print(f"🏃 开始第 {epoch+1}/{EPOCHS} 轮训练...")
-        for i in range(total_chunks):
-            start = i * CHUNK_SIZE
-            end = min((i + 1) * CHUNK_SIZE, len(train_df))
-            chunk = train_df.iloc[start:end]
+    for i in range(total_chunks):
+        start = i * CHUNK_SIZE
+        end = min((i + 1) * CHUNK_SIZE, len(train_df))
+        chunk = train_df.iloc[start:end]
+        
+        for j, domain in enumerate(chunk["domain"]):
+            X_train[start + j] = extract_features(domain)
             
-            # 提取当前块的特征
-            X_chunk = np.zeros((len(chunk), N_FEATURES), dtype=np.float32)
-            for j, domain in enumerate(chunk["domain"]):
-                X_chunk[j] = extract_features(domain)
-            y_chunk = chunk["label"].values
-
-            # 喂给模型（第一次需要传 classes）
-            if epoch == 0 and i == 0:
-                model.partial_fit(X_chunk, y_chunk, classes=classes)
-            else:
-                model.partial_fit(X_chunk, y_chunk)
-                
-            # 打印进度并强制清理内存
-            print(f"✅ Epoch {epoch+1} - Chunk {i+1}/{total_chunks} 完成")
-            del X_chunk, y_chunk, chunk
+        print(f"✅ 特征提取进度: Chunk {i+1}/{total_chunks}")
 
     print("🔬 正在提取测试集特征...")
     X_test = np.zeros((len(test_df), N_FEATURES), dtype=np.float32)
     y_test = test_df["label"].values
     for i, domain in enumerate(tqdm(test_df["domain"], desc="Test")):
         X_test[i] = extract_features(domain)
+
+    print("🚀 正在训练全局最优模型 (LogisticRegression)...")
+    # 使用全局逻辑回归，彻底告别 SGD 的过拟合
+    model = LogisticRegression(
+        C=10, 
+        max_iter=1000, 
+        solver="lbfgs", 
+        multi_class="multinomial", 
+        class_weight="balanced", # 恢复优雅的 balanced
+        n_jobs=1
+    )
+    model.fit(X_train, y_train)
 
     print("📈 正在评估模型...")
     y_pred = model.predict(X_test)
@@ -97,7 +71,6 @@ def train_model():
     
     # 保存产物
     os.makedirs("weights", exist_ok=True)
-    # 注意：SGD 的权重保存格式与普通 LR 略有不同，仍然保存为 coef_ 和 intercept_
     np.savez("weights/classifier_weights.npz", coef=model.coef_, intercept=model.intercept_)
     
     with open("weights/model_meta.json", "w") as f:
