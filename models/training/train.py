@@ -2,8 +2,10 @@ import numpy as np
 import pandas as pd
 import os
 import json
-from sklearn.linear_model import LogisticRegression
+import time
+from sklearn.linear_model import SGDClassifier
 from sklearn.metrics import f1_score, classification_report
+from sklearn.utils.class_weight import compute_class_weight
 from tqdm import tqdm
 from features import extract_features
 
@@ -12,15 +14,18 @@ def prepare_dataset():
     train_df = pd.read_csv("data/train.csv")
     test_df = pd.read_csv("data/test.csv")
 
-    # 🔥 最优解：由于逻辑回归的全量计算太慢，为了保证 CI 不超时，我们采样 5 万条训练，1 万条测试。
-    # 5 万条数据足以让 16K 维特征完美收敛。
+    # 🔥 动态随机种子：每次运行都会产生不同的随机数，保证抽样数据每次都不一样！
+    # 这样既保证了每次跑分的独立性，也能覆盖到更多数据。
+    dynamic_seed = int(time.time()) % 100000 
+    
     if len(train_df) > 50000:
-        train_df = train_df.sample(n=50000, random_state=42)
+        print(f"🎲 使用动态种子 {dynamic_seed} 随机抽取 50000 条训练数据...")
+        train_df = train_df.sample(n=50000, random_state=dynamic_seed)
     if len(test_df) > 10000:
-        test_df = test_df.sample(n=10000, random_state=42)
+        test_df = test_df.sample(n=10000, random_state=dynamic_seed)
 
-    train_df = train_df.sample(frac=1, random_state=42).reset_index(drop=True)
-    test_df = test_df.sample(frac=1, random_state=42).reset_index(drop=True)
+    train_df = train_df.sample(frac=1, random_state=dynamic_seed).reset_index(drop=True)
+    test_df = test_df.sample(frac=1, random_state=dynamic_seed).reset_index(drop=True)
     
     print(f"📊 最终训练集: {len(train_df)}, 测试集: {len(test_df)}")
     return train_df, test_df
@@ -29,9 +34,9 @@ def train_model():
     train_df, test_df = prepare_dataset()
 
     N_FEATURES = 16418
-    CHUNK_SIZE = 15000
+    CHUNK_SIZE = 10000
 
-    print("🔬 正在分块提取特征 (uint8 矩阵，极致防 OOM)...")
+    print("🔬 正在分块提取训练集特征...")
     X_train = np.zeros((len(train_df), N_FEATURES), dtype=np.uint8)
     y_train = train_df["label"].values
     
@@ -40,6 +45,7 @@ def train_model():
         start = i * CHUNK_SIZE
         end = min((i + 1) * CHUNK_SIZE, len(train_df))
         chunk = train_df.iloc[start:end]
+        
         for j, domain in enumerate(chunk["domain"]):
             X_train[start + j] = extract_features(domain)
         print(f"✅ 特征提取进度: Chunk {i+1}/{total_chunks}")
@@ -50,15 +56,44 @@ def train_model():
     for i, domain in enumerate(tqdm(test_df["domain"], desc="Test")):
         X_test[i] = extract_features(domain)
 
-    print("🚀 正在训练最优模型 (LogisticRegression)...")
-    # 🔥 移除报错的 n_jobs 参数，其他保持全局最优
-    model = LogisticRegression(
-        C=10, 
-        max_iter=1000, 
-        solver="lbfgs", 
-        class_weight="balanced" 
+    print("🚀 正在初始化 SGD 增量学习模型...")
+    classes = np.array([0, 1, 2])
+    class_weights_arr = compute_class_weight('balanced', classes=classes, y=y_train)
+    class_weight_dict = {cls: weight for cls, weight in zip(classes, class_weights_arr)}
+    
+    model = SGDClassifier(
+        loss='log_loss', 
+        penalty='l2', 
+        alpha=1e-5, 
+        max_iter=100, 
+        random_state=42, # 模型内部迭代依然固定，保证收敛稳定
+        class_weight=class_weight_dict
     )
-    model.fit(X_train, y_train)
+
+    # 🔥 关键神技：多轮 Epoch + 每轮随机洗牌 (Shuffle)
+    # 这彻底打破了数据固定顺序带来的过拟合，让模型学到更普适的规律！
+    EPOCHS = 5 
+    print(f"🏃 开始 {EPOCHS} 轮打乱顺序训练...")
+    
+    for epoch in range(EPOCHS):
+        print(f"🔄 第 {epoch+1} 轮训练...")
+        # 每一轮都打乱数据索引，让模型忘记上一轮的死板顺序
+        indices = np.random.permutation(len(X_train))
+        X_shuffled = X_train[indices]
+        y_shuffled = y_train[indices]
+        
+        # 分块喂给模型
+        for i in range(0, len(X_shuffled), CHUNK_SIZE):
+            X_chunk = X_shuffled[i:i+CHUNK_SIZE]
+            y_chunk = y_shuffled[i:i+CHUNK_SIZE]
+            
+            if epoch == 0 and i == 0:
+                model.partial_fit(X_chunk, y_chunk, classes=classes)
+            else:
+                model.partial_fit(X_chunk, y_chunk)
+                
+        # 释放临时变量
+        del X_shuffled, y_shuffled
 
     print("📈 正在评估模型...")
     y_pred = model.predict(X_test)
