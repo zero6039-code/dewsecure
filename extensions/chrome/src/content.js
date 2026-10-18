@@ -412,3 +412,31 @@
 
     init();
 })();
+
+
+// ==========================================
+// 钓鱼网站全屏警告拦截 (PRO 卖点)
+// ==========================================
+chrome.runtime.onMessage.addListener((msg) => {
+    if (msg.type === 'PHISHING_DETECTED') {
+        if (document.getElementById('__dewsecure_phishing_wall')) return;
+        
+        const wall = document.createElement('div');
+        wall.id = '__dewsecure_phishing_wall';
+        wall.innerHTML = `
+            <div style="position:fixed;top:0;left:0;width:100vw;height:100vh;background:#c0392b;color:white;z-index:2147483647;display:flex;flex-direction:column;justify-content:center;align-items:center;font-family:-apple-system,BlinkMacSystemFont,sans-serif;text-align:center;padding:20px;box-sizing:border-box;">
+                <div style="font-size:80px;margin-bottom:20px;">⚠️</div>
+                <h1 style="font-size:36px;margin:0 0 16px 0;font-weight:bold;">极度危险：钓鱼网站</h1>
+                <p style="font-size:18px;max-width:600px;line-height:1.5;opacity:0.9;">DewSecure AI 引擎检测到该网站试图伪装成合法机构，以窃取您的密码、信用卡或个人信息。为了保护您的财产安全，页面已被强制锁定。</p>
+                <button id="__dewsecure_ignore_phishing" style="margin-top:30px;padding:12px 24px;font-size:16px;border:none;border-radius:8px;background:rgba(255,255,255,0.2);color:white;cursor:pointer;">我是专家，忽略风险继续访问</button>
+            </div>
+        `;
+        document.documentElement.appendChild(wall);
+        document.documentElement.style.setProperty('overflow', 'hidden', 'important');
+        
+        document.getElementById('__dewsecure_ignore_phishing').onclick = () => {
+            wall.remove();
+            document.documentElement.style.removeProperty('overflow');
+        };
+    }
+});
