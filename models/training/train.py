@@ -1,67 +1,102 @@
 import numpy as np
 import pandas as pd
 import os
-from sklearn.linear_model import LogisticRegression
+import json
+from sklearn.linear_model import SGDClassifier
 from sklearn.metrics import f1_score, classification_report
 from tqdm import tqdm
 from features import extract_features
 
-tqdm.pandas()
-
 def prepare_dataset():
     print("📦 正在加载数据集...")
-    # 使用相对路径（适配 GitHub Actions 的工作目录）
     train_df = pd.read_csv("data/train.csv")
     test_df = pd.read_csv("data/test.csv")
 
-    # 🔥 核心修复：限制数据量，防止内存溢出（取最多 5 万条训练，1 万条测试）
-    if len(train_df) > 50000:
-        print(f"⚠️ 数据量过大 ({len(train_df)})，为了适配免费服务器，随机截取 5 万条...")
-        train_df = train_df.sample(n=50000, random_state=42)
-    if len(test_df) > 10000:
-        test_df = test_df.sample(n=10000, random_state=42)
-
+    # 采用全量数据（11.7 万条），不截断
     train_df = train_df.sample(frac=1, random_state=42).reset_index(drop=True)
     test_df = test_df.sample(frac=1, random_state=42).reset_index(drop=True)
     
-    print(f"📊 训练集: {len(train_df)}, 测试集: {len(test_df)}")
+    print(f"📊 全量训练集: {len(train_df)}, 测试集: {len(test_df)}")
     return train_df, test_df
 
 def train_model():
     train_df, test_df = prepare_dataset()
 
-    print("🔬 正在提取训练集特征（单线程运行，防死锁）...")
-    # 取消多进程，直接使用 progress_apply，CI 环境下更稳定
-    X_train = np.vstack(train_df["domain"].progress_apply(extract_features).values)
-    y_train = train_df["label"].values
+    N_FEATURES = 16418
+    CHUNK_SIZE = 10000  # 每次只处理 1 万条，绝对防 OOM
+
+    # 使用 SGDClassifier 支持增量训练（partial_fit）
+    print("🚀 初始化增量训练模型 (SGDClassifier)...")
+    model = SGDClassifier(
+        loss='log_loss',       # 等价于逻辑回归
+        penalty='l2',
+        alpha=1e-5,
+        max_iter=100,
+        random_state=42,
+        n_jobs=1,
+        class_weight='balanced' # 自动处理 Tracker 样本偏少的问题
+    )
+    
+    classes = np.array([0, 1, 2]) # Normal, Ad, Tracker
+
+    print(f"🔬 开始分块提取并训练，Chunk Size: {CHUNK_SIZE}...")
+    
+    # 分块迭代训练
+    total_chunks = (len(train_df) + CHUNK_SIZE - 1) // CHUNK_SIZE
+    for i in range(total_chunks):
+        start = i * CHUNK_SIZE
+        end = min((i + 1) * CHUNK_SIZE, len(train_df))
+        chunk = train_df.iloc[start:end]
+        
+        # 提取当前块的特征
+        X_chunk = np.zeros((len(chunk), N_FEATURES), dtype=np.float32)
+        for j, domain in enumerate(chunk["domain"]):
+            X_chunk[j] = extract_features(domain)
+        y_chunk = chunk["label"].values
+
+        # 喂给模型（第一次需要传 classes）
+        if i == 0:
+            model.partial_fit(X_chunk, y_chunk, classes=classes)
+        else:
+            model.partial_fit(X_chunk, y_chunk)
+            
+        # 打印进度并强制清理内存
+        print(f"✅ Chunk {i+1}/{total_chunks} 完成 (数据量: {len(chunk)})")
+        del X_chunk, y_chunk, chunk
 
     print("🔬 正在提取测试集特征...")
-    X_test = np.vstack(test_df["domain"].progress_apply(extract_features).values)
+    X_test = np.zeros((len(test_df), N_FEATURES), dtype=np.float32)
     y_test = test_df["label"].values
+    for i, domain in enumerate(tqdm(test_df["domain"], desc="Test")):
+        X_test[i] = extract_features(domain)
 
-    print("🚀 正在训练模型...")
-    model = LogisticRegression(C=10, max_iter=1000, solver="lbfgs", multi_class="multinomial", n_jobs=1) # 使用单核
-    model.fit(X_train, y_train)
-
+    print("📈 正在评估模型...")
     y_pred = model.predict(X_test)
-    target_names = ['Normal', 'Ad', 'Tracker']
     
-    # 由于我们训练的是三分类，如果 tag 里只有三分类，保持原样
+    target_names = ['Normal', 'Ad', 'Tracker']
     try:
         print(classification_report(y_test, y_pred, target_names=target_names, zero_division=0))
     except:
         print(classification_report(y_test, y_pred, zero_division=0))
     
     macro_f1 = f1_score(y_test, y_pred, average='macro')
+    
+    # 保存产物
     os.makedirs("weights", exist_ok=True)
+    # 注意：SGD 的权重保存格式与普通 LR 略有不同，仍然保存为 coef_ 和 intercept_
     np.savez("weights/classifier_weights.npz", coef=model.coef_, intercept=model.intercept_)
     
-    # 保存 meta
-    import json
     with open("weights/model_meta.json", "w") as f:
-        json.dump({"macroF1": macro_f1, "trainedAt": pd.Timestamp.now().isoformat()}, f)
+        json.dump({
+            "macroF1": float(macro_f1), 
+            "trainedAt": pd.Timestamp.now().isoformat(),
+            "nClasses": len(model.classes_),
+            "nFeatures": N_FEATURES,
+            "trainSize": len(train_df),
+            "testSize": len(test_df)
+        }, f)
         
-    print(f"✅ 训练完成！Macro F1: {macro_f1:.4f}")
+    print(f"✅ 全量训练完成！Macro F1: {macro_f1:.4f}")
 
 if __name__ == "__main__":
     train_model()
