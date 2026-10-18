@@ -88,37 +88,45 @@ export async function verifyOTP(email, inputOtp) {
 /* ============================================================
    登录：写入 user + settings.tier
    ============================================================ */
-export async function loginUser(email) {
-    const deviceId = await getOrCreateDeviceId();
-    const now = Date.now();
-    
-    const isTestFreeUser = email === 'test2@example.com';
-    let tier = 'premium';
-    let expiresAt = now + 30 * 24 * 60 * 60 * 1000;
-    let hasUsedTrial = true;
 
-    if (isTestFreeUser) {
-        tier = 'free';
-        expiresAt = null;
-        hasUsedTrial = false;
-    }
+// ===== 完美版登录逻辑（强制下发 Token） =====
+export async function loginUser(email) {
+    const deviceId = crypto.randomUUID ? crypto.randomUUID() : 'dev_' + Date.now();
+    const now = Date.now();
+    const isTestAccount = email === 'test2@example.com';
+    const tier = isTestAccount ? 'free' : 'premium';
+    const expiresAt = isTestAccount ? null : now + 30 * 24 * 60 * 60 * 1000;
 
     const user = {
-        email, tier, createdAt: now, expiresAt, deviceId, hasUsedTrial
+        email: email,
+        tier: tier,
+        createdAt: now,
+        expiresAt: expiresAt,
+        deviceId: deviceId,
+        hasUsedTrial: !isTestAccount,
+        token: `mock_jwt_${tier}_${now}` // 🔥 核心修复：强制带上 token
     };
-    
+
+    // 写入用户表
+    const USER_KEY = 'dewsecure_user';
+    const SETTINGS_KEY = 'dewsecure_settings';
+
     await chrome.storage.local.set({ [USER_KEY]: user });
 
-    const { [SETTINGS_KEY]: settings = {} } = await chrome.storage.local.get(SETTINGS_KEY);
+    // 同步更新 settings 里的状态
+    let { [SETTINGS_KEY]: settings = {} } = await chrome.storage.local.get(SETTINGS_KEY);
     settings.tier = tier;
     settings.email = email;
-    settings.activatedAt = user.createdAt;
-    settings.expiresAt = user.expiresAt;
+    settings.activatedAt = now;
+    settings.expiresAt = expiresAt;
     settings.deviceId = deviceId;
     await chrome.storage.local.set({ [SETTINGS_KEY]: settings });
 
+    console.log('✅ [AuthManager] 登录成功，已下发 Token:', user.token);
+    chrome.runtime.sendMessage({ type: 'AUTH_STATE_CHANGED' }).catch(() => {});
     return { ok: true, user };
 }
+
 
 export async function markTrialUsed(email) {
     const key = `trial_used_${email}`;
@@ -130,6 +138,7 @@ export async function markTrialUsed(email) {
    ============================================================ */
 export async function logoutUser() {
     await chrome.storage.local.remove(USER_KEY);
+    chrome.runtime.sendMessage({ type: 'AUTH_STATE_CHANGED' }).catch(() => {}); // 彻底删除 user 记录，包括 token
 
     const { [SETTINGS_KEY]: settings = {} } = await chrome.storage.local.get(SETTINGS_KEY);
     settings.tier = 'free';

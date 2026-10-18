@@ -492,3 +492,16 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
         return true;
     }
 });
+
+
+// ==========================================
+// 监听登录/登出状态变更，立刻执行模型校验
+// ==========================================
+chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
+    if (msg.type === 'AUTH_STATE_CHANGED') {
+        console.log('🔄 账号状态变更，立刻重新校验模型权限...');
+        checkAndUpdateModel().catch(console.warn);
+        sendResponse({ ok: true });
+        return true;
+    }
+});

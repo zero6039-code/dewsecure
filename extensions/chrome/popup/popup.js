@@ -952,10 +952,41 @@ chrome.storage.onChanged.addListener((changes, namespace) => {
 init().catch(console.error);
 
 
+
+
+
+// 启动无脑轮询
+
+document.addEventListener('DOMContentLoaded', forceSyncUI);
+
+// 监听开关点击，暂停立刻刷新
+document.addEventListener('change', (e) => {
+    if (e.target && e.target.id === 'siteSwitch') {
+        setTimeout(() => {
+            if (!e.target.checked) chrome.tabs.reload();
+        }, 500);
+    }
+}, true);
+
+
+
+
+
+document.addEventListener('DOMContentLoaded', forceSyncUI);
+
+document.addEventListener('change', (e) => {
+    if (e.target && e.target.id === 'siteSwitch') {
+        setTimeout(() => {
+            if (!e.target.checked) chrome.tabs.reload();
+        }, 500);
+    }
+}, true);
+
+
 // ==========================================
-// 终极无脑重绘同步 (不依赖任何旧代码)
+// 纯净 UI 轮询（彻底防串台 & 强制解锁）
 // ==========================================
-function forceRedraw() {
+function forceSyncUI() {
     chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
         if (!tabs || !tabs[0] || !tabs[0].url) return;
         let url = tabs[0].url;
@@ -966,40 +997,69 @@ function forceRedraw() {
 
         chrome.storage.local.get("dewsecure_settings", (res) => {
             let settings = res.dewsecure_settings || {};
-            let isPaused = (settings.whitelist || []).some(d => hostname === d || hostname.endsWith("." + d)) ||
-                           (settings.tempWhitelist || []).some(d => hostname === d || hostname.endsWith("." + d));
-            let isProtected = !isPaused;
+            let isWhitelisted = (settings.whitelist || []).some(d => hostname === d || hostname.endsWith("." + d));
+            let isTempWhitelisted = (settings.tempWhitelist || []).some(d => hostname === d || hostname.endsWith("." + d));
+            let isProtected = !isWhitelisted && !isTempWhitelisted;
+
+            const switchEl = document.getElementById('siteSwitch');
+            const wrap = document.getElementById('siteSwitchWrap');
+
+            if (switchEl) {
+                switchEl.disabled = false; 
+                switchEl.checked = isProtected;
+                switchEl.dataset.host = hostname;
+            }
+            if (wrap) {
+                wrap.style.opacity = '1';
+                wrap.style.pointerEvents = 'auto';
+            }
 
             const domainEl = document.getElementById('siteDomain');
-            const switchEl = document.getElementById('siteSwitch');
             const labelEl  = document.getElementById('siteLabel');
             const statusEl = document.getElementById('status');
             const featuresCard = document.querySelector('.features-card');
 
             if (domainEl) domainEl.textContent = hostname;
-            if (switchEl) {
-                switchEl.checked = isProtected;
-                switchEl.dataset.host = hostname;
-            }
             if (labelEl) labelEl.textContent = isProtected ? '保护已开启' : '保护已暂停';
             if (statusEl) {
                 statusEl.textContent = isProtected ? '保护中' : '已暂停';
                 statusEl.className = isProtected ? 'status-badge active' : 'status-badge paused';
             }
-            if (featuresCard) featuresCard.classList.toggle('disabled', isPaused);
+            if (featuresCard) featuresCard.classList.toggle('disabled', !isProtected);
         });
     });
 }
 
-// 初始化并启动轮询
-setInterval(forceRedraw, 500);
-document.addEventListener('DOMContentLoaded', forceRedraw);
+setInterval(forceSyncUI, 500);
+document.addEventListener('DOMContentLoaded', forceSyncUI);
 
-// 监听开关点击，暂停立刻刷新
 document.addEventListener('change', (e) => {
     if (e.target && e.target.id === 'siteSwitch') {
         setTimeout(() => {
             if (!e.target.checked) chrome.tabs.reload();
         }, 500);
+    }
+}, true);
+
+
+
+// ==========================================
+// 回车键快捷提交 (最小化补丁，不影响原有逻辑)
+// ==========================================
+document.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') {
+        const target = e.target;
+        // 如果在输入邮箱，回车触发“发送验证码”
+        if (target && target.id === 'authEmail') {
+            e.preventDefault();
+            const sendBtn = document.getElementById('sendOtpBtn');
+            if (sendBtn && !sendBtn.disabled) sendBtn.click();
+        }
+        // 如果在输入验证码，回车触发“验证”
+        if (target && target.id === 'otpInput') {
+            e.preventDefault();
+            const verifyBtn = document.getElementById('verifyOtpBtn');
+            if (verifyBtn && !verifyBtn.disabled) verifyBtn.click();
+        }
     }
 }, true);
