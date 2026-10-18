@@ -57,3 +57,4 @@ keystore.jks
 
 # R2 凭证（含敏感信息，绝不提交）
 extensions/chrome/src/r2-config.js
+*.bak_*
