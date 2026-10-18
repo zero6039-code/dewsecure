@@ -61,6 +61,7 @@ DewSecure 是一款基于设备端 AI 分类器 + 云端联邦学习的用户端
 📁 仓库结构
 ### 📁 仓库结构
 
+```text
 dewsecure/
 ├── core/         # Rust 核心引擎（跨平台高性能）
 ├── extensions/   # Chrome/Firefox 扩展（MV3 + 设备端 ONNX）
