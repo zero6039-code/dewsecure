@@ -14,7 +14,44 @@
     const DEBUG = false;
     const warn = DEBUG ? console.warn.bind(console) : () => {};
 
-    let lastRealClick = 0;
+    
+    // ===== 0. 预存原生 API（用于白名单恢复） =====
+    const _nativeOpen = window.open;
+    const _nativeOpenDesc = Object.getOwnPropertyDescriptor(window, 'open');
+    const _nativeAnchorClick = HTMLAnchorElement.prototype.click;
+    const _nativeFormSubmit = HTMLFormElement.prototype.submit;
+    const _nativeHrefDesc = Object.getOwnPropertyDescriptor(Location.prototype, 'href');
+
+    // ===== 白名单异步检查 =====
+    if (typeof chrome !== 'undefined' && chrome.storage) {
+        chrome.storage.local.get('dewsecure_settings', (res) => {
+            let settings = res.dewsecure_settings || {};
+            let hostname = window.location.hostname;
+            let isWhitelisted = (settings.whitelist || []).some(d => hostname === d || hostname.endsWith("." + d));
+            let isTempWhitelisted = (settings.tempWhitelist || []).some(d => hostname === d || hostname.endsWith("." + d));
+            
+            if (isWhitelisted || isTempWhitelisted) {
+                // 命中白名单，立刻还原原生 API，绝不执行后续 Hook
+                window.open = _nativeOpen;
+                try { Object.defineProperty(window, 'open', _nativeOpenDesc); } catch(e){}
+                HTMLAnchorElement.prototype.click = _nativeAnchorClick;
+                HTMLFormElement.prototype.submit = _nativeFormSubmit;
+                if (_nativeHrefDesc) {
+                    try { Object.defineProperty(Location.prototype, 'href', _nativeHrefDesc); } catch(e){}
+                }
+                console.warn('🛡️ [DewSecure] 保护已暂停，底层防御已完全卸载');
+                return; // 直接退出，不执行后面的代码
+            }
+            
+            // 如果不在白名单，执行原有的所有 Hook 代码
+            executeHooks();
+        });
+    } else {
+        executeHooks(); // 兜底
+    }
+
+    function executeHooks() {
+let lastRealClick = 0;
     window.addEventListener('mousedown', () => { lastRealClick = Date.now(); }, true);
     window.addEventListener('click', () => { lastRealClick = Date.now(); }, true);
 
@@ -410,4 +447,6 @@
     // 节流兜底（降低 CPU 占用）
 
     setInterval(() => { killMaliciousNodes(document.documentElement); }, 250);
+})();
+    }
 })();

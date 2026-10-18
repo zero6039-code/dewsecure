@@ -959,7 +959,27 @@ chrome.runtime.onMessage.addListener((msg) => {
     if (msg.type === 'TAB_CHANGED') {
         // 直接调用你源码里的主初始化函数
         if (typeof f === 'function') f().catch(console.error);
+
+
+// ==========================================
+// 完美版隔离监听器
+// ==========================================
+chrome.runtime.onMessage.addListener((msg) => {
+    if (msg.type === 'TAB_CHANGED') {
+        if (typeof f === 'function') f().catch(console.error);
         else if (typeof T === 'function') T().catch(console.error);
         else if (typeof init === 'function') init().catch(console.error);
     }
 });
+
+// 监听开关点击，一旦暂停，强制刷新页面以卸载底层注入
+document.addEventListener('change', (e) => {
+    if (e.target && e.target.id === 'siteSwitch') {
+        setTimeout(() => {
+            if (!e.target.checked) {
+                // 如果是关闭状态，说明用户点了暂停，刷新页面！
+                chrome.tabs.reload();
+            }
+        }, 500); // 延迟半秒等待消息发送完毕
+    }
+}, true);
