@@ -3,6 +3,7 @@ import pandas as pd
 import os
 import json
 from sklearn.linear_model import SGDClassifier
+from sklearn.utils.class_weight import compute_class_weight
 from sklearn.metrics import f1_score, classification_report
 from tqdm import tqdm
 from features import extract_features
@@ -27,6 +28,17 @@ def train_model():
 
     # 使用 SGDClassifier 支持增量训练（partial_fit）
     print("🚀 初始化增量训练模型 (SGDClassifier)...")
+    
+    # 🔥 修复：partial_fit 不支持 'balanced' 字符串，必须计算好权重字典
+    classes = np.array([0, 1, 2]) # Normal, Ad, Tracker
+    class_weights_arr = compute_class_weight(
+        class_weight='balanced',
+        classes=classes,
+        y=train_df['label'].values
+    )
+    class_weight_dict = {cls: weight for cls, weight in zip(classes, class_weights_arr)}
+    print(f"✅ 已计算类别权重: {class_weight_dict}")
+
     model = SGDClassifier(
         loss='log_loss',       # 等价于逻辑回归
         penalty='l2',
@@ -34,10 +46,8 @@ def train_model():
         max_iter=100,
         random_state=42,
         n_jobs=1,
-        class_weight='balanced' # 自动处理 Tracker 样本偏少的问题
+        class_weight=class_weight_dict # 传入计算好的字典
     )
-    
-    classes = np.array([0, 1, 2]) # Normal, Ad, Tracker
 
     print(f"🔬 开始分块提取并训练，Chunk Size: {CHUNK_SIZE}...")
     
