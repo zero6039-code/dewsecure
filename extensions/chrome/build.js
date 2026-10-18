@@ -1,4 +1,6 @@
 import esbuild from 'esbuild';
+import JavaScriptObfuscator from 'javascript-obfuscator';
+import fsObfuscator from 'fs';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -6,34 +8,7 @@ import { fileURLToPath } from 'url';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const watch = process.argv.includes('--watch');
 
-// ============ 智能 fallback：确保 r2-config.js 存在 ============
-const R2_CONFIG = 'src/r2-config.js';
-const R2_EXAMPLE = 'src/r2-config.example.js';
-let generatedR2Config = false;
-
-if (!fs.existsSync(R2_CONFIG)) {
-    // 优先从环境变量生成（用于 CI 发布）
-    const { R2_ACCOUNT_ID, R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY, R2_BUCKET } = process.env;
-
-    if (R2_ACCESS_KEY_ID && R2_SECRET_ACCESS_KEY) {
-        console.log('🔐 从环境变量生成 r2-config.js');
-        const content = `// Auto-generated from env vars (CI)
-export const R2_CONFIG = {
-    accountId: '${R2_ACCOUNT_ID || 'unknown'}',
-    accessKeyId: '${R2_ACCESS_KEY_ID}',
-    secretAccessKey: '${R2_SECRET_ACCESS_KEY}',
-    bucket: '${R2_BUCKET || 'dewsecure-models'}',
-    presignedUrlExpiry: 60,
-};
-`;
-        fs.writeFileSync(R2_CONFIG, content);
-    } else {
-        // 兜底：从 example 复制
-        console.log('⚠️  r2-config.js 不存在，使用 example 作为占位符（构建产物无实际功能）');
-        fs.copyFileSync(R2_EXAMPLE, R2_CONFIG);
-    }
-    generatedR2Config = true;
-}
+// R2 密钥已全部移交至 Cloudflare Worker，无需本地配置文件
 
 // ============ esbuild 配置 ============
 const buildOptions = {
@@ -62,6 +37,7 @@ async function build() {
         await ctx.rebuild();
         await ctx.dispose();
         copyStatic();
+        obfuscateCode();
     }
 }
 
@@ -133,11 +109,45 @@ function copyStatic() {
     console.log('Build complete!');
 
     // 清理临时生成的 r2-config.js（仅当不是本地已有的）
-    if (generatedR2Config && !process.env.R2_ACCESS_KEY_ID) {
-        // 保留 example 副本，不删除（避免下次构建时又要重新生成）
-        console.log('ℹ️  保留 placeholder r2-config.js（不包含真实凭证）');
-    }
+    
 }
+
+
+function obfuscateCode() {
+    const filesToObfuscate = [
+        'dist/src/content.js',
+        'dist/src/inject.js',
+        'dist/src/background.js',
+        'dist/src/offscreen.js',
+        'dist/popup/popup.js'
+    ];
+    
+    console.log('🛡️  正在进行高强度代码混淆...');
+    for (const file of filesToObfuscate) {
+        if (fsObfuscator.existsSync(file)) {
+            const code = fsObfuscator.readFileSync(file, 'utf8');
+            const obfuscationResult = JavaScriptObfuscator.obfuscate(code, {
+                compact: true,
+                controlFlowFlattening: true,
+                controlFlowFlatteningThreshold: 0.75,
+                deadCodeInjection: true,
+                deadCodeInjectionThreshold: 0.4,
+                debugProtection: true,
+                disableConsoleOutput: false,
+                identifierNamesGenerator: 'hexadecimal',
+                renameGlobals: false,
+                selfDefending: true,
+                stringArray: true,
+                stringArrayEncoding: ['rc4'],
+                stringArrayThreshold: 0.75
+            });
+            fsObfuscator.writeFileSync(file, obfuscationResult.getObfuscatedCode());
+            console.log(`   ✅ 已混淆: ${file}`);
+        }
+    }
+    console.log('🛡️  混淆完成！');
+}
+
 
 build().catch((e) => {
     console.error(e);

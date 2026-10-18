@@ -1,3 +1,5 @@
+import { checkAndUpdateModel } from './modelManager.js';
+
 // ==========================================
 // 调试开关（生产环境必须 false）
 // ==========================================
@@ -361,3 +363,25 @@ async function handleMessage(message, sender) {
             return { error: '未知消息类型' };
     }
 }
+
+
+
+// ==========================================
+// 云端模型自动同步机制
+// ==========================================
+// 1. 启动 5 秒后静默检查一次（防止阻塞浏览器启动）
+setTimeout(() => {
+    checkAndUpdateModel().then(res => {
+        if (res && res.updated) console.log('🚀 后台模型已静默更新至最新版本');
+    }).catch(console.warn);
+}, 5000);
+
+// 2. 设置每天自动检查一次
+chrome.alarms.create('dewsecure_model_update', { periodInMinutes: 1440 });
+
+chrome.alarms.onAlarm.addListener((alarm) => {
+    if (alarm.name === 'dewsecure_model_update') {
+        console.log('⏰ 定时任务触发：检查云端模型更新...');
+        checkAndUpdateModel().catch(console.warn);
+    }
+});
