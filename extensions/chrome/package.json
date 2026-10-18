@@ -12,7 +12,8 @@
   },
   "devDependencies": {
     "chokidar": "^3.6.0",
-    "esbuild": "^0.24.0"
+    "esbuild": "^0.24.0",
+    "javascript-obfuscator": "^5.9.0"
   },
   "dependencies": {
     "@adguard/dnr-converter": "^2.0.0",
