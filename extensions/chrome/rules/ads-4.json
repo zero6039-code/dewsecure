@@ -466,7 +466,7 @@
       "type": "block"
     },
     "condition": {
-      "urlFilter": "||iot-eu-logger.realme.com^"
+      "urlFilter": "||metrics.icloud.com^"
     }
   },
   {
@@ -476,7 +476,27 @@
       "type": "block"
     },
     "condition": {
-      "urlFilter": "||iot-logger.realme.com^"
+      "urlFilter": "||metrics2.data.hicloud.com^"
+    }
+  },
+  {
+    "id": 991049,
+    "priority": 200,
+    "action": {
+      "type": "block"
+    },
+    "condition": {
+      "urlFilter": "||logservice.hicloud.com^"
+    }
+  },
+  {
+    "id": 991050,
+    "priority": 200,
+    "action": {
+      "type": "block"
+    },
+    "condition": {
+      "urlFilter": "||smetrics.samsung.com^"
     }
   },
   {
@@ -486,9 +506,10 @@
       "type": "block"
     },
     "condition": {
-      "urlFilter": "||platform.twitter.com^",
+      "urlFilter": "||ping.chartbeat.net^",
       "resourceTypes": [
         "script",
+        "image",
         "xmlhttprequest"
       ]
     }
@@ -500,10 +521,10 @@
       "type": "block"
     },
     "condition": {
-      "urlFilter": "||facebook.com/*/plugins/",
+      "urlFilter": "||cdn4.forter.com^",
       "resourceTypes": [
-        "sub_frame",
-        "script"
+        "script",
+        "xmlhttprequest"
       ]
     }
   },
@@ -514,9 +535,10 @@
       "type": "block"
     },
     "condition": {
-      "urlFilter": "||assets.pinterest.com/js/pinit.js",
+      "urlFilter": "||beacon.riskified.com^",
       "resourceTypes": [
-        "script"
+        "script",
+        "xmlhttprequest"
       ]
     }
   },
@@ -527,9 +549,10 @@
       "type": "block"
     },
     "condition": {
-      "urlFilter": "||tiktok.com/embed.js",
+      "urlFilter": "||cdn.sift.com^",
       "resourceTypes": [
-        "script"
+        "script",
+        "xmlhttprequest"
       ]
     }
   },
@@ -540,7 +563,7 @@
       "type": "block"
     },
     "condition": {
-      "urlFilter": "||instagram.com/embed.js",
+      "urlFilter": "||openfpcdn.io^",
       "resourceTypes": [
         "script"
       ]
@@ -553,9 +576,10 @@
       "type": "block"
     },
     "condition": {
-      "urlFilter": "||addtoany.com/share",
+      "urlFilter": "||js.datadome.co^",
       "resourceTypes": [
-        "script"
+        "script",
+        "xmlhttprequest"
       ]
     }
   },
@@ -566,7 +590,7 @@
       "type": "block"
     },
     "condition": {
-      "urlFilter": "||sharethis.com/",
+      "urlFilter": "||mpsnare.iesnare.com^",
       "resourceTypes": [
         "script",
         "xmlhttprequest"
@@ -580,9 +604,11 @@
       "type": "block"
     },
     "condition": {
-      "urlFilter": "||vk.com/js/api/",
+      "urlFilter": "||b.online-metrix.net^",
       "resourceTypes": [
-        "script"
+        "script",
+        "image",
+        "xmlhttprequest"
       ]
     }
   },
@@ -593,9 +619,11 @@
       "type": "block"
     },
     "condition": {
-      "urlFilter": "||t1.kakaocdn.net/adfit/",
+      "urlFilter": "||h.online-metrix.net^",
       "resourceTypes": [
-        "script"
+        "script",
+        "image",
+        "xmlhttprequest"
       ]
     }
   },
@@ -606,9 +634,10 @@
       "type": "block"
     },
     "condition": {
-      "urlFilter": "||embed.bsky.app^",
+      "urlFilter": "||collect.igodigital.com^",
       "resourceTypes": [
-        "script"
+        "script",
+        "xmlhttprequest"
       ]
     }
   },
@@ -619,10 +648,10 @@
       "type": "block"
     },
     "condition": {
-      "urlFilter": "||widget.trustpilot.com^",
+      "urlFilter": "||lb.adnxs.com^",
       "resourceTypes": [
         "script",
-        "sub_frame"
+        "xmlhttprequest"
       ]
     }
   },
@@ -633,374 +662,7 @@
       "type": "block"
     },
     "condition": {
-      "urlFilter": "||vuukle.com^",
-      "resourceTypes": [
-        "script",
-        "xmlhttprequest"
-      ]
-    }
-  },
-  {
-    "id": 993001,
-    "priority": 200,
-    "action": {
-      "type": "block"
-    },
-    "condition": {
-      "urlFilter": "||snippet.maze.co^",
-      "resourceTypes": [
-        "script"
-      ]
-    }
-  },
-  {
-    "id": 993002,
-    "priority": 200,
-    "action": {
-      "type": "block"
-    },
-    "condition": {
-      "urlFilter": "||us-assets.i.posthog.com^",
-      "resourceTypes": [
-        "script"
-      ]
-    }
-  },
-  {
-    "id": 993003,
-    "priority": 200,
-    "action": {
-      "type": "block"
-    },
-    "condition": {
-      "urlFilter": "||fundingchoicesmessages.google.com^",
-      "resourceTypes": [
-        "script",
-        "sub_frame"
-      ]
-    }
-  },
-  {
-    "id": 993004,
-    "priority": 200,
-    "action": {
-      "type": "block"
-    },
-    "condition": {
-      "urlFilter": "||tpc.googlesyndication.com^",
-      "resourceTypes": [
-        "sub_frame"
-      ]
-    }
-  },
-  {
-    "id": 993005,
-    "priority": 200,
-    "action": {
-      "type": "block"
-    },
-    "condition": {
-      "urlFilter": "||ad.doubleclick.net^",
-      "resourceTypes": [
-        "sub_frame",
-        "script"
-      ]
-    }
-  },
-  {
-    "id": 993006,
-    "priority": 200,
-    "action": {
-      "type": "block"
-    },
-    "condition": {
-      "urlFilter": "||cdn.ravenjs.com^",
-      "resourceTypes": [
-        "script"
-      ]
-    }
-  },
-  {
-    "id": 993007,
-    "priority": 200,
-    "action": {
-      "type": "block"
-    },
-    "condition": {
-      "urlFilter": "||dsms0mj1bbhn4.cloudfront.net^",
-      "resourceTypes": [
-        "script"
-      ]
-    }
-  },
-  {
-    "id": 993008,
-    "priority": 200,
-    "action": {
-      "type": "block"
-    },
-    "condition": {
-      "urlFilter": "||assets.adobedtm.com^",
-      "resourceTypes": [
-        "script"
-      ]
-    }
-  },
-  {
-    "id": 993009,
-    "priority": 200,
-    "action": {
-      "type": "block"
-    },
-    "condition": {
-      "urlFilter": "||analytics.vercel-insights.com^",
-      "resourceTypes": [
-        "script",
-        "xmlhttprequest"
-      ]
-    }
-  },
-  {
-    "id": 993010,
-    "priority": 200,
-    "action": {
-      "type": "block"
-    },
-    "condition": {
-      "urlFilter": "||treasuredata.com^",
-      "resourceTypes": [
-        "script"
-      ]
-    }
-  },
-  {
-    "id": 994001,
-    "priority": 200,
-    "action": {
-      "type": "block"
-    },
-    "condition": {
-      "urlFilter": "||facebook.com/plugins/",
-      "resourceTypes": [
-        "sub_frame"
-      ]
-    }
-  },
-  {
-    "id": 994002,
-    "priority": 200,
-    "action": {
-      "type": "block"
-    },
-    "condition": {
-      "urlFilter": "||steamcommunity.com/actions/Log",
-      "resourceTypes": [
-        "xmlhttprequest",
-        "image",
-        "ping"
-      ]
-    }
-  },
-  {
-    "id": 994003,
-    "priority": 200,
-    "action": {
-      "type": "block"
-    },
-    "condition": {
-      "urlFilter": "||assets.adobedtm.com^",
-      "resourceTypes": [
-        "script"
-      ]
-    }
-  },
-  {
-    "id": 994004,
-    "priority": 200,
-    "action": {
-      "type": "block"
-    },
-    "condition": {
-      "urlFilter": "||ad.doubleclick.net^",
-      "resourceTypes": [
-        "sub_frame",
-        "script",
-        "image"
-      ]
-    }
-  },
-  {
-    "id": 994005,
-    "priority": 200,
-    "action": {
-      "type": "block"
-    },
-    "condition": {
-      "urlFilter": "||tpc.googlesyndication.com/safeframe^",
-      "resourceTypes": [
-        "sub_frame"
-      ]
-    }
-  },
-  {
-    "id": 996001,
-    "priority": 300,
-    "action": {
-      "type": "block"
-    },
-    "condition": {
-      "urlFilter": "||blockadblock.com^",
-      "resourceTypes": [
-        "script"
-      ]
-    }
-  },
-  {
-    "id": 996002,
-    "priority": 300,
-    "action": {
-      "type": "block"
-    },
-    "condition": {
-      "urlFilter": "||forbes.com/fps/",
-      "resourceTypes": [
-        "script"
-      ]
-    }
-  },
-  {
-    "id": 996003,
-    "priority": 300,
-    "action": {
-      "type": "block"
-    },
-    "condition": {
-      "urlFilter": "||spiegel.de/*/ads.js",
-      "resourceTypes": [
-        "script"
-      ]
-    }
-  },
-  {
-    "id": 998001,
-    "priority": 500,
-    "action": {
-      "type": "allow"
-    },
-    "condition": {
-      "requestDomains": [
-        "wired.com"
-      ],
-      "resourceTypes": [
-        "main_frame",
-        "sub_frame",
-        "xmlhttprequest",
-        "script",
-        "image",
-        "other"
-      ]
-    }
-  },
-  {
-    "id": 998003,
-    "priority": 500,
-    "action": {
-      "type": "allow"
-    },
-    "condition": {
-      "urlFilter": "||globalservices.conde.digital^",
-      "resourceTypes": [
-        "script",
-        "xmlhttprequest"
-      ]
-    }
-  },
-  {
-    "id": 998004,
-    "priority": 500,
-    "action": {
-      "type": "allow"
-    },
-    "condition": {
-      "urlFilter": "||wired.com/user-context",
-      "resourceTypes": [
-        "xmlhttprequest"
-      ]
-    }
-  },
-  {
-    "id": 999001,
-    "priority": 10000,
-    "action": {
-      "type": "allow"
-    },
-    "condition": {
-      "requestDomains": [
-        "wired.com"
-      ],
-      "resourceTypes": [
-        "main_frame",
-        "sub_frame",
-        "stylesheet",
-        "script",
-        "image",
-        "font",
-        "object",
-        "xmlhttprequest",
-        "ping",
-        "csp_report",
-        "media",
-        "websocket",
-        "other"
-      ]
-    }
-  },
-  {
-    "id": 999002,
-    "priority": 10000,
-    "action": {
-      "type": "allow"
-    },
-    "condition": {
-      "requestDomainSuffix": ".conde.digital",
-      "resourceTypes": [
-        "main_frame",
-        "sub_frame",
-        "stylesheet",
-        "script",
-        "image",
-        "font",
-        "object",
-        "xmlhttprequest",
-        "ping",
-        "csp_report",
-        "media",
-        "websocket",
-        "other"
-      ]
-    }
-  },
-  {
-    "id": 995001,
-    "priority": 300,
-    "action": {
-      "type": "block"
-    },
-    "condition": {
-      "urlFilter": "||popunderjs.com^",
-      "resourceTypes": [
-        "script"
-      ]
-    }
-  },
-  {
-    "id": 995002,
-    "priority": 300,
-    "action": {
-      "type": "block"
-    },
-    "condition": {
-      "urlFilter": "/popunder",
+      "urlFilter": "||ib.adnxs.com^",
       "resourceTypes": [
         "script",
         "xmlhttprequest"

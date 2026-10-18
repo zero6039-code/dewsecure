@@ -1,17 +1,3 @@
-/**
- * =========================================================================
- * ⚠️ [DewSecure 终极稳定版 V1.0.0 - 严禁破坏] ⚠️
- * =========================================================================
- * 此文件已封版。目前的逻辑经过数十次真实测试（Skidrow、Spiegel、Wired 等），
- * 完美实现了：多标签页绝对隔离、白名单动态注入、暂停即刷新。
- * 
- * 🚫 严禁修改以下逻辑：
- * 1. popup.js 里的 setInterval(forceUpdateUI) 强制重绘逻辑。
- * 2. content.js 开头的 chrome.storage.local.get 异步白名单检查。
- * 3. 不要在此文件随意追加新的监听器，容易引发变量冲突。
- * =========================================================================
- */
-
 import { sendOTP, verifyOTP, loginUser, logoutUser, getCurrentUser, formatDate }
     from '../src/authManager.js';
 
@@ -965,10 +951,11 @@ chrome.storage.onChanged.addListener((changes, namespace) => {
 
 init().catch(console.error);
 
+
 // ==========================================
-// 终极无脑 UI 同步（定时器 + 强制重绘）
+// 终极无脑重绘同步 (不依赖任何旧代码)
 // ==========================================
-function forceUpdateUI() {
+function forceRedraw() {
     chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
         if (!tabs || !tabs[0] || !tabs[0].url) return;
         let url = tabs[0].url;
@@ -979,46 +966,40 @@ function forceUpdateUI() {
 
         chrome.storage.local.get("dewsecure_settings", (res) => {
             let settings = res.dewsecure_settings || {};
-            let isWhitelisted = (settings.whitelist || []).some(d => hostname === d || hostname.endsWith("." + d));
-            let isTempWhitelisted = (settings.tempWhitelist || []).some(d => hostname === d || hostname.endsWith("." + d));
-            let isProtected = !isWhitelisted && !isTempWhitelisted;
+            let isPaused = (settings.whitelist || []).some(d => hostname === d || hostname.endsWith("." + d)) ||
+                           (settings.tempWhitelist || []).some(d => hostname === d || hostname.endsWith("." + d));
+            let isProtected = !isPaused;
 
-            // 直接操作 DOM
             const domainEl = document.getElementById('siteDomain');
             const switchEl = document.getElementById('siteSwitch');
             const labelEl  = document.getElementById('siteLabel');
             const statusEl = document.getElementById('status');
             const featuresCard = document.querySelector('.features-card');
 
-            if (domainEl) domainEl.textContent = hostname || '此网站';
-
+            if (domainEl) domainEl.textContent = hostname;
             if (switchEl) {
                 switchEl.checked = isProtected;
-                switchEl.dataset.host = hostname || '';
-                switchEl.dataset.protected = isProtected ? '1' : '0';
+                switchEl.dataset.host = hostname;
             }
-
-            if (isProtected) {
-                if (labelEl) labelEl.textContent = '保护已开启';
-                if (statusEl) {
-                    statusEl.textContent = '保护中';
-                    statusEl.classList.remove('paused');
-                    statusEl.classList.add('active');
-                }
-                if (featuresCard) featuresCard.classList.remove('disabled');
-            } else {
-                if (labelEl) labelEl.textContent = '保护已暂停';
-                if (statusEl) {
-                    statusEl.textContent = '已暂停';
-                    statusEl.classList.remove('active');
-                    statusEl.classList.add('paused');
-                }
-                if (featuresCard) featuresCard.classList.add('disabled');
+            if (labelEl) labelEl.textContent = isProtected ? '保护已开启' : '保护已暂停';
+            if (statusEl) {
+                statusEl.textContent = isProtected ? '保护中' : '已暂停';
+                statusEl.className = isProtected ? 'status-badge active' : 'status-badge paused';
             }
+            if (featuresCard) featuresCard.classList.toggle('disabled', isPaused);
         });
     });
 }
 
-// 只要侧边栏开着，每 500 毫秒强行刷新一次 UI 状态
-setInterval(forceUpdateUI, 500);
-document.addEventListener('DOMContentLoaded', forceUpdateUI);
+// 初始化并启动轮询
+setInterval(forceRedraw, 500);
+document.addEventListener('DOMContentLoaded', forceRedraw);
+
+// 监听开关点击，暂停立刻刷新
+document.addEventListener('change', (e) => {
+    if (e.target && e.target.id === 'siteSwitch') {
+        setTimeout(() => {
+            if (!e.target.checked) chrome.tabs.reload();
+        }, 500);
+    }
+}, true);

@@ -280,7 +280,20 @@ async function handleMessage(message, sender) {
                     settings.tempWhitelist.push(message.domain);
                     await chrome.storage.local.set({ [SETTINGS_KEY]: settings });
                 }
-                await applySessionRuleForDomain(message.domain, true);
+                
+                const ruleId = Math.floor(Math.abs(message.domain.split('').reduce((a,b)=>((a<<5)-a)+b.charCodeAt(0),0)) % 1000000) + 10000;
+                await chrome.declarativeNetRequest.updateSessionRules({
+                    removeRuleIds: [ruleId],
+                    addRules: [{
+                        id: ruleId,
+                        priority: 1000000,
+                        action: { type: 'allow' },
+                        condition: {
+                            // 只要请求发起者是该域名，全量放行，不限制目标，不限制资源类型
+                            initiatorDomains: [message.domain] 
+                        }
+                    }]
+                });
                 return { ok: true };
             } catch (e) { return { ok: false, error: e.message }; }
 
@@ -289,7 +302,8 @@ async function handleMessage(message, sender) {
                 const settings = await getSettings();
                 settings.tempWhitelist = settings.tempWhitelist.filter(d => d !== message.domain);
                 await chrome.storage.local.set({ [SETTINGS_KEY]: settings });
-                await applySessionRuleForDomain(message.domain, false);
+                const ruleId = Math.floor(Math.abs(message.domain.split('').reduce((a,b)=>((a<<5)-a)+b.charCodeAt(0),0)) % 1000000) + 10000;
+                await chrome.declarativeNetRequest.updateSessionRules({ removeRuleIds: [ruleId] });
                 return { ok: true };
             } catch (e) { return { ok: false, error: e.message }; }
 

@@ -1,17 +1,3 @@
-/**
- * =========================================================================
- * ⚠️ [DewSecure 终极稳定版 V1.0.0 - 严禁破坏] ⚠️
- * =========================================================================
- * 此文件已封版。目前的逻辑经过数十次真实测试（Skidrow、Spiegel、Wired 等），
- * 完美实现了：多标签页绝对隔离、白名单动态注入、暂停即刷新。
- * 
- * 🚫 严禁修改以下逻辑：
- * 1. popup.js 里的 setInterval(forceUpdateUI) 强制重绘逻辑。
- * 2. content.js 开头的 chrome.storage.local.get 异步白名单检查。
- * 3. 不要在此文件随意追加新的监听器，容易引发变量冲突。
- * =========================================================================
- */
-
 (function () {
     'use strict';
     if (window.__dewsecureInjected) return;
@@ -239,7 +225,13 @@
             const matchDomain = (d) => host === d || host.endsWith('.' + d);
             const wl  = Array.isArray(settings.whitelist)     ? settings.whitelist     : [];
             const twl = Array.isArray(settings.tempWhitelist) ? settings.tempWhitelist : [];
-            if (wl.some(matchDomain) || twl.some(matchDomain)) return;
+            if (wl.some(matchDomain) || twl.some(matchDomain)) {
+        document.documentElement.setAttribute('data-dewsecure-paused', 'true');
+        console.warn('🛡️ [DewSecure] 保护已暂停，主世界拦截与 DOM 清理全部挂起。');
+        return; 
+    } else {
+        document.documentElement.removeAttribute('data-dewsecure-paused');
+    }
 
             const observer = new MutationObserver((mutations) => {
                 for (const m of mutations) {
