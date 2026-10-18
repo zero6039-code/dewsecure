@@ -950,3 +950,16 @@ chrome.storage.onChanged.addListener((changes, namespace) => {
 });
 
 init().catch(console.error);
+
+
+// ==========================================
+// 终极 Tab 切换监听器 (绝对稳定版)
+// ==========================================
+chrome.runtime.onMessage.addListener((msg) => {
+    if (msg.type === 'TAB_CHANGED') {
+        // 直接调用你源码里的主初始化函数
+        if (typeof f === 'function') f().catch(console.error);
+        else if (typeof T === 'function') T().catch(console.error);
+        else if (typeof init === 'function') init().catch(console.error);
+    }
+});

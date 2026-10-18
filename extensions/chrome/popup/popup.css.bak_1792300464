@@ -1,0 +1,1839 @@
+/* ============================================================
+   DewSecure Popup — 毛玻璃 Apple 风格
+   ============================================================ */
+
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+html, body {
+    width: 100%;
+    height: 100vh;
+    overflow-y: auto;
+    font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display",
+                 "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+    -webkit-font-smoothing: antialiased;
+    color: #1c1c1e;
+}
+
+body {
+    background:
+        radial-gradient(circle at 0% 0%, rgba(120, 180, 255, 0.55), transparent 45%),
+        radial-gradient(circle at 100% 10%, rgba(190, 130, 255, 0.45), transparent 45%),
+        radial-gradient(circle at 50% 100%, rgba(120, 230, 200, 0.40), transparent 55%),
+        linear-gradient(160deg, #eef2f9 0%, #e4e9f2 100%);
+    background-attachment: fixed;
+    padding: 16px;
+}
+
+.app {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+/* ============ 通用玻璃卡片 ============ */
+.glass {
+    background: rgba(255, 255, 255, 0.62);
+    backdrop-filter: blur(24px) saturate(180%);
+    -webkit-backdrop-filter: blur(24px) saturate(180%);
+    border: 1px solid rgba(255, 255, 255, 0.75);
+    box-shadow:
+        0 8px 24px rgba(31, 38, 135, 0.06),
+        inset 0 1px 0 rgba(255, 255, 255, 0.9);
+    border-radius: 16px;
+}
+
+/* ============ Header ============ */
+.header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 14px;
+}
+
+.logo {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.logo-icon { font-size: 18px; }
+
+.logo-text {
+    font-size: 15px;
+    font-weight: 700;
+    letter-spacing: -0.3px;
+    background: linear-gradient(135deg, #1c1c1e, #4a4a4f);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+}
+
+.status-badge {
+    font-size: 11px;
+    font-weight: 600;
+    padding: 4px 10px;
+    border-radius: 100px;
+    transition: all 0.25s ease;
+    letter-spacing: 0.2px;
+}
+
+.status-badge.active {
+    background: rgba(52, 199, 89, 0.15);
+    color: #1a8a3a;
+    border: 1px solid rgba(52, 199, 89, 0.3);
+}
+
+.status-badge.paused {
+    background: rgba(240, 96, 62, 0.15);
+    color: #c4421f;
+    border: 1px solid rgba(240, 96, 62, 0.3);
+}
+
+/* ============ Stats ============ */
+.stats {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+}
+
+.stat-card {
+    padding: 14px 8px;
+    text-align: center;
+}
+
+.stat-value {
+    font-size: 26px;
+    font-weight: 700;
+    letter-spacing: -0.5px;
+    color: #1c1c1e;
+    font-variant-numeric: tabular-nums;
+    line-height: 1.1;
+}
+
+.stat-label {
+    font-size: 11px;
+    color: #6b7280;
+    margin-top: 4px;
+    font-weight: 500;
+}
+
+/* ============ AI 额度条 ============ */
+.limit-card { padding: 12px 14px; }
+
+.limit-info {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 8px;
+}
+
+.limit-label {
+    font-size: 12px;
+    font-weight: 600;
+    color: #4a4a4f;
+}
+
+.limit-value {
+    font-size: 12px;
+    font-weight: 600;
+    color: #6b7280;
+    font-variant-numeric: tabular-nums;
+}
+
+.limit-progress {
+    height: 6px;
+    background: rgba(0, 0, 0, 0.06);
+    border-radius: 100px;
+    overflow: hidden;
+}
+
+.limit-fill {
+    height: 100%;
+    width: 0%;
+    background: linear-gradient(90deg, #34C759, #30D158);
+    border-radius: 100px;
+    transition: width 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.limit-fill.warning {
+    background: linear-gradient(90deg, #FF9500, #F0603E);
+}
+
+.limit-card.premium {
+    background: linear-gradient(135deg,
+        rgba(255, 215, 100, 0.55),
+        rgba(255, 180, 200, 0.45));
+    border: 1px solid rgba(255, 215, 100, 0.5);
+}
+
+.limit-card.premium .limit-label,
+.limit-card.premium .limit-value {
+    color: #8a5a00;
+}
+
+/* ============ 站点卡片 ============ */
+.site-card {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 14px 16px;
+    gap: 12px;
+}
+
+.site-info {
+    flex: 1;
+    min-width: 0;
+}
+
+.site-domain {
+    font-size: 13px;
+    font-weight: 600;
+    color: #1c1c1e;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.site-label {
+    font-size: 11px;
+    color: #6b7280;
+    margin-top: 2px;
+    font-weight: 500;
+}
+
+/* ============================================================
+   iOS Toggle（关闭：橙红圆环 / 开启：绿色对勾）
+   ============================================================ */
+
+.ios-switch {
+    position: relative;
+    display: inline-block;
+    width: 60px;
+    height: 32px;
+    flex-shrink: 0;
+    cursor: pointer;
+}
+
+.ios-switch.mini {
+    width: 50px;
+    height: 28px;
+}
+
+.ios-switch input {
+    opacity: 0;
+    width: 0;
+    height: 0;
+    position: absolute;
+}
+
+.switch-track {
+    position: absolute;
+    inset: 0;
+    background: #F0603E;
+    border-radius: 100px;
+    transition: background 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.08);
+}
+
+.ios-switch input:checked + .switch-track {
+    background: #34C759;
+}
+
+.switch-thumb {
+    position: absolute;
+    top: 2px;
+    left: 2px;
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    background: #ffffff;
+    box-shadow:
+        0 2px 6px rgba(0, 0, 0, 0.18),
+        0 1px 2px rgba(0, 0, 0, 0.10);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.ios-switch.mini .switch-thumb {
+    width: 24px;
+    height: 24px;
+}
+
+.ios-switch input:checked + .switch-track .switch-thumb {
+    transform: translateX(28px);
+}
+
+.ios-switch.mini input:checked + .switch-track .switch-thumb {
+    transform: translateX(22px);
+}
+
+/* 内部图标 */
+.icon-check {
+    width: 16px;
+    height: 16px;
+    color: #34C759;
+    opacity: 0;
+    transform: scale(0.5);
+    transition: all 0.2s ease;
+    position: absolute;
+}
+
+.ios-switch.mini .icon-check {
+    width: 14px;
+    height: 14px;
+}
+
+.ios-switch input:checked + .switch-track .icon-check {
+    opacity: 1;
+    transform: scale(1);
+    transition-delay: 0.08s;
+}
+
+.icon-ring {
+    display: block;
+    width: 12px;
+    height: 12px;
+    border: 2.5px solid #F0603E;
+    border-radius: 50%;
+    transition: all 0.2s ease;
+    opacity: 1;
+}
+
+.ios-switch.mini .icon-ring {
+    width: 10px;
+    height: 10px;
+    border-width: 2.2px;
+}
+
+.ios-switch input:checked + .switch-track .icon-ring {
+    opacity: 0;
+    transform: scale(0.5);
+}
+
+/* 按下反馈 */
+.ios-switch:active .switch-thumb {
+    transform: scale(0.94);
+}
+
+.ios-switch input:checked:active + .switch-track .switch-thumb {
+    transform: translateX(28px) scale(0.94);
+}
+
+.ios-switch.mini input:checked:active + .switch-track .switch-thumb {
+    transform: translateX(22px) scale(0.94);
+}
+
+/* ============ 升级按钮 ============ */
+.btn-upgrade {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 12px;
+    border: none;
+    cursor: pointer;
+    font-family: inherit;
+    font-size: 13px;
+    font-weight: 600;
+    color: #1c1c1e;
+    background: linear-gradient(135deg,
+        rgba(255, 215, 100, 0.75),
+        rgba(255, 180, 200, 0.65),
+        rgba(180, 200, 255, 0.65));
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.btn-upgrade:hover {
+    transform: translateY(-1px);
+    box-shadow:
+        0 12px 28px rgba(31, 38, 135, 0.12),
+        inset 0 1px 0 rgba(255, 255, 255, 0.9);
+}
+
+.btn-upgrade:active { transform: translateY(0); }
+
+.btn-upgrade-icon { font-size: 14px; }
+
+/* ============ 反馈卡片 ============ */
+.feedback-card { padding: 12px 14px; }
+
+.feedback-title {
+    font-size: 12px;
+    font-weight: 600;
+    color: #4a4a4f;
+    margin-bottom: 10px;
+}
+
+.feedback-buttons {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+}
+
+.btn-feedback {
+    padding: 8px 10px;
+    background: rgba(255, 255, 255, 0.6);
+    border: 1px solid rgba(0, 0, 0, 0.06);
+    border-radius: 10px;
+    font-family: inherit;
+    font-size: 12px;
+    font-weight: 500;
+    color: #1c1c1e;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.btn-feedback:hover:not(:disabled) {
+    background: rgba(255, 255, 255, 0.9);
+    transform: translateY(-1px);
+}
+
+.btn-feedback:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.feedback-hint {
+    font-size: 10px;
+    color: #9ca3af;
+    margin-top: 8px;
+    text-align: center;
+    transition: color 0.2s ease;
+}
+
+.feedback-hint.success { color: #34C759; }
+.feedback-hint.error { color: #F0603E; }
+
+/* ============ 保护功能卡片 ============ */
+.features-card {
+    padding: 4px 14px 8px;
+}
+
+.features-header {
+    font-size: 11px;
+    font-weight: 600;
+    color: #9ca3af;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+    padding: 12px 0 6px;
+}
+
+.feature-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 0;
+    gap: 12px;
+    border-bottom: 1px solid rgba(0, 0, 0, 0.04);
+}
+
+.feature-row:last-child { border-bottom: none; }
+
+.feature-text {
+    flex: 1;
+    min-width: 0;
+}
+
+.feature-name {
+    font-size: 13px;
+    font-weight: 500;
+    color: #1c1c1e;
+    line-height: 1.3;
+}
+
+.feature-desc {
+    font-size: 10px;
+    color: #9ca3af;
+    margin-top: 2px;
+    font-weight: 400;
+    line-height: 1.3;
+}
+
+/* ============ Footer ============ */
+.footer {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 4px 4px 0;
+    font-size: 11px;
+    color: #9ca3af;
+}
+
+.footer a {
+    color: #6b7280;
+    text-decoration: none;
+    font-weight: 500;
+    transition: color 0.2s ease;
+}
+
+.footer a:hover { color: #1c1c1e; }
+
+/* ============ 滚动条 ============ */
+::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar-thumb {
+    background: rgba(0, 0, 0, 0.15);
+    border-radius: 100px;
+}
+
+/* ============================================================
+   Premium 功能锁定
+   ============================================================ */
+
+/* 锁定的功能行：灰显 */
+.feature-row.locked {
+    opacity: 0.55;
+    cursor: not-allowed;
+}
+
+.feature-row.locked .feature-name {
+    color: #6b7280;
+}
+
+/* 锁定时禁用开关交互 */
+.feature-row.locked .ios-switch {
+    pointer-events: none;
+}
+
+/* 锁定时开关变灰 */
+.feature-row.locked .switch-track {
+    background: #c7c7cc !important;
+}
+
+.feature-row.locked .switch-thumb {
+    background: #f2f2f7;
+}
+
+.feature-row.locked .icon-check {
+    opacity: 0 !important;
+}
+
+.feature-row.locked .icon-ring {
+    border-color: #9ca3af;
+    opacity: 1 !important;
+    transform: none !important;
+}
+
+/* PRO 徽章 */
+.pro-badge {
+    display: inline-block;
+    font-size: 9px;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+    color: #8a5a00;
+    background: linear-gradient(135deg, #FFD966, #FFC107);
+    padding: 1px 5px;
+    border-radius: 5px;
+    margin-left: 4px;
+    vertical-align: middle;
+    box-shadow: 0 1px 2px rgba(255, 193, 7, 0.4);
+}
+
+/* 点击锁定功能时的提示动画 */
+@keyframes shake {
+    0%, 100% { transform: translateX(0); }
+    25% { transform: translateX(-4px); }
+    75% { transform: translateX(4px); }
+}
+
+.feature-row.locked.shake {
+    animation: shake 0.35s ease;
+}
+
+
+/* ============================================================
+   登录 + 升级 双按钮布局
+   ============================================================ */
+
+.action-row {
+    display: flex;
+    gap: 8px;
+}
+
+.action-row .btn-login {
+    flex: 0 0 auto;
+    min-width: 80px;
+}
+
+.action-row .btn-upgrade {
+    flex: 1;
+}
+
+/* 登录按钮：次级样式（半透明玻璃） */
+.btn-login {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 12px 14px;
+    border: none;
+    cursor: pointer;
+    font-family: inherit;
+    font-size: 13px;
+    font-weight: 600;
+    color: #1c1c1e;
+    background: rgba(255, 255, 255, 0.55);
+    transition: transform 0.2s ease, box-shadow 0.2s ease, background 0.2s ease;
+}
+
+.btn-login:hover {
+    background: rgba(255, 255, 255, 0.85);
+    transform: translateY(-1px);
+    box-shadow:
+        0 12px 28px rgba(31, 38, 135, 0.10),
+        inset 0 1px 0 rgba(255, 255, 255, 0.9);
+}
+
+.btn-login:active {
+    transform: translateY(0);
+}
+
+/* 已升级状态：按钮变灰且不可点 */
+.btn-upgrade.upgraded {
+    background: linear-gradient(135deg,
+        rgba(52, 199, 89, 0.20),
+        rgba(52, 199, 89, 0.12));
+    color: #1a8a3a;
+    cursor: default;
+    pointer-events: none;
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.6);
+}
+
+.btn-upgrade.upgraded .btn-upgrade-icon {
+    filter: saturate(1.2);
+}
+
+/* 锁定的功能行：彻底禁用点击（无任何响应） */
+.feature-row.locked {
+    pointer-events: none;
+}
+
+/* ============================================================
+   功能行悬停效果：渐变背景 + 文字放大
+   ============================================================ */
+
+/* 功能行基础过渡 */
+.feature-row {
+    position: relative;
+    padding: 10px 12px;
+    margin: 0 -12px;
+    border-radius: 12px;
+    transition:
+        background 0.3s cubic-bezier(0.4, 0, 0.2, 1),
+        transform 0.3s cubic-bezier(0.4, 0, 0.2, 1),
+        box-shadow 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    will-change: transform, background;
+}
+
+/* 未锁定功能：悬停渐变 + 放大 */
+.feature-row:not(.locked):hover {
+    background: linear-gradient(135deg,
+        rgba(120, 180, 255, 0.14),
+        rgba(190, 130, 255, 0.10),
+        rgba(120, 230, 200, 0.12));
+    transform: scale(1.02);
+    box-shadow:
+        0 6px 18px rgba(31, 38, 135, 0.08),
+        inset 0 1px 0 rgba(255, 255, 255, 0.6);
+    z-index: 1;
+}
+
+/* 悬停时文字放大 + 微渐变 */
+.feature-row:not(.locked):hover .feature-name {
+    transform: scale(1.04);
+    background: linear-gradient(135deg, #1c1c1e 20%, #4a4a7f 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+}
+
+.feature-row:not(.locked):hover .feature-desc {
+    transform: scale(1.02);
+    color: #6b7280;
+}
+
+/* 文字本身也要有过渡动画 */
+.feature-name {
+    display: inline-block;
+    transform-origin: left center;
+    transition:
+        transform 0.3s cubic-bezier(0.4, 0, 0.2, 1),
+        color 0.3s ease;
+}
+
+.feature-desc {
+    display: inline-block;
+    transform-origin: left center;
+    transition:
+        transform 0.3s cubic-bezier(0.4, 0, 0.2, 1),
+        color 0.3s ease;
+}
+
+/* 悬停时，右侧 Toggle 也轻微放大 */
+.feature-row:not(.locked):hover .ios-switch {
+    transform: scale(1.05);
+}
+
+.ios-switch {
+    transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* ============ 锁定的功能：悬停时仍有反馈，但只是警示效果 ============ */
+.feature-row.locked:hover {
+    background: linear-gradient(135deg,
+        rgba(255, 215, 100, 0.10),
+        rgba(255, 180, 200, 0.08));
+    transform: scale(1.01);
+    box-shadow: 0 4px 12px rgba(255, 193, 7, 0.08);
+}
+
+.feature-row.locked:hover .feature-name {
+    transform: scale(1.02);
+}
+
+/* 锁定行的 pointer-events 要允许悬停，但阻止点击 */
+.feature-row.locked {
+    pointer-events: auto;      /* 覆盖之前的 none */
+    cursor: default;
+}
+
+/* 锁定行的开关不可交互 */
+.feature-row.locked .ios-switch {
+    pointer-events: none;
+}
+
+/* ============ 卡片本身也要有悬停效果 ============ */
+
+/* 通用玻璃卡片悬停：轻微上浮 + 阴影加强 */
+.stat-card,
+.limit-card,
+.site-card,
+.feedback-card,
+.features-card,
+.btn-login,
+.btn-upgrade:not(.upgraded) {
+    transition:
+        transform 0.3s cubic-bezier(0.4, 0, 0.2, 1),
+        box-shadow 0.3s cubic-bezier(0.4, 0, 0.2, 1),
+        background 0.3s ease;
+}
+
+.stat-card:hover {
+    transform: translateY(-2px) scale(1.02);
+    box-shadow:
+        0 12px 28px rgba(31, 38, 135, 0.10),
+        inset 0 1px 0 rgba(255, 255, 255, 0.9);
+}
+
+/* Stats 数字放大 */
+.stat-card:hover .stat-value {
+    transform: scale(1.08);
+}
+
+.stat-value {
+    transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.site-card:hover {
+    transform: translateY(-1px);
+    box-shadow:
+        0 12px 28px rgba(31, 38, 135, 0.10),
+        inset 0 1px 0 rgba(255, 255, 255, 0.9);
+}
+
+/* 反馈按钮：悬停渐变 */
+.btn-feedback:hover:not(:disabled) {
+    background: linear-gradient(135deg,
+        rgba(120, 180, 255, 0.25),
+        rgba(190, 130, 255, 0.20));
+    border-color: rgba(120, 180, 255, 0.3);
+    transform: translateY(-1px) scale(1.03);
+    box-shadow: 0 4px 12px rgba(31, 38, 135, 0.10);
+}
+
+.btn-feedback {
+    transition:
+        transform 0.25s cubic-bezier(0.4, 0, 0.2, 1),
+        background 0.25s ease,
+        box-shadow 0.25s ease,
+        border-color 0.25s ease;
+}
+
+/* 登录按钮：悬停渐变 */
+.btn-login:hover {
+    background: linear-gradient(135deg,
+        rgba(120, 180, 255, 0.35),
+        rgba(190, 130, 255, 0.30));
+    transform: translateY(-1px) scale(1.03);
+}
+
+.btn-login:active {
+    transform: translateY(0) scale(0.98);
+}
+
+/* 升级按钮：悬停渐变加强 */
+.btn-upgrade:not(.upgraded):hover {
+    background: linear-gradient(135deg,
+        rgba(255, 215, 100, 0.90),
+        rgba(255, 180, 200, 0.80),
+        rgba(180, 200, 255, 0.80));
+    transform: translateY(-1px) scale(1.02);
+}
+
+.btn-upgrade:not(.upgraded):active {
+    transform: translateY(0) scale(0.98);
+}
+
+/* ============================================================
+   Header 悬停效果
+   ============================================================ */
+
+.header {
+    transition:
+        transform 0.3s cubic-bezier(0.4, 0, 0.2, 1),
+        box-shadow 0.3s cubic-bezier(0.4, 0, 0.2, 1),
+        background 0.3s ease;
+    cursor: default;
+}
+
+.header:hover {
+    background: linear-gradient(135deg,
+        rgba(120, 180, 255, 0.18),
+        rgba(190, 130, 255, 0.14),
+        rgba(120, 230, 200, 0.16));
+    transform: scale(1.01);
+    box-shadow:
+        0 12px 28px rgba(31, 38, 135, 0.10),
+        inset 0 1px 0 rgba(255, 255, 255, 0.9);
+}
+
+/* Logo 图标：悬停时轻微旋转 + 放大 */
+.logo-icon {
+    display: inline-block;
+    transition: transform 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.header:hover .logo-icon {
+    transform: scale(1.15) rotate(-6deg);
+}
+
+/* Logo 文字：悬停时渐变加深 + 放大 */
+.logo-text {
+    display: inline-block;
+    transform-origin: left center;
+    transition:
+        transform 0.3s cubic-bezier(0.4, 0, 0.2, 1),
+        filter 0.3s ease;
+}
+
+.header:hover .logo-text {
+    transform: scale(1.05);
+    filter: brightness(1.1);
+}
+
+/* 状态徽章：悬停时轻微放大 + 发光 */
+.status-badge {
+    transition:
+        transform 0.3s cubic-bezier(0.4, 0, 0.2, 1),
+        box-shadow 0.3s ease,
+        background 0.3s ease;
+}
+
+.header:hover .status-badge.active {
+    transform: scale(1.06);
+    box-shadow: 0 0 12px rgba(52, 199, 89, 0.35);
+}
+
+.header:hover .status-badge.paused {
+    transform: scale(1.06);
+    box-shadow: 0 0 12px rgba(240, 96, 62, 0.35);
+}
+
+/* ============================================================
+   已升级按钮（高级版）：悬停也有渐变反馈
+   ============================================================ */
+
+.btn-upgrade.upgraded {
+    transition:
+        transform 0.3s cubic-bezier(0.4, 0, 0.2, 1),
+        box-shadow 0.3s cubic-bezier(0.4, 0, 0.2, 1),
+        background 0.3s ease;
+    pointer-events: auto;   /* 覆盖之前的 none，允许悬停 */
+    cursor: default;
+}
+
+.btn-upgrade.upgraded:hover {
+    background: linear-gradient(135deg,
+        rgba(52, 199, 89, 0.32),
+        rgba(120, 230, 160, 0.24));
+    transform: scale(1.02);
+    box-shadow:
+        0 8px 20px rgba(52, 199, 89, 0.20),
+        inset 0 1px 0 rgba(255, 255, 255, 0.7);
+}
+
+.btn-upgrade.upgraded:hover .btn-upgrade-icon {
+    transform: scale(1.15) rotate(8deg);
+}
+
+.btn-upgrade-icon {
+    display: inline-block;
+    transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* 已升级按钮文字：悬停时颜色加深 */
+.btn-upgrade.upgraded:hover .btn-upgrade-text {
+    color: #0f7a2e;
+}
+
+.btn-upgrade-text {
+    transition: color 0.3s ease;
+}
+
+/* ============================================================
+   补充悬停效果：Header / 状态徽章 / 已升级按钮 / 额度卡
+   ============================================================ */
+
+/* ============ Header 卡片 ============ */
+.header {
+    transition:
+        transform 0.3s cubic-bezier(0.4, 0, 0.2, 1),
+        box-shadow 0.3s cubic-bezier(0.4, 0, 0.2, 1),
+        background 0.3s ease;
+}
+
+.header:hover {
+    transform: translateY(-1px);
+    background: linear-gradient(135deg,
+        rgba(255, 255, 255, 0.75),
+        rgba(220, 235, 255, 0.70),
+        rgba(240, 220, 255, 0.68));
+    box-shadow:
+        0 12px 28px rgba(31, 38, 135, 0.10),
+        inset 0 1px 0 rgba(255, 255, 255, 0.95);
+}
+
+/* Logo 悬停：轻微放大 + 渐变色文字 */
+.logo {
+    transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.logo:hover {
+    transform: scale(1.04);
+}
+
+.logo-icon {
+    display: inline-block;
+    transition: transform 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.logo:hover .logo-icon {
+    transform: rotate(-8deg) scale(1.12);
+}
+
+.logo-text {
+    display: inline-block;
+    transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.logo:hover .logo-text {
+    transform: scale(1.03);
+    background: linear-gradient(135deg, #1c1c1e 0%, #4a4a7f 60%, #6a5acd 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+}
+
+/* ============ 状态徽章（保护中 / 已暂停）============ */
+.status-badge {
+    transition:
+        transform 0.3s cubic-bezier(0.4, 0, 0.2, 1),
+        box-shadow 0.3s ease,
+        background 0.3s ease;
+    cursor: default;
+}
+
+.status-badge:hover {
+    transform: scale(1.08);
+}
+
+.status-badge.active:hover {
+    background: rgba(52, 199, 89, 0.25);
+    box-shadow: 0 4px 12px rgba(52, 199, 89, 0.25);
+}
+
+.status-badge.paused:hover {
+    background: rgba(240, 96, 62, 0.25);
+    box-shadow: 0 4px 12px rgba(240, 96, 62, 0.25);
+}
+
+/* ============ 已升级按钮（禁用状态也要有反馈）============ */
+.btn-upgrade.upgraded {
+    pointer-events: auto;        /* 覆盖之前的 none，允许悬停 */
+    cursor: default;
+    transition:
+        transform 0.3s cubic-bezier(0.4, 0, 0.2, 1),
+        box-shadow 0.3s ease,
+        background 0.3s ease;
+}
+
+.btn-upgrade.upgraded:hover {
+    transform: translateY(-1px) scale(1.02);
+    background: linear-gradient(135deg,
+        rgba(52, 199, 89, 0.35),
+        rgba(52, 199, 89, 0.22));
+    box-shadow:
+        0 10px 24px rgba(52, 199, 89, 0.18),
+        inset 0 1px 0 rgba(255, 255, 255, 0.7);
+}
+
+.btn-upgrade.upgraded .btn-upgrade-icon {
+    display: inline-block;
+    transition: transform 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.btn-upgrade.upgraded:hover .btn-upgrade-icon {
+    transform: rotate(15deg) scale(1.15);
+}
+
+/* ============ AI 每日额度卡片 ============ */
+.limit-card {
+    transition:
+        transform 0.3s cubic-bezier(0.4, 0, 0.2, 1),
+        box-shadow 0.3s cubic-bezier(0.4, 0, 0.2, 1),
+        background 0.3s ease;
+}
+
+.limit-card:hover {
+    transform: translateY(-1px);
+    box-shadow:
+        0 12px 28px rgba(31, 38, 135, 0.10),
+        inset 0 1px 0 rgba(255, 255, 255, 0.9);
+}
+
+/* 免费版额度卡悬停：蓝紫渐变背景 */
+.limit-card:not(.premium):hover {
+    background: linear-gradient(135deg,
+        rgba(255, 255, 255, 0.72),
+        rgba(220, 235, 255, 0.68),
+        rgba(240, 220, 255, 0.65));
+}
+
+/* 高级版额度卡悬停：金光渐变加强 */
+.limit-card.premium:hover {
+    background: linear-gradient(135deg,
+        rgba(255, 215, 100, 0.75),
+        rgba(255, 180, 200, 0.65));
+    box-shadow:
+        0 12px 28px rgba(255, 193, 7, 0.18),
+        inset 0 1px 0 rgba(255, 255, 255, 0.9);
+}
+
+/* "无限" 文字：悬停放大 + 渐变色 */
+.limit-value {
+    display: inline-block;
+    transition:
+        transform 0.3s cubic-bezier(0.4, 0, 0.2, 1),
+        color 0.3s ease;
+    transform-origin: right center;
+}
+
+.limit-card:hover .limit-value {
+    transform: scale(1.12);
+}
+
+.limit-card.premium:hover .limit-value {
+    background: linear-gradient(135deg, #8a5a00, #d4a017);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    font-weight: 700;
+}
+
+/* 进度条：悬停时轻微加粗 */
+.limit-progress {
+    transition: height 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.limit-card:hover .limit-progress {
+    height: 8px;
+}
+
+/* "AI 每日额度" 文字悬停时颜色加深 */
+.limit-label {
+    transition: color 0.3s ease;
+}
+
+.limit-card:not(.premium):hover .limit-label {
+    color: #2c2c2e;
+}
+
+.limit-card.premium:hover .limit-label {
+    color: #6a4200;
+}
+
+/* ============================================================
+   认证模态框
+   ============================================================ */
+
+.modal-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(28, 28, 30, 0.35);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+    opacity: 1;
+    transition: opacity 0.25s ease;
+    padding: 16px;
+}
+
+.modal-overlay.hidden {
+    display: none;
+    opacity: 0;
+}
+
+.modal-card {
+    position: relative;
+    width: 100%;
+    max-width: 320px;
+    padding: 24px 20px;
+    background: rgba(255, 255, 255, 0.85);
+    backdrop-filter: blur(30px) saturate(180%);
+    -webkit-backdrop-filter: blur(30px) saturate(180%);
+    border: 1px solid rgba(255, 255, 255, 0.9);
+    box-shadow:
+        0 20px 60px rgba(31, 38, 135, 0.18),
+        inset 0 1px 0 rgba(255, 255, 255, 0.95);
+    border-radius: 20px;
+    animation: modalIn 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+@keyframes modalIn {
+    from {
+        opacity: 0;
+        transform: scale(0.92) translateY(10px);
+    }
+    to {
+        opacity: 1;
+        transform: scale(1) translateY(0);
+    }
+}
+
+.modal-close {
+    position: absolute;
+    top: 12px;
+    right: 12px;
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    border: none;
+    background: rgba(0, 0, 0, 0.06);
+    color: #4a4a4f;
+    font-size: 13px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background 0.2s ease, transform 0.2s ease;
+}
+
+.modal-close:hover {
+    background: rgba(0, 0, 0, 0.12);
+    transform: scale(1.08);
+}
+
+/* ---- 步骤容器 ---- */
+.auth-step {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.auth-step.hidden {
+    display: none;
+}
+
+/* ---- 图标 ---- */
+.auth-icon {
+    font-size: 36px;
+    text-align: center;
+    margin-bottom: 4px;
+    animation: iconPop 0.4s ease;
+}
+
+.auth-icon.success {
+    animation: iconPop 0.5s ease;
+}
+
+@keyframes iconPop {
+    0% { transform: scale(0.6); opacity: 0; }
+    60% { transform: scale(1.1); }
+    100% { transform: scale(1); opacity: 1; }
+}
+
+/* ---- 标题 ---- */
+.auth-title {
+    font-size: 17px;
+    font-weight: 700;
+    color: #1c1c1e;
+    text-align: center;
+    letter-spacing: -0.3px;
+}
+
+.auth-subtitle {
+    font-size: 12px;
+    color: #6b7280;
+    text-align: center;
+    line-height: 1.5;
+    margin-bottom: 4px;
+}
+
+.auth-email-highlight {
+    color: #1c1c1e;
+    font-weight: 600;
+    word-break: break-all;
+}
+
+/* ---- 输入框 ---- */
+.auth-input {
+    width: 100%;
+    padding: 11px 14px;
+    font-family: inherit;
+    font-size: 13px;
+    color: #1c1c1e;
+    background: rgba(255, 255, 255, 0.7);
+    border: 1.5px solid rgba(0, 0, 0, 0.08);
+    border-radius: 12px;
+    outline: none;
+    transition: border-color 0.2s ease, background 0.2s ease, box-shadow 0.2s ease;
+}
+
+.auth-input:focus {
+    border-color: rgba(120, 180, 255, 0.6);
+    background: rgba(255, 255, 255, 0.95);
+    box-shadow: 0 0 0 4px rgba(120, 180, 255, 0.15);
+}
+
+.auth-input.otp-input {
+    text-align: center;
+    font-size: 20px;
+    letter-spacing: 8px;
+    font-weight: 600;
+    font-family: -apple-system, "SF Mono", monospace;
+    padding-left: 20px;
+}
+
+.auth-input.error {
+    border-color: rgba(240, 96, 62, 0.6);
+    box-shadow: 0 0 0 4px rgba(240, 96, 62, 0.12);
+    animation: shake 0.4s ease;
+}
+
+/* ---- 主按钮 ---- */
+.auth-primary-btn {
+    width: 100%;
+    padding: 11px;
+    border: none;
+    border-radius: 12px;
+    font-family: inherit;
+    font-size: 13px;
+    font-weight: 600;
+    color: #ffffff;
+    background: linear-gradient(135deg, #34C759, #30D158);
+    cursor: pointer;
+    transition: transform 0.2s ease, box-shadow 0.2s ease, opacity 0.2s ease;
+    box-shadow: 0 4px 12px rgba(52, 199, 89, 0.3);
+}
+
+.auth-primary-btn:hover:not(:disabled) {
+    transform: translateY(-1px);
+    box-shadow: 0 8px 20px rgba(52, 199, 89, 0.4);
+}
+
+.auth-primary-btn:active:not(:disabled) {
+    transform: translateY(0);
+}
+
+.auth-primary-btn:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+/* ---- 分隔线 ---- */
+.auth-divider {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 11px;
+    color: #9ca3af;
+    margin: 4px 0;
+}
+
+.auth-divider::before,
+.auth-divider::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: rgba(0, 0, 0, 0.08);
+}
+
+/* ---- Google 按钮 ---- */
+.auth-google-btn {
+    width: 100%;
+    padding: 10px;
+    border: 1.5px solid rgba(0, 0, 0, 0.08);
+    border-radius: 12px;
+    background: rgba(255, 255, 255, 0.7);
+    font-family: inherit;
+    font-size: 13px;
+    font-weight: 500;
+    color: #1c1c1e;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    transition: background 0.2s ease, transform 0.2s ease, border-color 0.2s ease;
+}
+
+.auth-google-btn:hover {
+    background: rgba(255, 255, 255, 0.95);
+    border-color: rgba(0, 0, 0, 0.12);
+    transform: translateY(-1px);
+}
+
+.auth-google-btn:active {
+    transform: translateY(0);
+}
+
+.google-icon {
+    flex-shrink: 0;
+}
+
+/* ---- 链接按钮 ---- */
+.auth-link-btn {
+    width: 100%;
+    padding: 6px;
+    border: none;
+    background: transparent;
+    font-family: inherit;
+    font-size: 12px;
+    font-weight: 500;
+    color: #6b7280;
+    cursor: pointer;
+    transition: color 0.2s ease;
+    border-radius: 8px;
+}
+
+.auth-link-btn:hover {
+    color: #1c1c1e;
+    background: rgba(0, 0, 0, 0.04);
+}
+
+.auth-link-btn.danger:hover {
+    color: #F0603E;
+    background: rgba(240, 96, 62, 0.08);
+}
+
+/* ---- 提示文字 ---- */
+.auth-hint {
+    font-size: 11px;
+    color: #9ca3af;
+    text-align: center;
+    min-height: 16px;
+    transition: color 0.2s ease;
+}
+
+.auth-hint.error {
+    color: #F0603E;
+}
+
+.auth-hint.success {
+    color: #34C759;
+}
+
+.auth-hint strong {
+    color: #1c1c1e;
+    font-weight: 700;
+}
+
+/* ---- 账号信息面板 ---- */
+.account-info {
+    background: rgba(0, 0, 0, 0.03);
+    border-radius: 12px;
+    padding: 4px 12px;
+    margin: 4px 0;
+}
+
+.account-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 10px 0;
+    border-bottom: 1px solid rgba(0, 0, 0, 0.04);
+    font-size: 12px;
+}
+
+.account-row:last-child {
+    border-bottom: none;
+}
+
+.account-label {
+    color: #6b7280;
+    font-weight: 500;
+}
+
+.account-value {
+    color: #1c1c1e;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+}
+
+.tier-badge {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 6px;
+    font-size: 11px;
+    background: linear-gradient(135deg, #FFD966, #FFC107);
+    color: #8a5a00;
+    font-weight: 700;
+}
+
+.tier-badge.free {
+    background: rgba(0, 0, 0, 0.06);
+    color: #6b7280;
+}
+
+/* ============================================================
+   加强抖动效果（覆盖之前的弱版本）
+   ============================================================ */
+
+@keyframes shakeStrong {
+    0%, 100% { transform: translateX(0); }
+    10%      { transform: translateX(-12px) rotate(-1.5deg); }
+    20%      { transform: translateX(12px) rotate(1.5deg); }
+    30%      { transform: translateX(-10px) rotate(-1.2deg); }
+    40%      { transform: translateX(10px) rotate(1.2deg); }
+    50%      { transform: translateX(-8px) rotate(-0.8deg); }
+    60%      { transform: translateX(8px) rotate(0.8deg); }
+    70%      { transform: translateX(-5px) rotate(-0.5deg); }
+    80%      { transform: translateX(5px) rotate(0.5deg); }
+    90%      { transform: translateX(-2px); }
+}
+
+/* 覆盖原抖动 */
+.auth-input.error {
+    animation: shakeStrong 0.55s cubic-bezier(0.36, 0.07, 0.19, 0.97) !important;
+    border-color: #F0603E !important;
+    box-shadow: 0 0 0 5px rgba(240, 96, 62, 0.18) !important;
+}
+
+/* 模态框整体抖动（用于取消等错误场景） */
+.modal-card.shake {
+    animation: shakeStrong 0.55s cubic-bezier(0.36, 0.07, 0.19, 0.97);
+}
+
+/* ============================================================
+   退出确认弹窗
+   ============================================================ */
+
+.confirm-card {
+    max-width: 280px;
+}
+
+.auth-icon.warn {
+    filter: drop-shadow(0 4px 8px rgba(255, 193, 7, 0.4));
+}
+
+/* 危险按钮（退出登录） */
+.auth-primary-btn.danger {
+    background: linear-gradient(135deg, #F0603E, #E14525);
+    box-shadow: 0 4px 12px rgba(240, 96, 62, 0.35);
+}
+
+.auth-primary-btn.danger:hover:not(:disabled) {
+    box-shadow: 0 8px 20px rgba(240, 96, 62, 0.45);
+}
+
+/* ============================================================
+   设置弹窗
+   ============================================================ */
+
+.settings-section {
+    margin-top: 8px;
+    padding-top: 4px;
+}
+
+.settings-section-title {
+    font-size: 11px;
+    font-weight: 600;
+    color: #9ca3af;
+    letter-spacing: 0.4px;
+    text-transform: uppercase;
+    padding: 8px 4px 6px;
+}
+
+/* ---- 语言选项 ---- */
+.lang-options {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.lang-option {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 12px;
+    background: rgba(255, 255, 255, 0.5);
+    border: 1.5px solid rgba(0, 0, 0, 0.06);
+    border-radius: 12px;
+    font-family: inherit;
+    font-size: 13px;
+    font-weight: 500;
+    color: #1c1c1e;
+    cursor: pointer;
+    transition:
+        background 0.25s ease,
+        border-color 0.25s ease,
+        transform 0.2s ease,
+        box-shadow 0.25s ease;
+    text-align: left;
+}
+
+.lang-option:hover {
+    background: linear-gradient(135deg,
+        rgba(120, 180, 255, 0.18),
+        rgba(190, 130, 255, 0.14));
+    border-color: rgba(120, 180, 255, 0.35);
+    transform: translateY(-1px) scale(1.01);
+    box-shadow: 0 6px 16px rgba(31, 38, 135, 0.08);
+}
+
+.lang-option.active {
+    background: linear-gradient(135deg,
+        rgba(52, 199, 89, 0.14),
+        rgba(52, 199, 89, 0.06));
+    border-color: rgba(52, 199, 89, 0.4);
+    box-shadow: 0 4px 12px rgba(52, 199, 89, 0.15);
+}
+
+.lang-flag {
+    font-size: 18px;
+    line-height: 1;
+}
+
+.lang-name {
+    flex: 1;
+    font-weight: 600;
+}
+
+.lang-check {
+    color: #34C759;
+    font-weight: 700;
+    font-size: 14px;
+    opacity: 0;
+    transform: scale(0.5);
+    transition: opacity 0.25s ease, transform 0.25s ease;
+}
+
+.lang-option.active .lang-check {
+    opacity: 1;
+    transform: scale(1);
+}
+
+.settings-hint {
+    font-size: 10px;
+    color: #9ca3af;
+    text-align: center;
+    margin-top: 8px;
+    font-style: italic;
+}
+
+/* ---- 反馈链接按钮 ---- */
+.settings-link-btn {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    width: 100%;
+    padding: 11px 12px;
+    background: rgba(255, 255, 255, 0.5);
+    border: 1.5px solid rgba(0, 0, 0, 0.06);
+    border-radius: 12px;
+    font-family: inherit;
+    font-size: 13px;
+    font-weight: 500;
+    color: #1c1c1e;
+    cursor: pointer;
+    transition:
+        background 0.25s ease,
+        border-color 0.25s ease,
+        transform 0.2s ease,
+        box-shadow 0.25s ease;
+    text-align: left;
+}
+
+.settings-link-btn:hover {
+    background: linear-gradient(135deg,
+        rgba(255, 215, 100, 0.2),
+        rgba(255, 180, 200, 0.15));
+    border-color: rgba(255, 193, 7, 0.35);
+    transform: translateY(-1px) scale(1.01);
+    box-shadow: 0 6px 16px rgba(255, 193, 7, 0.12);
+}
+
+.settings-link-icon {
+    font-size: 16px;
+    line-height: 1;
+}
+
+.settings-link-text {
+    flex: 1;
+    font-weight: 600;
+}
+
+.settings-link-arrow {
+    color: #9ca3af;
+    font-size: 14px;
+    transition: transform 0.25s ease, color 0.25s ease;
+}
+
+.settings-link-btn:hover .settings-link-arrow {
+    transform: translateX(3px);
+    color: #6b7280;
+}
+
+/* ============================================================
+   反馈按钮状态（成功/失败）
+   ============================================================ */
+
+.btn-feedback.success {
+    background: linear-gradient(135deg,
+        rgba(52, 199, 89, 0.22),
+        rgba(52, 199, 89, 0.14)) !important;
+    border-color: rgba(52, 199, 89, 0.45) !important;
+    color: #1a8a3a !important;
+    font-weight: 600 !important;
+    transform: scale(1.02);
+    box-shadow: 0 4px 12px rgba(52, 199, 89, 0.20);
+}
+
+.btn-feedback.error {
+    background: linear-gradient(135deg,
+        rgba(240, 96, 62, 0.20),
+        rgba(240, 96, 62, 0.12)) !important;
+    border-color: rgba(240, 96, 62, 0.4) !important;
+    color: #c4421f !important;
+    font-weight: 600 !important;
+}
+
+/* Logo 图片 */
+.logo-img {
+    width: 20px;
+    height: 20px;
+    object-fit: contain;
+    transition: transform 0.3s ease;
+}
+.logo:hover .logo-img {
+    transform: rotate(-8deg) scale(1.15);
+}
+
+/* 试用 Banner */
+.trial-banner {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 12px;
+    background: linear-gradient(135deg, rgba(255, 230, 150, 0.65), rgba(255, 200, 180, 0.55));
+    border: 1px solid rgba(255, 200, 100, 0.5);
+    border-radius: 12px;
+    animation: slideDown 0.3s ease;
+}
+.trial-banner.hidden { display: none; }
+.trial-content {
+    font-size: 12px;
+    font-weight: 600;
+    color: #8a5a00;
+    line-height: 1.4;
+    cursor: pointer;
+}
+.trial-close {
+    background: transparent;
+    border: none;
+    color: #d48a00;
+    font-size: 14px;
+    cursor: pointer;
+    padding: 4px;
+    border-radius: 50%;
+    transition: background 0.2s;
+}
+.trial-close:hover { background: rgba(255, 255, 255, 0.4); }
+@keyframes slideDown {
+    from { opacity: 0; transform: translateY(-10px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+/* 兜底隐藏类 */
+.hidden { display: none !important; }
+/* 日志列表项 */
+.log-domain-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 10px;
+    background: rgba(255, 255, 255, 0.4);
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 13px;
+    font-weight: 600;
+    transition: background 0.2s;
+}
+.log-domain-row:hover {
+    background: rgba(255, 255, 255, 0.8);
+}
+.log-domain-count {
+    background: #34C759;
+    color: white;
+    padding: 2px 8px;
+    border-radius: 10px;
+    font-size: 11px;
+}
+.log-details {
+    display: none;
+    padding: 8px 10px;
+    font-size: 11px;
+    color: #6b7280;
+    background: rgba(0,0,0,0.02);
+    border-radius: 0 0 8px 8px;
+    margin-top: -4px;
+    word-break: break-all;
+}
+.log-details.open {
+    display: block;
+}
+
+/* 视图回退导航 */
+.sub-view-nav {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 14px;
+    border-radius: 16px;
+    margin-bottom: 10px;
+}
+.btn-back {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    background: transparent;
+    border: none;
+    color: #1c1c1e;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    padding: 4px 8px;
+    margin-left: -8px;
+    border-radius: 8px;
+    transition: background 0.2s;
+}
+.btn-back:hover { background: rgba(0,0,0,0.05); }
+.sub-view-title { font-size: 14px; font-weight: 700; color: #1c1c1e; }
+
+/* 设置弹窗分栏 */
+.settings-card {
+    max-width: 340px;
+    padding: 20px;
+}
+.settings-container {
+    display: flex;
+    gap: 16px;
+    height: 240px;
+}
+.settings-sidebar {
+    width: 90px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    border-right: 1px solid rgba(0,0,0,0.06);
+    padding-right: 8px;
+}
+.settings-tab {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 10px 8px;
+    border: none;
+    background: transparent;
+    font-family: inherit;
+    font-size: 12px;
+    font-weight: 600;
+    color: #6b7280;
+    cursor: pointer;
+    border-radius: 8px;
+    text-align: left;
+    transition: all 0.2s;
+}
+.settings-tab:hover { background: rgba(0,0,0,0.04); }
+.settings-tab.active { background: rgba(120, 180, 255, 0.15); color: #1c1c1e; }
+.settings-content {
+    flex: 1;
+    overflow-y: auto;
+}
+.settings-pane { display: none; }
+.settings-pane.active { display: block; animation: fadeIn 0.2s; }
+
+/* 白名单样式 */
+.whitelist-add-row {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 12px;
+}
+.whitelist-list {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    max-height: 120px;
+    overflow-y: auto;
+}
+.whitelist-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 6px 10px;
+    background: rgba(0,0,0,0.03);
+    border-radius: 8px;
+    font-size: 12px;
+}
+.btn-remove-wl {
+    background: transparent;
+    border: none;
+    color: #F0603E;
+    cursor: pointer;
+    font-size: 14px;
+    font-weight: bold;
+}
+@keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+
+/* 功能列表禁用状态 */
+.features-card.disabled {
+    opacity: 0.4;
+    pointer-events: none;
+    filter: grayscale(100%);
+}
+
+/* 白名单未登录禁用状态 */
+.whitelist-add-row.disabled input,
+.whitelist-add-row.disabled button {
+    opacity: 0.5;
+    pointer-events: none;
+}
+
+
