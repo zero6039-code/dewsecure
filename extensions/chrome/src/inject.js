@@ -1,3 +1,17 @@
+/**
+ * =========================================================================
+ * ⚠️ [DewSecure 终极稳定版 V1.0.0 - 严禁破坏] ⚠️
+ * =========================================================================
+ * 此文件已封版。目前的逻辑经过数十次真实测试（Skidrow、Spiegel、Wired 等），
+ * 完美实现了：多标签页绝对隔离、白名单动态注入、暂停即刷新。
+ * 
+ * 🚫 严禁修改以下逻辑：
+ * 1. popup.js 里的 setInterval(forceUpdateUI) 强制重绘逻辑。
+ * 2. content.js 开头的 chrome.storage.local.get 异步白名单检查。
+ * 3. 不要在此文件随意追加新的监听器，容易引发变量冲突。
+ * =========================================================================
+ */
+
 (function () {
     'use strict';
 
@@ -14,44 +28,7 @@
     const DEBUG = false;
     const warn = DEBUG ? console.warn.bind(console) : () => {};
 
-    
-    // ===== 0. 预存原生 API（用于白名单恢复） =====
-    const _nativeOpen = window.open;
-    const _nativeOpenDesc = Object.getOwnPropertyDescriptor(window, 'open');
-    const _nativeAnchorClick = HTMLAnchorElement.prototype.click;
-    const _nativeFormSubmit = HTMLFormElement.prototype.submit;
-    const _nativeHrefDesc = Object.getOwnPropertyDescriptor(Location.prototype, 'href');
-
-    // ===== 白名单异步检查 =====
-    if (typeof chrome !== 'undefined' && chrome.storage) {
-        chrome.storage.local.get('dewsecure_settings', (res) => {
-            let settings = res.dewsecure_settings || {};
-            let hostname = window.location.hostname;
-            let isWhitelisted = (settings.whitelist || []).some(d => hostname === d || hostname.endsWith("." + d));
-            let isTempWhitelisted = (settings.tempWhitelist || []).some(d => hostname === d || hostname.endsWith("." + d));
-            
-            if (isWhitelisted || isTempWhitelisted) {
-                // 命中白名单，立刻还原原生 API，绝不执行后续 Hook
-                window.open = _nativeOpen;
-                try { Object.defineProperty(window, 'open', _nativeOpenDesc); } catch(e){}
-                HTMLAnchorElement.prototype.click = _nativeAnchorClick;
-                HTMLFormElement.prototype.submit = _nativeFormSubmit;
-                if (_nativeHrefDesc) {
-                    try { Object.defineProperty(Location.prototype, 'href', _nativeHrefDesc); } catch(e){}
-                }
-                console.warn('🛡️ [DewSecure] 保护已暂停，底层防御已完全卸载');
-                return; // 直接退出，不执行后面的代码
-            }
-            
-            // 如果不在白名单，执行原有的所有 Hook 代码
-            executeHooks();
-        });
-    } else {
-        executeHooks(); // 兜底
-    }
-
-    function executeHooks() {
-let lastRealClick = 0;
+    let lastRealClick = 0;
     window.addEventListener('mousedown', () => { lastRealClick = Date.now(); }, true);
     window.addEventListener('click', () => { lastRealClick = Date.now(); }, true);
 
@@ -447,6 +424,4 @@ let lastRealClick = 0;
     // 节流兜底（降低 CPU 占用）
 
     setInterval(() => { killMaliciousNodes(document.documentElement); }, 250);
-})();
-    }
 })();
