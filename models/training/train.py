@@ -36,8 +36,8 @@ def download_phishing_data():
     return df
 
 def prepare_dataset():
-    train_df = pd.read_csv("../data/train.csv")
-    test_df = pd.read_csv("../data/test.csv")
+    train_df = pd.read_csv("data/train.csv")
+    test_df = pd.read_csv("data/test.csv")
 
     phish_df = download_phishing_data()
     if not phish_df.empty:
