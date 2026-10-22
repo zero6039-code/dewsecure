@@ -1,2 +1,36 @@
-name: Release (Disabled)
-on: workflow_dispatch
+name: Release Extension
+
+on:
+  workflow_dispatch: # 允许手动触发
+  push:
+    tags:
+      - 'v*' # 推送 tag 时自动触发
+
+jobs:
+  build-and-zip:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Install Dependencies & Build
+        run: |
+          cd extensions/chrome
+          npm ci
+          npm run build
+
+      - name: Create Zip Archive
+        run: |
+          cd extensions/chrome/dist
+          # 把 dist 目录里的所有文件打包成一个 zip
+          zip -r ../../../dewsecure-chrome.zip .
+
+      - name: Upload Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: dewsecure-chrome-extension
+          path: dewsecure-chrome.zip
