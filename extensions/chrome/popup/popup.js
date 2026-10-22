@@ -1,4 +1,29 @@
 import { sendOTP, verifyOTP, loginUser, logoutUser, getCurrentUser, formatDate }
+
+// 🌟 新增：支持在邮箱输入框按 Enter 键发送验证码
+const emailInputForEnter = document.getElementById('emailInput');
+if (emailInputForEnter) {
+    emailInputForEnter.addEventListener('keypress', (e) => {
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            const sendBtn = document.getElementById('btnSendOtp');
+            if (sendBtn && !sendBtn.disabled) sendBtn.click();
+        }
+    });
+}
+
+// 🌟 新增：支持在 OTP 输入框按 Enter 键验证
+const otpInputForEnter = document.getElementById('otpInput');
+if (otpInputForEnter) {
+    otpInputForEnter.addEventListener('keypress', (e) => {
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            const verifyBtn = document.getElementById('btnVerifyOtp');
+            if (verifyBtn && !verifyBtn.disabled) verifyBtn.click();
+        }
+    });
+}
+
     from '../src/authManager.js';
 
 /**
@@ -512,7 +537,7 @@ async function handleVerifyOtp() {
     hint.classList.remove('error', 'success');
     input.classList.remove('error');
 
-    if (otp.length !== 6) {
+    if (otp.length !== 8) {
         hint.textContent = '请输入 6 位验证码';
         hint.classList.add('error');
         triggerShake(input);
