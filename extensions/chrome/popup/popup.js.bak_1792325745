@@ -459,7 +459,6 @@ function showAuthStep(step) {
         input.value = '';
         input.classList.remove('error');
         document.getElementById('otpHint').innerHTML =
-            '💡 本地测试模式：验证码为 <strong>123456</strong>';
         document.getElementById('otpHint').classList.remove('error', 'success');
     }
 }
@@ -560,7 +559,6 @@ async function handleResendOtp() {
 }
 
 /* ---- Google 登录 ---- */
-/* ⚠️ 本地测试模式：模拟登录
  *  正式上线时改成：
  *    chrome.tabs.create({ url: 'https://dewsecure.com/login?provider=google&from=extension' });
  */
