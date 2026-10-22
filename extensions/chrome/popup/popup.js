@@ -550,7 +550,7 @@ async function handleResendOtp() {
 
     const result = await sendOTP(currentAuthEmail);
     if (result.ok) {
-        hint.innerHTML = '✅ 已重新发送 · 本地测试：<strong>123456</strong>';
+        hint.innerHTML = '✅ 已重新发送';
         hint.classList.add('success');
     } else {
         hint.textContent = result.error || '发送失败';
@@ -559,9 +559,6 @@ async function handleResendOtp() {
 }
 
 /* ---- Google 登录 ---- */
- *  正式上线时改成：
- *    chrome.tabs.create({ url: 'https://dewsecure.com/login?provider=google&from=extension' });
- */
 async function handleGoogleLogin() {
     const btn = document.getElementById('googleLoginBtn');
     const hint = document.getElementById('emailHint');
