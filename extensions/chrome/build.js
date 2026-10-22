@@ -46,6 +46,7 @@ function copyStatic() {
         ['manifest.json', 'dist/manifest.json'],
         ['popup/index.html', 'dist/popup/index.html'],
         ['popup/popup.css', 'dist/popup/popup.css'],
+        ['popup/i18n.js', 'dist/popup/i18n.js'], // 🌟 补全了缺失的 i18n.js
         ['src/offscreen.html', 'dist/src/offscreen.html'],
     ];
     const dirs = [

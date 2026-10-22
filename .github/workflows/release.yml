@@ -24,7 +24,7 @@ jobs:
       - name: Install Dependencies & Build
         run: |
           cd extensions/chrome
-          npm ci
+          npm install
           npm run build
 
       - name: Get Version & Prepare Release Directory

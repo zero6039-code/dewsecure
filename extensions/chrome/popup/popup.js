@@ -1,195 +1,93 @@
-import { sendOTP, verifyOTP, loginUser, logoutUser, getCurrentUser, formatDate }
+// ==========================================
+// 📁 popup.js (主入口)
+// 职责：只负责初始化、读取 storage 数据、并调用各个模块。
+// 彻底分离了 UI 逻辑、认证逻辑、账户逻辑。
+// ==========================================
+
+import { getCurrentUser } from '../src/authManager.js';
+import { updateStats, updateSiteSwitch, disableSiteSwitch, switchView } from './views.js';
+import { initAuthUI } from './auth-ui.js';
+import { initAccountUI, renderLoggedInView } from './account-ui.js';
 
 
+// ==========================================
+// 🌟 抽离出独立的当前站点刷新函数
+// ==========================================
 
+// ==========================================
+// 🌟 抽离出独立的当前站点刷新函数
+// ==========================================
+async function updateSiteInfo() {
+    try {
+        // 使用 lastFocusedWindow 提高在侧边栏场景下的命中率
+        const [tab] = await chrome.tabs.query({ active: true, lastFocusedWindow: true });
+        console.log("🔄 正在抓取当前活动标签页:", tab?.url);
 
-    from '../src/authManager.js';
-
-/**
- * DewSecure Popup — 毛玻璃 + iOS Toggle + Tier 锁定
- */
-
-async function init() {
-    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-    
-    // 直接从 storage 读取，避免 Service Worker 启动延迟导致读不到
-    const { dewsecure_stats: stats, dewsecure_settings: settings } = await chrome.storage.local.get(['dewsecure_stats', 'dewsecure_settings']);
-    
-    const finalSettings = settings || {};
-    
-    updateStats(stats);
-    updateFeatureToggles(finalSettings);
-    applyTierLock(finalSettings);
-    updateUpgradeButton(finalSettings);
-    
-    const currentUser = await getCurrentUser();
-    updateLoginButton(currentUser);
-    updateTrialBanner(currentUser);
-
-    if (tab?.url && /^https?:/.test(tab.url)) {
-        try {
+        if (tab?.url && /^https?:/.test(tab.url)) {
             const host = new URL(tab.url).hostname;
+            console.log("✅ 解析出域名:", host);
+
+            const { dewsecure_settings: settings } = await chrome.storage.local.get('dewsecure_settings');
+            const finalSettings = settings || {};
             const matchDomain = (d) => host === d || host.endsWith('.' + d);
             const isWhitelisted = (finalSettings.whitelist || []).some(matchDomain);
             const isTempWhitelisted = (finalSettings.tempWhitelist || []).some(matchDomain);
-            const isProtected = !isWhitelisted && !isTempWhitelisted;
-            updateSiteSwitch(isProtected, host);
-        } catch (e) {
+            
+            updateSiteSwitch(!isWhitelisted && !isTempWhitelisted, host);
+        } else {
+            console.log("⚠️ 当前标签页不是 http/https，或者 URL 为空");
             disableSiteSwitch();
         }
-    } else {
+    } catch (e) {
+        console.error("❌ updateSiteInfo 执行出错:", e);
         disableSiteSwitch();
     }
-
-    bindEvents(finalSettings);
-}
-
-/* ============================================================
-   状态渲染
-   ============================================================ */
-
-function updateStats(stats) {
-    document.getElementById('todayBlocked').textContent = stats?.todayBlocked || 0;
-    document.getElementById('totalBlocked').textContent = stats?.totalBlocked || 0;
 }
 
 
+async function init() {
+    // 1. 初始化独立的 UI 模块
+    initAuthUI();
+    initAccountUI();
 
-function updateSiteSwitch(isProtected, host) {
-    const switchEl = document.getElementById('siteSwitch');
-    const domainEl = document.getElementById('siteDomain');
-    const labelEl  = document.getElementById('siteLabel');
-    const statusEl = document.getElementById('status');
-    const featuresCard = document.querySelector('.features-card');
+    // 2. 读取数据
+    const { dewsecure_stats: stats, dewsecure_settings: settings } = await chrome.storage.local.get(['dewsecure_stats', 'dewsecure_settings']);
+    const finalSettings = settings || {};
+    
+    
+    const currentUser = await getCurrentUser();
 
-    if (domainEl) domainEl.textContent = host || '此网站';
 
-    switchEl.checked = isProtected;
-    switchEl.dataset.host = host || '';
-    switchEl.dataset.protected = isProtected ? '1' : '0';
 
-    if (isProtected) {
-        if (labelEl) labelEl.textContent = '保护已开启';
-        statusEl.textContent = '保护中';
-        statusEl.classList.remove('paused');
-        statusEl.classList.add('active');
-        if (featuresCard) featuresCard.classList.remove('disabled');
-    } else {
-        if (labelEl) labelEl.textContent = '保护已暂停';
-        statusEl.textContent = '已暂停';
-        statusEl.classList.remove('active');
-        statusEl.classList.add('paused');
-        if (featuresCard) featuresCard.classList.add('disabled');
-    }
+    // 3. 渲染主视图数据
+    updateStats(stats);
+    
+    // 4. 渲染站点状态
+    await updateSiteInfo();
+
+    // 5. 更新登录按钮状态
+    const loginText = document.getElementById('loginBtnText');
+    if (loginText) loginText.textContent = currentUser ? '查看状态' : '登录';
+
+    // 6. 绑定其他杂项事件（日志视图、站点开关、反馈等）
+    bindMiscEvents(finalSettings);
 }
 
-function disableSiteSwitch() {
-    const switchEl = document.getElementById('siteSwitch');
-    const domainEl = document.getElementById('siteDomain');
-    const labelEl  = document.getElementById('siteLabel');
-    const statusEl = document.getElementById('status');
+function bindMiscEvents(settings) {
+    // 日志卡片点击
+    document.getElementById('cardToday')?.addEventListener('click', () => switchView('logsView'));
+    document.getElementById('backFromLogs')?.addEventListener('click', () => switchView('mainView'));
+    document.getElementById('cardTotal')?.addEventListener('click', () => switchView('statsView'));
+    document.getElementById('backFromStats')?.addEventListener('click', () => switchView('mainView'));
 
-    switchEl.disabled = true;
-    switchEl.checked = false;
-    switchEl.dataset.host = '';
-    switchEl.dataset.protected = '0';
-
-    const wrap = document.getElementById('siteSwitchWrap');
-    if (wrap) {
-        wrap.style.opacity = '0.35';
-        wrap.style.pointerEvents = 'none';
-    }
-
-    if (domainEl) domainEl.textContent = '—';
-    if (labelEl)  labelEl.textContent = '当前页面不支持';
-    statusEl.textContent = '不可用';
-    statusEl.classList.remove('active', 'paused');
-}
-
-/* ============================================================
-   功能开关渲染
-   ============================================================ */
-
-function updateFeatureToggles(settings) {
-    document.getElementById('dnrToggle').checked         = settings.dnrEnabled !== false;
-    document.getElementById('antiHijackToggle').checked   = settings.antiHijackEnabled !== false;
-    document.getElementById('phishingToggle').checked    = settings.phishingEnabled !== false;
-    document.getElementById('aiFourToggle').checked      = settings.aiFourEnabled !== false;
-    document.getElementById('aiToggle').checked          = settings.aiEnabled !== false;
-    document.getElementById('trackerToggle').checked     = settings.blockTrackers !== false;
-    document.getElementById('antiBypassToggle').checked  = settings.antiBypassEnabled !== false;
-    document.getElementById('cookieToggle').checked      = settings.hideCookieNotices !== false;
-    document.getElementById('placeholderToggle').checked = settings.hideAdPlaceholders !== false;
-    document.getElementById('socialToggle').checked      = settings.blockSocialTrackers !== false;
-}
-
-/* ============================================================
-   Tier 功能锁定
-   ============================================================ */
-
-function isPremiumUser(settings) {
-    return settings.tier === 'premium'
-        || settings.tier === 'family'
-        || settings.subscription === 'premium';
-}
-
-function applyTierLock(settings) {
-    const isPremium = isPremiumUser(settings);
-    const lockedRows = document.querySelectorAll('[data-requires="premium"]');
-
-    lockedRows.forEach((row) => {
-        if (isPremium) {
-            row.classList.remove('locked');
-        } else {
-            row.classList.add('locked');
-        }
-    });
-}
-
-function updateUpgradeButton(settings) {
-    const btn = document.getElementById('upgradeBtn');
-    if (!btn) return;
-
-    const isPremium = isPremiumUser(settings);
-    const textEl = btn.querySelector('.btn-upgrade-text');
-
-    if (isPremium) {
-        btn.classList.add('upgraded');
-        btn.disabled = true;
-        if (textEl) textEl.textContent = '已升级到高级版';
-    } else {
-        btn.classList.remove('upgraded');
-        btn.disabled = false;
-        if (textEl) textEl.textContent = '升级到高级版';
-    }
-}
-
-/**
- * 登录按钮状态
- * - 未登录：登录
- * - 已登录：查看状态
- */
-function updateLoginButton(user) {
-    const textEl = document.getElementById('loginBtnText');
-    if (!textEl) return;
-    textEl.textContent = user ? '查看状态' : '登录';
-}
-
-/* ============================================================
-   事件绑定
-   ============================================================ */
-
-function bindEvents(settings) {
-    // ---- 站点 Toggle ----
-    document.getElementById('siteSwitch').addEventListener('change', (e) => {
+    // 站点开关
+    document.getElementById('siteSwitch')?.addEventListener('change', (e) => {
         const switchEl = e.target;
         const host = switchEl.dataset.host;
         if (!host) return;
 
-        const willProtect = switchEl.checked;
-
-        if (!willProtect) {
-            switchEl.checked = true; // 视觉上先回滚
+        if (!switchEl.checked) {
+            switchEl.checked = true;
             document.getElementById('pauseConfirmModal').classList.remove('hidden');
             
             document.getElementById('confirmPauseBtn').onclick = () => {
@@ -198,8 +96,7 @@ function bindEvents(settings) {
                     if (res && res.ok) {
                         switchEl.checked = false;
                         updateSiteSwitch(false, host);
-                    } else {
-                        console.error('暂停失败:', res?.error);
+                        setTimeout(() => chrome.tabs.reload(), 500);
                     }
                 });
             };
@@ -210,823 +107,78 @@ function bindEvents(settings) {
         }
 
         chrome.runtime.sendMessage({ type: 'REMOVE_TEMP_WHITELIST', domain: host }, (res) => {
-            if (res && res.ok) {
-                updateSiteSwitch(true, host);
-            }
+            if (res && res.ok) updateSiteSwitch(true, host);
         });
     });
 
-    // ---- 功能开关 ----
-    const bindFeature = (id, key) => {
-        document.getElementById(id).addEventListener('change', async (e) => {
-            await chrome.runtime.sendMessage({ type: 'UPDATE_SETTING_KEY', key: key, value: e.target.checked });
-            // 更新本地引用
-            settings[key] = e.target.checked;
-        });
-    };
-
-    bindFeature('dnrToggle',         'dnrEnabled');
-    bindFeature('antiHijackToggle',  'antiHijackEnabled');
-    bindFeature('phishingToggle',    'phishingEnabled');
-    bindFeature('aiFourToggle',      'aiFourEnabled');
-    bindFeature('aiToggle',          'aiEnabled');
-    bindFeature('trackerToggle',     'blockTrackers');
-    bindFeature('antiBypassToggle',  'antiBypassEnabled');
-    bindFeature('cookieToggle',      'hideCookieNotices');
-    bindFeature('placeholderToggle', 'hideAdPlaceholders');
-    bindFeature('socialToggle',      'blockSocialTrackers');
-
-    // ---- 登录 / 升级 ----
-    document.getElementById('loginBtn').addEventListener('click', openAuthModal);
-    
-    if (document.getElementById('trialClose')) {
-        document.getElementById('trialClose').addEventListener('click', handleTrialClose);
-    }
-    if (document.getElementById('activateTrialBtn')) {
-        document.getElementById('activateTrialBtn').addEventListener('click', openTrialActivateModal);
-        document.getElementById('confirmActivateBtn').addEventListener('click', () => { closeTrialActivateModal(); chrome.tabs.create({ url: 'https://dewsecure.com/pricing' }); });
-        document.getElementById('cancelActivateBtn').addEventListener('click', closeTrialActivateModal);
-    }
-    document.getElementById('modalClose').addEventListener('click', closeAuthModal);
-
-    // 点击遮罩层关闭 authModal
-    document.getElementById('authModal').addEventListener('click', (e) => {
-        if (e.target.id === 'authModal') closeAuthModal();
-    });
-
-    // ESC 键关闭所有弹窗
-    document.addEventListener('keydown', (e) => {
-        if (e.key === 'Escape') {
-            closeAuthModal();
-            closeConfirmModal();
-            closeSettingsModal();
-        }
-    });
-    document.getElementById('sendOtpBtn').addEventListener('click', handleSendOtp);
-    document.getElementById('verifyOtpBtn').addEventListener('click', handleVerifyOtp);
-    document.getElementById('resendOtpBtn').addEventListener('click', handleResendOtp);
-    document.getElementById('backToEmailBtn').addEventListener('click', () => showAuthStep('email'));
-    document.getElementById('googleLoginBtn').addEventListener('click', handleGoogleLogin);
-    document.getElementById('manageAccountBtn').addEventListener('click', () => {
-        chrome.tabs.create({ url: 'https://dewsecure.com/dashboard' });
-    });
-    document.getElementById('logoutBtn').addEventListener('click', openConfirmModal);
-    document.getElementById('confirmLogoutBtn').addEventListener('click', handleLogoutConfirmed);
-    document.getElementById('cancelLogoutBtn').addEventListener('click', closeConfirmModal);
-
-    // 点击遮罩关闭 confirm
-    document.getElementById('confirmModal').addEventListener('click', (e) => {
-        if (e.target.id === 'confirmModal') closeConfirmModal();
-    });
-
-    // ============ 设置弹窗 ============
-    document.getElementById('settingsLink').addEventListener('click', (e) => {
-        e.preventDefault();
-        openSettingsModal();
-    });
-    document.getElementById('settingsClose').addEventListener('click', closeSettingsModal);
-    document.getElementById('settingsModal').addEventListener('click', (e) => {
-        if (e.target.id === 'settingsModal') closeSettingsModal();
-    });
-
-    // 语言选择
-    document.querySelectorAll('.lang-option').forEach((btn) => {
-        btn.addEventListener('click', () => handleLanguageSelect(btn));
-    });
-
-    // 反馈链接
-    document.getElementById('reportLinkBtn').addEventListener('click', () => {
-        chrome.tabs.create({ url: 'https://dewsecure.com/report' });
-    });
-
-    // 回车提交
-    document.getElementById('authEmail').addEventListener('keydown', (e) => {
-        if (e.key === 'Enter') handleSendOtp();
-    });
-    document.getElementById('otpInput').addEventListener('keydown', (e) => {
-        if (e.key === 'Enter') handleVerifyOtp();
-    });
-    // OTP 自动跳焦
-    document.getElementById('otpInput').addEventListener('input', (e) => {
-        e.target.value = e.target.value.replace(/\D/g, '').slice(0, 6);
-    });
-
-    document.getElementById('upgradeBtn').addEventListener('click', () => {
-        chrome.tabs.create({ url: 'https://dewsecure.com/pricing' });
-    });
-
-
-
-    // ---- 反馈 ----
-    document.getElementById('reportMissed').addEventListener('click', () => handleReport('missed'));
-    document.getElementById('reportFalse').addEventListener('click', () => handleReport('false_positive'));
-}
-
-/* ============================================================
-   反馈处理
-   ============================================================ */
-
-async function handleReport(type) {
-    const hint = document.getElementById('feedbackHint');
-    const button = type === 'missed'
-        ? document.getElementById('reportMissed')
-        : document.getElementById('reportFalse');
-    const buttons = document.querySelectorAll('.btn-feedback');
-
-    // 记下原始文字
-    const originalText = button.textContent;
-
-    // 立即禁用所有反馈按钮
-    buttons.forEach((b) => (b.disabled = true));
-    button.textContent = '⏳ 上报中...';
-
-    // 清空提示
-    hint.textContent = '';
-    hint.classList.remove('success', 'error');
-
-    try {
-        const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-        const url = tab?.url || '';
-
-        const response = await chrome.runtime.sendMessage({
-            type: 'REPORT_FEEDBACK',
-            reportType: type,
-            url,
-            timestamp: Date.now(),
-        });
-
-        if (response?.ok) {
-            // 成功：按钮变绿 + 显示对勾
-            button.textContent = '✅ 已记录';
-            button.classList.add('success');
-            hint.textContent = type === 'missed'
-                ? '已记录此页面的漏拦情况，AI 将在 24 小时内学习'
-                : '已记录此页面的误拦情况，我们会人工审核';
-            hint.classList.add('success');
-            hint.classList.remove('error');
-
-            // 2.5 秒后恢复按钮
-            setTimeout(() => {
-                button.textContent = originalText;
-                button.classList.remove('success');
-                buttons.forEach((b) => (b.disabled = false));
-            }, 2500);
-
-            // 6 秒后清空提示
-            setTimeout(() => {
-                hint.textContent = '您的反馈将匿名上传，帮助 AI 持续进化';
-                hint.classList.remove('success', 'error');
-            }, 6000);
+    // 登录按钮点击打开弹窗
+    document.getElementById('loginBtn')?.addEventListener('click', async () => {
+        document.getElementById('authModal').classList.remove('hidden');
+        const user = await getCurrentUser();
+        if (user) {
+            document.getElementById('authModal').querySelectorAll('.auth-step').forEach(el => {
+                el.classList.toggle('hidden', el.dataset.step !== 'logged-in');
+            });
+            renderLoggedInView(user);
         } else {
-            // 失败
-            button.textContent = '⚠️ 失败';
-            button.classList.add('error');
-            hint.textContent = response?.error || '反馈失败，请稍后重试';
-            hint.classList.add('error');
-            hint.classList.remove('success');
-
-            setTimeout(() => {
-                button.textContent = originalText;
-                button.classList.remove('error');
-                buttons.forEach((b) => (b.disabled = false));
-            }, 2500);
-        }
-    } catch (e) {
-        button.textContent = '⚠️ 失败';
-        button.classList.add('error');
-        hint.textContent = '反馈失败：' + e.message;
-        hint.classList.add('error');
-
-        setTimeout(() => {
-            button.textContent = originalText;
-            button.classList.remove('error');
-            buttons.forEach((b) => (b.disabled = false));
-        }, 2500);
-    }
-}
-
-
-/* ============================================================
-   认证模态框逻辑
-   ============================================================ */
-
-let currentAuthEmail = '';
-let justLoggedIn = false;
-
-async function openAuthModal() {
-    const modal = document.getElementById('authModal');
-    modal.classList.remove('hidden');
-
-    const user = await getCurrentUser();
-    if (user) {
-        showAuthStep('logged-in');
-        populateLoggedInView(user);
-    } else {
-        showAuthStep('email');
-        document.getElementById('authEmail').value = '';
-        document.getElementById('emailHint').textContent = '';
-        document.getElementById('emailHint').classList.remove('error', 'success');
-    }
-}
-
-function closeAuthModal() {
-    document.getElementById('authModal').classList.add('hidden');
-
-    // 如果刚刚登录成功，用户关闭弹窗后才刷新主界面
-    if (justLoggedIn) {
-        justLoggedIn = false;
-        setTimeout(() => init(), 200);
-    }
-}
-
-/**
- * 触发抖动动画（每次都强制重新播放）
- */
-function triggerShake(el) {
-    if (!el) return;
-    el.classList.remove('error');
-    void el.offsetWidth;   // 强制 reflow，让动画能重新触发
-    el.classList.add('error');
-}
-
-function showAuthStep(step) {
-    const authModal = document.getElementById('authModal');
-    if (!authModal) return;
-
-    // 只处理 authModal 内部的 auth-step，避免影响其他弹窗
-    authModal.querySelectorAll('.auth-step').forEach((el) => {
-        el.classList.toggle('hidden', el.dataset.step !== step);
-    });
-    const input = document.getElementById('otpInput');
-    if (step === 'otp' && input) {
-        setTimeout(() => input.focus(), 100);
-        input.value = '';
-        input.classList.remove('error');
-        document.getElementById('otpHint').innerHTML =
-        document.getElementById('otpHint').classList.remove('error', 'success');
-    }
-}
-
-/* ---- 发送 OTP ---- */
-async function handleSendOtp() {
-    const emailInput = document.getElementById('authEmail');
-    const hint = document.getElementById('emailHint');
-    const btn = document.getElementById('sendOtpBtn');
-    const email = emailInput.value.trim();
-
-    hint.textContent = '';
-    hint.classList.remove('error', 'success');
-    emailInput.classList.remove('error');
-
-    if (!email) {
-        hint.textContent = '请输入邮箱';
-        hint.classList.add('error');
-        triggerShake(emailInput);
-        return;
-    }
-
-    btn.disabled = true;
-    btn.textContent = '发送中...';
-
-    const result = await sendOTP(email);
-
-    btn.disabled = false;
-    btn.textContent = '发送验证码';
-
-    if (!result.ok) {
-        hint.textContent = result.error;
-        hint.classList.add('error');
-        triggerShake(emailInput);
-        return;
-    }
-
-    currentAuthEmail = email;
-    document.getElementById('sentEmail').textContent = email;
-    showAuthStep('otp');
-}
-
-/* ---- 验证 OTP ---- */
-async function handleVerifyOtp() {
-    const input = document.getElementById('otpInput');
-    const hint = document.getElementById('otpHint');
-    const btn = document.getElementById('verifyOtpBtn');
-    const otp = input.value.trim();
-
-    hint.textContent = '';
-    hint.classList.remove('error', 'success');
-    input.classList.remove('error');
-
-    if (otp.length !== 8) {
-        hint.textContent = '请输入 6 位验证码';
-        hint.classList.add('error');
-        triggerShake(input);
-        return;
-    }
-
-    btn.disabled = true;
-    btn.textContent = '验证中...';
-
-    const result = await verifyOTP(currentAuthEmail, otp);
-
-    btn.disabled = false;
-    btn.textContent = '验证';
-
-    if (!result.ok) {
-        hint.textContent = result.error;
-        hint.classList.add('error');
-        triggerShake(input);
-        return;
-    }
-
-    // 验证成功 → 切换到"已登录"界面（保持弹窗打开）
-    const user = await getCurrentUser();
-    justLoggedIn = true;
-    showAuthStep('logged-in');
-    populateLoggedInView(user);
-    // ⚠️ 不自动刷新，让用户看到"已登录"界面，手动关闭后再刷新
-}
-
-/* ---- 重发 OTP ---- */
-async function handleResendOtp() {
-    const hint = document.getElementById('otpHint');
-    hint.textContent = '重新发送中...';
-    hint.classList.remove('error', 'success');
-
-    const result = await sendOTP(currentAuthEmail);
-    if (result.ok) {
-        hint.innerHTML = '✅ 已重新发送';
-        hint.classList.add('success');
-    } else {
-        hint.textContent = result.error || '发送失败';
-        hint.classList.add('error');
-    }
-}
-
-/* ---- Google 登录 ---- */
-async function handleGoogleLogin() {
-    const btn = document.getElementById('googleLoginBtn');
-    const hint = document.getElementById('emailHint');
-    const originalText = btn.innerHTML;
-
-    btn.disabled = true;
-    btn.innerHTML = '⏳ 连接 Google...';
-    hint.textContent = '';
-    hint.classList.remove('error', 'success');
-
-    // 模拟 OAuth 授权延迟
-    await new Promise((r) => setTimeout(r, 1200));
-
-    // 模拟 Google 返回的邮箱
-    const mockEmail = 'google.user@gmail.com';
-
-    // 调用 authManager 登录（后端接入后，这一步会由真实 OAuth 回调触发）
-    const { loginUser } = await import('../src/authManager.js');
-    await loginUser(mockEmail);
-
-    btn.disabled = false;
-    btn.innerHTML = originalText;
-
-    // 显示已登录（保持弹窗打开）
-    const user = await getCurrentUser();
-    justLoggedIn = true;
-    showAuthStep('logged-in');
-    populateLoggedInView(user);
-}
-
-/* ---- 填充已登录视图 ---- */
-function populateLoggedInView(user) {
-    document.getElementById('loggedInEmail').textContent = user.email;
-    
-    // 订阅状态
-    const isPremium = user.tier === 'premium' || user.tier === 'family';
-    document.getElementById('accountTier').textContent = isPremium ? '⭐ 高级版' : '免费版';
-    document.getElementById('accountTier').classList.toggle('free', !isPremium);
-    
-    // 到期时间
-    document.getElementById('accountExpiry').textContent = isPremium ? formatDate(user.expiresAt) : '—';
-    
-    // 设备数量
-    if (isPremium) {
-        document.getElementById('accountDevices').textContent = '1 / 3';
-        document.getElementById('activateTrialBtn').classList.add('hidden');
-    } else {
-        document.getElementById('accountDevices').textContent = '- / -';
-        // 如果是免费版，且没用过试用，显示激活按钮
-        if (!user.hasUsedTrial) {
-            document.getElementById('activateTrialBtn').classList.remove('hidden');
-        } else {
-            document.getElementById('activateTrialBtn').classList.add('hidden');
-        }
-    }
-}
-
-/* ---- 登出 ---- */
-/* ---- 退出登录（自定义毛玻璃确认弹窗） ---- */
-function openConfirmModal() {
-    document.getElementById('confirmModal').classList.remove('hidden');
-}
-
-function closeConfirmModal() {
-    document.getElementById('confirmModal').classList.add('hidden');
-}
-
-async function handleLogoutConfirmed() {
-    closeConfirmModal();
-    await logoutUser();
-    closeAuthModal();
-    setTimeout(() => init(), 200);
-}
-
-
-/* ---- 试用 Banner ---- */
-function updateTrialBanner(user) {
-    const banner = document.getElementById('trialBanner');
-    if (!banner) return;
-
-    // 如果是高级版（付费/试用），直接隐藏 Banner
-    if (user && user.tier !== 'free') {
-        banner.classList.add('hidden');
-        return;
-    }
-
-    banner.classList.remove('hidden');
-    const content = document.getElementById('trialContent');
-    content.textContent = user
-        ? '您有资格激活 30 天高级版。点击前往领取。'
-        : '首次登录/注册，即可激活 30 天高级版。点击前往。';
-
-    content.onclick = () => chrome.tabs.create({ url: 'https://dewsecure.com/pricing' });
-}
-
-function handleTrialClose() {
-    document.getElementById('trialBanner').classList.add('hidden');
-}
-
-function openTrialActivateModal() {
-    document.getElementById('trialActivateModal').classList.remove('hidden');
-}
-function closeTrialActivateModal() {
-    document.getElementById('trialActivateModal').classList.add('hidden');
-}
-
-
-/* ---- 设置弹窗 Tabs ---- */
-document.querySelectorAll('.settings-tab').forEach(tab => {
-    tab.addEventListener('click', () => {
-        document.querySelectorAll('.settings-tab').forEach(t => t.classList.remove('active'));
-        document.querySelectorAll('.settings-pane').forEach(p => p.classList.remove('active'));
-        tab.classList.add('active');
-        document.getElementById(tab.dataset.target).classList.add('active');
-        
-        if (tab.dataset.target === 'tabWhitelist') {
-            renderWhitelist();
+            document.getElementById('authModal').querySelectorAll('.auth-step').forEach(el => {
+                el.classList.toggle('hidden', el.dataset.step !== 'email');
+            });
         }
     });
-});
 
-async function renderWhitelist() {
-    const listContainer = document.getElementById('whitelistList');
-    const loginNotice = document.getElementById('wlLoginNotice');
-    const addRow = document.getElementById('wlAddRow');
-    listContainer.innerHTML = '';
-    
-    const user = await getCurrentUser();
-    if (!user) {
-        // 未登录限制
-        loginNotice.classList.remove('hidden');
-        addRow.classList.add('disabled');
-        return;
-    } else {
-        loginNotice.classList.add('hidden');
-        addRow.classList.remove('disabled');
-    }
-    
-    const { settings } = await chrome.runtime.sendMessage({ type: 'GET_STATS' });
-    const wl = settings.whitelist || [];
-    
-    if (wl.length === 0) {
-        listContainer.innerHTML = '<div style="text-align:center;color:#9ca3af;font-size:12px;">暂无白名单</div>';
-        return;
-    }
-
-    wl.forEach(domain => {
-        const div = document.createElement('div');
-        div.className = 'whitelist-item';
-        const span = document.createElement('span');
-        span.textContent = domain;
-        const btn = document.createElement('button');
-        btn.className = 'btn-remove-wl';
-        btn.textContent = '✕';
-        btn.onclick = async () => {
-            await chrome.runtime.sendMessage({ type: 'REMOVE_WHITELIST', domain });
-            renderWhitelist();
-        };
-        div.appendChild(span);
-        div.appendChild(btn);
-        listContainer.appendChild(div);
-    });
-}
-
-document.getElementById('addWhitelistBtn').addEventListener('click', async () => {
-    const user = await getCurrentUser();
-    if (!user) return alert('请先登录');
-
-    const input = document.getElementById('whitelistInput');
-    const domain = input.value.trim().toLowerCase();
-    if (!domain) return;
-    
-    if (!/^[a-z0-9.-]+$/i.test(domain)) return alert('域名格式非法');
-    
-    const res = await chrome.runtime.sendMessage({ type: 'ADD_WHITELIST', domain });
-    if (res.ok) {
-        input.value = '';
-        renderWhitelist();
-    } else {
-        alert(res.error || '添加失败');
-    }
-});
-
-/* ============================================================
-   设置弹窗逻辑
-   ============================================================ */
-
-const LANG_KEY = 'dewsecure_language';
-
-async function openSettingsModal() {
-    document.getElementById('settingsModal').classList.remove('hidden');
-
-    const { [LANG_KEY]: savedLang = 'zh-CN' } = await chrome.storage.local.get(LANG_KEY);
-    document.querySelectorAll('.lang-option').forEach((btn) => {
-        btn.classList.toggle('active', btn.dataset.lang === savedLang);
-    });
-}
-
-function closeSettingsModal() {
-    document.getElementById('settingsModal').classList.add('hidden');
-}
-
-async function handleLanguageSelect(btn) {
-    const lang = btn.dataset.lang;
-
-    document.querySelectorAll('.lang-option').forEach((b) => {
-        b.classList.toggle('active', b === btn);
-    });
-
-    await chrome.storage.local.set({ [LANG_KEY]: lang });
-    console.log('🌐 语言已切换为:', lang);
-}
-
-
-/* ============================================================
-   视图切换与日志渲染 (防 XSS 注入)
-   ============================================================ */
-function switchView(viewId) {
-    document.getElementById('mainView').classList.add('hidden');
-    document.getElementById('logsView').classList.add('hidden');
-    document.getElementById('statsView').classList.add('hidden');
-    
-    const target = document.getElementById(viewId);
-    if (target) target.classList.remove('hidden');
-}
-
-document.getElementById('cardToday').addEventListener('click', loadTodayLogs);
-document.getElementById('backFromLogs').addEventListener('click', () => switchView('mainView'));
-document.getElementById('cardTotal').addEventListener('click', loadTotalStats);
-document.getElementById('backFromStats').addEventListener('click', () => switchView('mainView'));
-
-
-
-
-
-
-/* ---- 累计统计渲染 ---- */
-
-
-
-
-
-/* ============================================================
-   视图渲染逻辑
-   ============================================================ */
-async function loadTodayLogs() {
-    switchView('logsView');
-    
-    // 移除 tabId，直接拉取全量日志
-    let logs = await chrome.runtime.sendMessage({ type: 'GET_LOGS' }) || [];
-    if (!Array.isArray(logs)) logs = [];
-    
-    const today = new Date().toDateString();
-    const todayLogs = logs.filter(l => l.date === today);
-    
-    document.getElementById('logCountBadge').textContent = `${todayLogs.length} 条`;
-    const container = document.getElementById('logsList'); // 确保 container 定义
-    container.innerHTML = '';
-
-    if (todayLogs.length === 0) {
-        container.innerHTML = '<div style="text-align:center;color:#9ca3af;font-size:12px;padding:20px;">今天暂无拦截记录</div>';
-        return;
-    }
-
-    const grouped = {};
-    todayLogs.forEach(l => {
-        if (!grouped[l.domain]) grouped[l.domain] = { count: 0, items: [] };
-        grouped[l.domain].count++;
-        grouped[l.domain].items.push(l);
-    });
-
-    Object.keys(grouped).sort((a, b) => grouped[b].count - grouped[a].count).forEach(domain => {
-        const row = document.createElement('div');
-        row.className = 'log-domain-row';
-        const nameSpan = document.createElement('span');
-        nameSpan.textContent = domain;
-        const countSpan = document.createElement('span');
-        countSpan.className = 'log-domain-count';
-        countSpan.textContent = grouped[domain].count;
-        row.appendChild(nameSpan); row.appendChild(countSpan);
-        
-        const details = document.createElement('div');
-        details.className = 'log-details';
-        grouped[domain].items.forEach(item => {
-            const itemDiv = document.createElement('div');
-            itemDiv.textContent = `[${item.type}] ${item.url}`;
-            details.appendChild(itemDiv);
+    // 关闭弹窗
+    document.getElementById('modalClose')?.addEventListener('click', () => {
+        document.getElementById('authModal').classList.add('hidden');
+        // 如果刚刚登录成功，关闭弹窗后刷新主界面状态
+        import('../src/authManager.js').then(({ getCurrentUser }) => {
+            getCurrentUser().then(user => {
+                if (user && document.getElementById('loginBtnText').textContent === '登录') {
+                    window.location.reload();
+                }
+            });
         });
-        row.addEventListener('click', () => details.classList.toggle('open'));
-        container.appendChild(row); container.appendChild(details);
+    });
+    document.getElementById('authModal')?.addEventListener('click', (e) => {
+        if (e.target.id === 'authModal') {
+            e.target.classList.add('hidden');
+            import('../src/authManager.js').then(({ getCurrentUser }) => {
+                getCurrentUser().then(user => {
+                    if (user && document.getElementById('loginBtnText').textContent === '登录') {
+                        window.location.reload();
+                    }
+                });
+            });
+        }
     });
 }
 
-async function loadTotalStats() {
-    switchView('statsView');
-    
-    let logs = await chrome.runtime.sendMessage({ type: 'GET_LOGS' }) || [];
-    if (!Array.isArray(logs)) logs = [];
-    
-    const res = await chrome.runtime.sendMessage({ type: 'GET_STATS' });
-    const stats = (res && res.stats) ? res.stats : {};
-    
-    document.getElementById('totalStatsValue').textContent = stats.totalBlocked || 0;
-    
-    // 显示时间范围
-    const timeEl = document.getElementById('statsTimeRange');
-    if (timeEl) {
-        if (logs.length > 0) {
-            const oldest = new Date(logs[0].ts).toLocaleDateString();
-            timeEl.textContent = `记录范围：${oldest} 至今 (保留最近1000条)`;
-        } else {
-            timeEl.textContent = '';
-        }
-    }
-
-    const container = document.getElementById('topDomainsList');
-    container.innerHTML = '';
-    if (logs.length === 0) return;
-    
-    const grouped = {};
-    logs.forEach(l => grouped[l.domain] = (grouped[l.domain] || 0) + 1);
-    
-    // 改为 Top 10，并支持展开
-    const sorted = Object.keys(grouped).sort((a, b) => grouped[b] - grouped[a]).slice(0, 10);
-    
-    sorted.forEach((domain, index) => {
-        const row = document.createElement('div');
-        row.className = 'log-domain-row';
-        
-        const nameSpan = document.createElement('span');
-        nameSpan.textContent = `${index + 1}. ${domain}`;
-        
-        const countSpan = document.createElement('span');
-        countSpan.className = 'log-domain-count';
-        countSpan.textContent = grouped[domain];
-        
-        row.appendChild(nameSpan);
-        row.appendChild(countSpan);
-        
-        const details = document.createElement('div');
-        details.className = 'log-details';
-        const domainLogs = logs.filter(l => l.domain === domain).slice(0, 10); // 展开只显示最近5条
-        domainLogs.forEach(item => {
-            const itemDiv = document.createElement('div');
-            itemDiv.textContent = `[${item.type}] ${item.url}`;
-            details.appendChild(itemDiv);
-        });
-        if (grouped[domain] > 5) {
-            const moreDiv = document.createElement('div');
-            moreDiv.textContent = `... 还有 ${grouped[domain] - 5} 条`;
-            details.appendChild(moreDiv);
-        }
-        
-        row.addEventListener('click', () => details.classList.toggle('open'));
-        container.appendChild(row);
-        container.appendChild(details);
-    });
-}
-
-
-// 监听后台发来的实时更新
-
-
-
-// 监听本地存储变化，只要后台更新了数据，UI 瞬间同步刷新
-chrome.storage.onChanged.addListener((changes, namespace) => {
-    if (namespace === 'local' && changes.dewsecure_stats) {
-        const newStats = changes.dewsecure_stats.newValue;
-        if (newStats) {
-            updateStats(newStats);
-        }
-    }
-    if (namespace === 'local' && changes.dewsecure_logs) {
-        // 如果当前在详情页，尝试实时刷新列表
-        const logsView = document.getElementById('logsView');
-        if (logsView && !logsView.classList.contains('hidden')) {
-            loadTodayLogs();
-        }
-        const statsView = document.getElementById('statsView');
-        if (statsView && !statsView.classList.contains('hidden')) {
-            loadTotalStats();
-        }
-    }
-});
-
+// 启动
 init().catch(console.error);
 
+// ==========================================
+// 🌟 实时监听标签页切换，刷新 Side Panel UI
+// ==========================================
 
 // ==========================================
-// 终极无脑重绘同步 (不依赖任何旧代码)
+// 🌟 实时监听标签页切换，刷新 Side Panel UI
 // ==========================================
-function forceRedraw() {
-    chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
-        if (!tabs || !tabs[0] || !tabs[0].url) return;
-        let url = tabs[0].url;
-        if (url.startsWith('chrome://') || url.startsWith('chrome-extension://')) return;
-        
-        let hostname = "";
-        try { hostname = new URL(url).hostname; } catch(e) { return; }
+chrome.tabs.onActivated.addListener(() => {
+    console.log("🔄 检测到标签页切换 (onActivated)");
+    updateSiteInfo();
+});
 
-        chrome.storage.local.get("dewsecure_settings", (res) => {
-            let settings = res.dewsecure_settings || {};
-            let isPaused = (settings.whitelist || []).some(d => hostname === d || hostname.endsWith("." + d)) ||
-                           (settings.tempWhitelist || []).some(d => hostname === d || hostname.endsWith("." + d));
-            let isProtected = !isPaused;
-
-            const domainEl = document.getElementById('siteDomain');
-            const switchEl = document.getElementById('siteSwitch');
-            const labelEl  = document.getElementById('siteLabel');
-            const statusEl = document.getElementById('status');
-            const featuresCard = document.querySelector('.features-card');
-
-            if (domainEl) domainEl.textContent = hostname;
-            if (switchEl) {
-                switchEl.checked = isProtected;
-                switchEl.dataset.host = hostname;
-            }
-            if (labelEl) labelEl.textContent = isProtected ? '保护已开启' : '保护已暂停';
-            if (statusEl) {
-                statusEl.textContent = isProtected ? '保护中' : '已暂停';
-                statusEl.className = isProtected ? 'status-badge active' : 'status-badge paused';
-            }
-            if (featuresCard) featuresCard.classList.toggle('disabled', isPaused);
-        });
-    });
-}
-
-// 初始化并启动轮询
-setInterval(forceRedraw, 500);
-document.addEventListener('DOMContentLoaded', forceRedraw);
-
-// 监听开关点击，暂停立刻刷新
-document.addEventListener('change', (e) => {
-    if (e.target && e.target.id === 'siteSwitch') {
-        setTimeout(() => {
-            if (!e.target.checked) chrome.tabs.reload();
-        }, 500);
+chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
+    // 只在页面加载完成或 URL 改变时触发
+    if (changeInfo.status === 'complete' || changeInfo.url) {
+        console.log("🔄 检测到网页加载/URL变更 (onUpdated)");
+        updateSiteInfo();
     }
-}, true);
+});
 
-
-// ==========================================
-// 自动注入：Enter 键快捷操作
-// ==========================================
-document.addEventListener('DOMContentLoaded', () => {
-    const emailInput = document.getElementById('emailInput');
-    if (emailInput) {
-        emailInput.addEventListener('keypress', (e) => {
-            if (e.key === 'Enter') {
-                e.preventDefault();
-                const btn = document.getElementById('btnSendOtp');
-                if (btn && !btn.disabled) btn.click();
-            }
-        });
-    }
-
-    const otpInput = document.getElementById('otpInput');
-    if (otpInput) {
-        otpInput.addEventListener('keypress', (e) => {
-            if (e.key === 'Enter') {
-                e.preventDefault();
-                const btn = document.getElementById('btnVerifyOtp');
-                if (btn && !btn.disabled) btn.click();
-            }
-        });
+chrome.windows.onFocusChanged.addListener((windowId) => {
+    if (windowId !== chrome.windows.WINDOW_ID_NONE) {
+        console.log("🔄 检测到窗口焦点切换 (onFocusChanged)");
+        updateSiteInfo();
     }
 });

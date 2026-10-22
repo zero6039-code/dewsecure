@@ -1,3 +1,8 @@
+// 启用点击图标打开侧边栏 (Side Panel)
+if (chrome.sidePanel && chrome.sidePanel.setPanelBehavior) {
+    chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: true }).catch(console.warn);
+}
+
 import { checkAndUpdateModel } from './modelManager.js';
 
 // ==========================================

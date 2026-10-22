@@ -9,8 +9,8 @@
 }
 
 html, body {
-    width: 100%;
-    height: 100vh;
+    width: 360px;
+    min-height: 520px; height: auto;
     overflow-y: auto;
     font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display",
                  "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
@@ -1834,4 +1834,22 @@ body {
 .whitelist-add-row.disabled button {
     opacity: 0.5;
     pointer-events: none;
+}
+
+/* 错误红框 */
+.input-error {
+    border: 1px solid #ff4d4f !important;
+    box-shadow: 0 0 5px rgba(255, 77, 79, 0.5) !important;
+}
+
+/* 抖动动画 */
+@keyframes shake {
+    0% { transform: translateX(0); }
+    25% { transform: translateX(-5px); }
+    50% { transform: translateX(5px); }
+    75% { transform: translateX(-5px); }
+    100% { transform: translateX(0); }
+}
+.shake {
+    animation: shake 0.4s ease-in-out;
 }

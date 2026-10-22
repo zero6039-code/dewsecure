@@ -4,26 +4,23 @@
 const USER_KEY = 'dewsecure_user';
 const SETTINGS_KEY = 'dewsecure_settings';
 
-// ⚠️ 填入你的 Supabase 信息
 const SUPABASE_URL = 'https://uvbaioqqjqseapcancvi.supabase.co';
 const SUPABASE_ANON_KEY = 'sb_publishable_xiiA-yt_jRKkzRdkYkoWJA_CVZjNjq8';
 
-/**
- * 发送真实的 OTP 邮件（通过 Supabase 触发 Resend）
- */
 export async function sendOTP(email) {
     try {
         const res = await fetch(`${SUPABASE_URL}/auth/v1/otp`, {
             method: 'POST',
-            headers: {
-                'apikey': SUPABASE_ANON_KEY,
-                'Content-Type': 'application/json'
-            },
+            headers: { 'apikey': SUPABASE_ANON_KEY, 'Content-Type': 'application/json' },
             body: JSON.stringify({ email })
         });
+        
         if (!res.ok) {
             const err = await res.json();
-            return { ok: false, error: err.message || '发送失败，请检查邮箱' };
+            if (res.status === 429 || (err.message && err.message.toLowerCase().includes('rate limit'))) {
+                return { ok: false, error: '请求过于频繁，请在 60 秒后再试' };
+            }
+            return { ok: false, error: err.message || err.msg || '发送失败，请稍后再试' };
         }
         return { ok: true };
     } catch (e) {
@@ -31,50 +28,44 @@ export async function sendOTP(email) {
     }
 }
 
-/**
- * 校验真实的 OTP 并保存 Token
- */
 export async function verifyOTP(email, token) {
     try {
         const res = await fetch(`${SUPABASE_URL}/auth/v1/verify`, {
             method: 'POST',
-            headers: {
-                'apikey': SUPABASE_ANON_KEY,
-                'Content-Type': 'application/json'
-            },
+            headers: { 'apikey': SUPABASE_ANON_KEY, 'Content-Type': 'application/json' },
             body: JSON.stringify({ email, token, type: 'email' })
         });
-        if (!res.ok) {
-            return { ok: false, error: '验证码错误或已过期' };
-        }
+        
         const data = await res.json();
+        if (!res.ok) return { ok: false, error: data.msg || data.error_description || '验证码错误或已过期' };
+        if (!data.access_token) return { ok: false, error: '未获取到 Token' };
         
-        // 校验成功，保存真实 Token
-        await saveExternalAuth({
-            token: data.access_token,
-            email: data.user.email,
-            tier: 'premium' // 这里初始可设为 premium，真正校验由 Worker 接管
-        });
-        
+        let tier = 'free';
+        try {
+            const profileRes = await fetch(`${SUPABASE_URL}/rest/v1/profiles?id=eq.${data.user.id}&select=tier`, {
+                headers: { 'apikey': SUPABASE_ANON_KEY, 'Authorization': `Bearer ${data.access_token}` }
+            });
+            const profiles = await profileRes.json();
+            if (profiles && profiles.length > 0) tier = profiles[0].tier;
+        } catch (e) {}
+
+        await saveExternalAuth({ token: data.access_token, email: data.user.email, tier: tier });
         return { ok: true };
     } catch (e) {
-        return { ok: false, error: '网络错误' };
+        return { ok: false, error: '网络连接失败' };
     }
 }
 
-/**
- * 保存认证数据 (同时供外部消息调用)
- */
 export async function saveExternalAuth(payload) {
-    const { token, email, tier } = payload;
+    const { token, refreshToken, email, tier } = payload;
     if (!token) return { ok: false, error: 'Missing token' };
 
-    const now = Date.now();
-    const user = {
-        email: email,
-        tier: tier || 'premium',
-        token: token,
-        lastSync: now
+    const user = { 
+        email: email, 
+        tier: tier || 'premium', 
+        token: token, 
+        refreshToken: refreshToken, 
+        lastSync: Date.now() 
     };
 
     await chrome.storage.local.set({ [USER_KEY]: user });
@@ -84,14 +75,11 @@ export async function saveExternalAuth(payload) {
     settings.tier = user.tier;
     await chrome.storage.local.set({ [SETTINGS_KEY]: settings });
 
-    console.log('✅ [AuthManager] 登录成功，已保存真实 Token:', email);
+    console.log('✅ [AuthManager] 登录成功，已保存 Token 与 RefreshToken:', email);
     chrome.runtime.sendMessage({ type: 'AUTH_STATE_CHANGED' }).catch(() => {});
     return { ok: true, user };
 }
 
-/**
- * 清除本地登录状态
- */
 export async function logoutUser() {
     await chrome.storage.local.remove(USER_KEY);
     chrome.runtime.sendMessage({ type: 'AUTH_STATE_CHANGED' }).catch(() => {});
@@ -103,19 +91,40 @@ export async function logoutUser() {
     return { ok: true };
 }
 
-/**
- * 读取当前用户
- */
 export async function getCurrentUser() {
     const { [USER_KEY]: user } = await chrome.storage.local.get(USER_KEY);
     return user || null;
 }
 
-/**
- * 兼容 popup.js 的历史格式（报错的原因）
- */
 export function formatDate(timestamp) {
     if (!timestamp) return '—';
     const d = new Date(timestamp);
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
+/**
+ * 从 Supabase 拉取最新的用户资料
+ */
+export async function fetchUserProfile() {
+    const { [USER_KEY]: user } = await chrome.storage.local.get(USER_KEY);
+    if (!user || !user.token) return null;
+
+    try {
+        const res = await fetch(`${SUPABASE_URL}/rest/v1/profiles?select=*`, {
+            headers: { 'apikey': SUPABASE_ANON_KEY, 'Authorization': `Bearer ${user.token}` }
+        });
+        
+        if (!res.ok) return user;
+        
+        const profiles = await res.json();
+        if (profiles && profiles.length > 0) {
+            const p = profiles[0];
+            const updatedUser = { ...user, tier: p.tier || 'free', expiresAt: p.trial_ends_at || null };
+            await chrome.storage.local.set({ [USER_KEY]: updatedUser });
+            return updatedUser;
+        }
+    } catch (e) {
+        console.warn("拉取用户资料失败:", e);
+    }
+    return user;
 }

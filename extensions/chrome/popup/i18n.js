@@ -53,18 +53,18 @@ const dictZh = {
 let currentLang = 'en';
 
 // 1. 静态翻译 (只在启动和切换语言时执行一次，节省性能)
+
 function applyStaticTranslations() {
     if (!document.body) return;
     const dict = currentLang === 'en' ? dictEn : dictZh;
-    const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT, null, false);
-    let node;
-    while (node = walker.nextNode()) {
-        const text = node.textContent.trim();
-        if (dict[text]) {
-            node.textContent = node.textContent.replace(text, dict[text]);
+    document.querySelectorAll('[data-i18n]').forEach(el => {
+        const key = el.getAttribute('data-i18n');
+        if (dict[key]) {
+            el.textContent = dict[key];
         }
-    }
+    });
 }
+
 
 // 2. 动态翻译 (极致严格，绝不乱动已经正确的文字)
 function syncDynamicText() {
