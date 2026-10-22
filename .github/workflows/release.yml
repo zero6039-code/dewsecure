@@ -1,13 +1,17 @@
-name: Release Extension
+name: Build & Release Extension
 
 on:
-  workflow_dispatch: # 允许手动触发
   push:
     tags:
-      - 'v*' # 推送 tag 时自动触发
+      - 'v*' # 打 tag 时触发
+  workflow_dispatch: # 允许手动触发
+
+# 赋予 Actions 推送代码的权限
+permissions:
+  contents: write
 
 jobs:
-  build-and-zip:
+  build-and-release:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -23,14 +27,30 @@ jobs:
           npm ci
           npm run build
 
+      - name: Get Version & Prepare Release Directory
+        id: get_version
+        run: |
+          # 从 manifest.json 提取版本号，例如 "1.2.0"
+          VERSION=$(node -p "require('./extensions/chrome/manifest.json').version")
+          echo "VERSION=$VERSION" >> $GITHUB_ENV
+          # 创建归档目录
+          mkdir -p releases/chrome
+
       - name: Create Zip Archive
         run: |
           cd extensions/chrome/dist
-          # 把 dist 目录里的所有文件打包成一个 zip
-          zip -r ../../../dewsecure-chrome.zip .
+          # 打包为 chrome-v1.2.0.zip 并存放到根目录的 releases/chrome/ 中
+          zip -r ../../../releases/chrome/chrome-v${{ env.VERSION }}.zip .
 
-      - name: Upload Artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: dewsecure-chrome-extension
-          path: dewsecure-chrome.zip
+      - name: Commit and Push Artifacts
+        run: |
+          git config --local user.email "github-actions[bot]@users.noreply.github.com"
+          git config --local user.name "github-actions[bot]"
+          git add releases/
+          # 检查是否有变更，如果有才 commit
+          if ! git diff --staged --quiet; then
+            git commit -m "chore: auto-build chrome extension v${{ env.VERSION }}"
+            git push
+          else
+            echo "No changes to commit"
+          fi
