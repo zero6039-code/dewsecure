@@ -505,3 +505,26 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
         return true;
     }
 });
+
+// ==========================================
+// 监听来自官网 (dewsecure.com) 的外部消息
+// ==========================================
+import { saveExternalAuth, logoutUser } from './authManager.js';
+
+chrome.runtime.onMessageExternal.addListener((message, sender, sendResponse) => {
+    console.log('📩 收到来自官网的通信:', message.type);
+
+    if (message.type === 'SYNC_AUTH') {
+        saveExternalAuth(message.payload).then(res => {
+            sendResponse({ ok: res.ok });
+        });
+        return true; // 保持消息通道开启（异步）
+    }
+
+    if (message.type === 'LOGOUT') {
+        logoutUser().then(() => {
+            sendResponse({ ok: true });
+        });
+        return true;
+    }
+});
