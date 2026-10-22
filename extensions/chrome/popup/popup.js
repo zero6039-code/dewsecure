@@ -1,28 +1,6 @@
 import { sendOTP, verifyOTP, loginUser, logoutUser, getCurrentUser, formatDate }
 
-// 🌟 新增：支持在邮箱输入框按 Enter 键发送验证码
-const emailInputForEnter = document.getElementById('emailInput');
-if (emailInputForEnter) {
-    emailInputForEnter.addEventListener('keypress', (e) => {
-        if (e.key === 'Enter') {
-            e.preventDefault();
-            const sendBtn = document.getElementById('btnSendOtp');
-            if (sendBtn && !sendBtn.disabled) sendBtn.click();
-        }
-    });
-}
 
-// 🌟 新增：支持在 OTP 输入框按 Enter 键验证
-const otpInputForEnter = document.getElementById('otpInput');
-if (otpInputForEnter) {
-    otpInputForEnter.addEventListener('keypress', (e) => {
-        if (e.key === 'Enter') {
-            e.preventDefault();
-            const verifyBtn = document.getElementById('btnVerifyOtp');
-            if (verifyBtn && !verifyBtn.disabled) verifyBtn.click();
-        }
-    });
-}
 
 
     from '../src/authManager.js';
@@ -1024,3 +1002,31 @@ document.addEventListener('change', (e) => {
         }, 500);
     }
 }, true);
+
+
+// ==========================================
+// 自动注入：Enter 键快捷操作
+// ==========================================
+document.addEventListener('DOMContentLoaded', () => {
+    const emailInput = document.getElementById('emailInput');
+    if (emailInput) {
+        emailInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                const btn = document.getElementById('btnSendOtp');
+                if (btn && !btn.disabled) btn.click();
+            }
+        });
+    }
+
+    const otpInput = document.getElementById('otpInput');
+    if (otpInput) {
+        otpInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                const btn = document.getElementById('btnVerifyOtp');
+                if (btn && !btn.disabled) btn.click();
+            }
+        });
+    }
+});
