@@ -53,6 +53,7 @@ function copyStatic() {
         ['rules', 'dist/rules'],
         ['icons', 'dist/icons'],
         ['models', 'dist/models'],
+        ['popup/locales', 'dist/popup/locales'],
     ];
 
     for (const [src, dest] of files) {

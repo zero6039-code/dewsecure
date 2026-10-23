@@ -1853,3 +1853,19 @@ body {
 .shake {
     animation: shake 0.4s ease-in-out;
 }
+
+/* 多语言按钮双列网格 */
+.lang-options {
+    display: grid !important;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+    max-height: 250px;
+    overflow-y: auto;
+    padding-right: 4px; /* 留出滚动条空间 */
+}
+.lang-option {
+    margin-bottom: 0 !important;
+}
+/* 滚动条美化 */
+.lang-options::-webkit-scrollbar { width: 4px; }
+.lang-options::-webkit-scrollbar-thumb { background: rgba(0,0,0,0.1); border-radius: 4px; }

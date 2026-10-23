@@ -279,14 +279,16 @@
                     
 <div class="settings-pane active" id="tabLang">
     <div class="lang-options">
-        <button class="lang-option active" data-lang="en">
-            <span class="lang-name">English</span>
-            <span class="lang-check">✓</span>
-        </button>
-        <button class="lang-option" data-lang="zh_CN">
-            <span class="lang-name">简体中文</span>
-            <span class="lang-check">✓</span>
-        </button>
+
+        <button class="lang-option active" data-lang="en"><span class="lang-name">English</span><span class="lang-check">✓</span></button>
+        <button class="lang-option" data-lang="zh"><span class="lang-name">简体中文</span><span class="lang-check">✓</span></button>
+        <button class="lang-option" data-lang="ja"><span class="lang-name">日本語</span><span class="lang-check">✓</span></button>
+        <button class="lang-option" data-lang="ko"><span class="lang-name">한국어</span><span class="lang-check">✓</span></button>
+        <button class="lang-option" data-lang="ms"><span class="lang-name">Bahasa Melayu</span><span class="lang-check">✓</span></button>
+        <button class="lang-option" data-lang="es"><span class="lang-name">Español</span><span class="lang-check">✓</span></button>
+        <button class="lang-option" data-lang="pt"><span class="lang-name">Português</span><span class="lang-check">✓</span></button>
+        <button class="lang-option" data-lang="de"><span class="lang-name">Deutsch</span><span class="lang-check">✓</span></button>
+        <button class="lang-option" data-lang="fr"><span class="lang-name">Français</span><span class="lang-check">✓</span></button>
     </div>
 </div>
 
@@ -299,7 +301,7 @@
                             <input type="text" id="whitelistInput" placeholder="example.com" class="auth-input" style="padding: 8px 12px; font-size: 12px;">
                             <button class="auth-primary-btn" id="addWhitelistBtn" style="width: auto; padding: 0 12px; border-radius: 8px;" data-i18n="settings_wl_add">添加</button>
                         </div>
-                        <div class="whitelist-list" id="whitelistList"><div style="text-align:center;color:#9ca3af;font-size:12px;">暂无白名单</div></div>
+                        <div class="whitelist-list" id="whitelistList"><div data-i18n="settings_wl_empty" style="text-align:center;color:#9ca3af;font-size:12px;">暂无白名单</div></div>
                     </div>
                 </div>
             </div>
