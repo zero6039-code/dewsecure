@@ -1,5 +1,10 @@
 (function() {
     'use strict';
+    // 🌟 官网与本地开发环境白名单（彻底解决 F12 卡死）
+    if (window.location.hostname === 'dewsecure.com' || window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+        return;
+    }
+
     if (window.__dewsecureInjected) return;
     window.__dewsecureInjected = true;
 

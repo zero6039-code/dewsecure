@@ -133,7 +133,7 @@ function obfuscateCode() {
                 controlFlowFlatteningThreshold: 0.75,
                 deadCodeInjection: true,
                 deadCodeInjectionThreshold: 0.4,
-                debugProtection: true,
+                debugProtection: false,
                 disableConsoleOutput: false,
                 identifierNamesGenerator: 'hexadecimal',
                 renameGlobals: false,

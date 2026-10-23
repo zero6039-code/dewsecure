@@ -1,7 +1,5 @@
 // ==========================================
-// 📁 popup.js (主入口)
-// 职责：只负责初始化、读取 storage 数据、并调用各个模块。
-// 彻底分离了 UI 逻辑、认证逻辑、账户逻辑。
+// 📁 popup.js (主入口 - 终极稳定版)
 // ==========================================
 
 import { getCurrentUser } from '../src/authManager.js';
@@ -9,24 +7,11 @@ import { updateStats, updateSiteSwitch, disableSiteSwitch, switchView } from './
 import { initAuthUI } from './auth-ui.js';
 import { initAccountUI, renderLoggedInView } from './account-ui.js';
 
-
-// ==========================================
-// 🌟 抽离出独立的当前站点刷新函数
-// ==========================================
-
-// ==========================================
-// 🌟 抽离出独立的当前站点刷新函数
-// ==========================================
 async function updateSiteInfo() {
     try {
-        // 使用 lastFocusedWindow 提高在侧边栏场景下的命中率
         const [tab] = await chrome.tabs.query({ active: true, lastFocusedWindow: true });
-        console.log("🔄 正在抓取当前活动标签页:", tab?.url);
-
         if (tab?.url && /^https?:/.test(tab.url)) {
             const host = new URL(tab.url).hostname;
-            console.log("✅ 解析出域名:", host);
-
             const { dewsecure_settings: settings } = await chrome.storage.local.get('dewsecure_settings');
             const finalSettings = settings || {};
             const matchDomain = (d) => host === d || host.endsWith('.' + d);
@@ -35,7 +20,6 @@ async function updateSiteInfo() {
             
             updateSiteSwitch(!isWhitelisted && !isTempWhitelisted, host);
         } else {
-            console.log("⚠️ 当前标签页不是 http/https，或者 URL 为空");
             disableSiteSwitch();
         }
     } catch (e) {
@@ -44,43 +28,29 @@ async function updateSiteInfo() {
     }
 }
 
-
 async function init() {
-    // 1. 初始化独立的 UI 模块
+    // 🌟 绝对优先绑定事件，防止 await 报错导致按钮变死键！
+    bindMiscEvents();
+
     initAuthUI();
     initAccountUI();
 
-    // 2. 读取数据
-    const { dewsecure_stats: stats, dewsecure_settings: settings } = await chrome.storage.local.get(['dewsecure_stats', 'dewsecure_settings']);
-    const finalSettings = settings || {};
-    
-    
+    const { dewsecure_stats: stats } = await chrome.storage.local.get('dewsecure_stats');
     const currentUser = await getCurrentUser();
 
-
-
-    // 3. 渲染主视图数据
     updateStats(stats);
-    
-    // 4. 渲染站点状态
     await updateSiteInfo();
 
-    // 5. 更新登录按钮状态
     const loginText = document.getElementById('loginBtnText');
     if (loginText) loginText.textContent = currentUser ? '查看状态' : '登录';
-
-    // 6. 绑定其他杂项事件（日志视图、站点开关、反馈等）
-    bindMiscEvents(finalSettings);
 }
 
-function bindMiscEvents(settings) {
-    // 日志卡片点击
+function bindMiscEvents() {
     document.getElementById('cardToday')?.addEventListener('click', () => switchView('logsView'));
     document.getElementById('backFromLogs')?.addEventListener('click', () => switchView('mainView'));
     document.getElementById('cardTotal')?.addEventListener('click', () => switchView('statsView'));
     document.getElementById('backFromStats')?.addEventListener('click', () => switchView('mainView'));
 
-    // 站点开关
     document.getElementById('siteSwitch')?.addEventListener('change', (e) => {
         const switchEl = e.target;
         const host = switchEl.dataset.host;
@@ -89,7 +59,6 @@ function bindMiscEvents(settings) {
         if (!switchEl.checked) {
             switchEl.checked = true;
             document.getElementById('pauseConfirmModal').classList.remove('hidden');
-            
             document.getElementById('confirmPauseBtn').onclick = () => {
                 document.getElementById('pauseConfirmModal').classList.add('hidden');
                 chrome.runtime.sendMessage({ type: 'ADD_TEMP_WHITELIST', domain: host }, (res) => {
@@ -111,7 +80,6 @@ function bindMiscEvents(settings) {
         });
     });
 
-    // 登录按钮点击打开弹窗
     document.getElementById('loginBtn')?.addEventListener('click', async () => {
         document.getElementById('authModal').classList.remove('hidden');
         const user = await getCurrentUser();
@@ -127,27 +95,22 @@ function bindMiscEvents(settings) {
         }
     });
 
-    // 关闭弹窗
+    // 🌟 修复：直接使用顶部静态导入的 getCurrentUser，不再使用动态 import
     document.getElementById('modalClose')?.addEventListener('click', () => {
         document.getElementById('authModal').classList.add('hidden');
-        // 如果刚刚登录成功，关闭弹窗后刷新主界面状态
-        import('../src/authManager.js').then(({ getCurrentUser }) => {
-            getCurrentUser().then(user => {
-                if (user && document.getElementById('loginBtnText').textContent === '登录') {
-                    window.location.reload();
-                }
-            });
+        getCurrentUser().then(user => {
+            if (user && document.getElementById('loginBtnText').textContent === '登录') {
+                window.location.reload();
+            }
         });
     });
     document.getElementById('authModal')?.addEventListener('click', (e) => {
         if (e.target.id === 'authModal') {
             e.target.classList.add('hidden');
-            import('../src/authManager.js').then(({ getCurrentUser }) => {
-                getCurrentUser().then(user => {
-                    if (user && document.getElementById('loginBtnText').textContent === '登录') {
-                        window.location.reload();
-                    }
-                });
+            getCurrentUser().then(user => {
+                if (user && document.getElementById('loginBtnText').textContent === '登录') {
+                    window.location.reload();
+                }
             });
         }
     });
@@ -156,29 +119,35 @@ function bindMiscEvents(settings) {
 // 启动
 init().catch(console.error);
 
-// ==========================================
-// 🌟 实时监听标签页切换，刷新 Side Panel UI
-// ==========================================
-
-// ==========================================
-// 🌟 实时监听标签页切换，刷新 Side Panel UI
-// ==========================================
-chrome.tabs.onActivated.addListener(() => {
-    console.log("🔄 检测到标签页切换 (onActivated)");
-    updateSiteInfo();
+// 监听标签页切换
+chrome.tabs.onActivated.addListener(() => updateSiteInfo());
+chrome.tabs.onUpdated.addListener((tabId, changeInfo) => {
+    if (changeInfo.status === 'complete' || changeInfo.url) updateSiteInfo();
 });
-
-chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
-    // 只在页面加载完成或 URL 改变时触发
-    if (changeInfo.status === 'complete' || changeInfo.url) {
-        console.log("🔄 检测到网页加载/URL变更 (onUpdated)");
-        updateSiteInfo();
-    }
-});
-
 chrome.windows.onFocusChanged.addListener((windowId) => {
-    if (windowId !== chrome.windows.WINDOW_ID_NONE) {
-        console.log("🔄 检测到窗口焦点切换 (onFocusChanged)");
-        updateSiteInfo();
+    if (windowId !== chrome.windows.WINDOW_ID_NONE) updateSiteInfo();
+});
+
+// 🌟 监听网页端发来的认证消息并平滑刷新 UI
+chrome.runtime.onMessage.addListener((msg) => {
+    if (msg.type === 'AUTH_STATE_CHANGED') {
+        getCurrentUser().then(user => {
+            const loginText = document.getElementById('loginBtnText');
+            if (loginText) loginText.textContent = user ? '查看状态' : '登录';
+            
+            const authModal = document.getElementById('authModal');
+            if (authModal && !authModal.classList.contains('hidden')) {
+                if (user) {
+                    authModal.querySelectorAll('.auth-step').forEach(el => {
+                        el.classList.toggle('hidden', el.dataset.step !== 'logged-in');
+                    });
+                    renderLoggedInView(user);
+                } else {
+                    authModal.querySelectorAll('.auth-step').forEach(el => {
+                        el.classList.toggle('hidden', el.dataset.step !== 'email');
+                    });
+                }
+            }
+        });
     }
 });

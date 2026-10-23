@@ -1,5 +1,11 @@
 (function () {
     'use strict';
+    // 🌟 官网与本地开发环境白名单（彻底解决 F12 卡死）
+    if (window.location.hostname === 'dewsecure.com' || window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+        console.log('🛡️ [DewSecure] 官方域名与本地环境，已自动跳过内容清理。');
+        return;
+    }
+
     if (window.__dewsecureInjected) return;
     
     // ===== DewSecure Wired Bypass =====
