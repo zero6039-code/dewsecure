@@ -4,8 +4,12 @@
 // ==========================================
 import { getCurrentUser, logoutUser, fetchUserProfile } from '../src/authManager.js';
 
+// 请求序号守卫，防止旧请求覆盖新数据
+let profileFetchSeq = 0;
+
 // 渲染已登录状态的视图
 export function renderLoggedInView(user) {
+    if (!user) return;
     const isPremium = user.tier === 'premium' || user.tier === 'family' || user.tier === 'pro';
     
     document.getElementById('loggedInEmail').textContent = user.email;
@@ -25,7 +29,34 @@ export function renderLoggedInView(user) {
         expiryText = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
     }
     document.getElementById('accountExpiry').textContent = expiryText;
-    document.getElementById('accountDevices').textContent = isPremium ? '1 / 3' : '- / -';
+
+    // 设备数与家庭组邮箱展示
+    const devicesEl = document.getElementById('accountDevices');
+    const deviceLabel = devicesEl?.previousElementSibling;
+    
+    if (user.tier === 'family' && user.ownerEmail) {
+        // 家庭组子账号显示
+        devicesEl.textContent = `家庭组：${user.ownerEmail}`;
+        if (deviceLabel) deviceLabel.textContent = "所属";
+        devicesEl.style.color = "#58a6ff";
+    } else if (user.tier === 'family') {
+        // 家庭组兜底（避免因网络抖动缺失邮箱直接回退旧状态）
+        devicesEl.textContent = `家庭版权益`;
+        if (deviceLabel) deviceLabel.textContent = "所属";
+        devicesEl.style.color = "#58a6ff";
+    } else {
+        // 主账号或 Pro 显示
+        if (deviceLabel) deviceLabel.textContent = "设备";
+        devicesEl.style.color = ""; 
+        const limit = user.tier === 'pro' || user.tier === 'premium' ? 3 : 0;
+        const current = user.deviceCount !== undefined ? user.deviceCount : (isPremium ? 1 : 0);
+        
+        if (limit > 0) {
+            devicesEl.textContent = `设备 ${current} / ${limit}`;
+        } else {
+            devicesEl.textContent = '- / -';
+        }
+    }
 
     const btnTrial = document.getElementById('activateTrialBtn');
     if (btnTrial) {
@@ -56,7 +87,6 @@ export function initAccountUI() {
                 if (user && user.token) {
                     const url = new URL(baseUrl);
                     url.searchParams.set('token', user.token);
-                    // 如果有 refreshToken，一并带上
                     if (user.refreshToken) {
                         url.searchParams.set('refresh', user.refreshToken);
                     }
@@ -89,12 +119,17 @@ export function initAccountUI() {
     document.addEventListener('DOMContentLoaded', async () => {
         if (!document.getElementById('loggedInEmail')) return;
         
+        const mySeq = ++profileFetchSeq;
         console.log("🔄 启动强制云端同步...");
         try {
             const freshUser = await fetchUserProfile();
+            // 如果期间有更新的请求或存储变更触发，直接丢弃本次结果
+            if (mySeq !== profileFetchSeq) {
+                console.log("⏭️ 丢弃过期的 profile 响应");
+                return;
+            }
             if (freshUser) {
                 console.log("✅ 同步成功，当前 Tier:", freshUser.tier);
-                // 强制重绘 UI
                 renderLoggedInView(freshUser);
             }
         } catch (err) {
@@ -106,12 +141,14 @@ export function initAccountUI() {
 // 监听本地存储变化，实现实时刷新 UI
 chrome.storage.onChanged.addListener((changes, namespace) => {
     if (namespace === 'local' && changes.dewsecure_user) {
+        // 使正在进行的任何 fetchUserProfile 结果失效
+        profileFetchSeq++;
+        
         console.log("🔄 检测到云端状态更新，刷新插件 UI...");
         const newUser = changes.dewsecure_user.newValue;
         if (newUser) {
             renderLoggedInView(newUser);
         } else {
-            // 登出状态
             const authModal = document.getElementById('authModal');
             if (authModal) {
                 authModal.querySelectorAll('.auth-step').forEach(el => {

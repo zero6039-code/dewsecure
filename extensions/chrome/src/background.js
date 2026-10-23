@@ -4,6 +4,7 @@ if (chrome.sidePanel && chrome.sidePanel.setPanelBehavior) {
 }
 
 import { checkAndUpdateModel } from './modelManager.js';
+import { reportDeviceSilently } from './deviceManager.js';
 
 // ==========================================
 // 调试开关（生产环境必须 false）
@@ -15,9 +16,6 @@ const warn = DEBUG ? console.warn.bind(console) : () => {};
 // ==========================================
 // 1. 核心后台拦截与变量（绝对防御）
 // ==========================================
-// ==========================================
-// 全局安全白名单（防止误伤官方主站与新建空白页）
-// ==========================================
 const SAFE_OFFICIAL_DOMAINS = [
     'trip.com', 'shopee.com.my', 'tiktok.com', 'kkday.com', 'klook.com',
     'lazada.com.my', 'opera.com', 'traveloka.com', 'shein.com'
@@ -28,7 +26,6 @@ function isSafeNavigation(url) {
     if (url.startsWith('chrome://') || url.startsWith('chrome-extension://') || url.startsWith('about:') || url.startsWith('edge://')) return true;
     try {
         const u = new URL(url);
-        // 如果是平台官方页面且不带任何联盟/追踪参数，视为安全访问
         const host = u.hostname.replace(/^www\./, '');
         const isOfficial = SAFE_OFFICIAL_DOMAINS.some(d => host === d || host.endsWith('.' + d));
         const hasAdParam = /[?&](mmp_pid|Allianceid|uls_trackid|affiliate_id|chain_key|trip_sub1|utm_source=an_|utm_source=InvolveAsia|utm_source=adcash|aid=api|ud1)=/i.test(u.search);
@@ -41,31 +38,21 @@ const AD_KEYS = [
     'a_aid=', 'a_bid=', 'gsid=', 'gsc=', 'data1=', 'data2=',
     'mmp_pid=', 'Allianceid=', 'utm_source=an_', 'clickref=',
     'partner_id=', 'aid=api|', 'banid=', 'campid=',
-    // --- Skidrow 诊断补充 ---
     'affiliate_id=', 'sub_id=scs', 'utm_source=InvolveAsia',
     'utm_source=open_api', 'uls_trackid=', 'chain_key=',
     'utm_source=adcash', 'trip_sub1=', 'ud1=',
 ];
 const TARGET_BRANDS = [
     'generali.com.my', 'steampowered.com', 'store.steampowered.com',
-    // --- 原有 ---
     'shopee.com.my', 'kkday.com', 'trip.com', 'my.trip.com', 'klook.com',
     'traveloka.com', 'tiktok.com', 'lazada.com.my', 'shein.com',
     'ragasstore.com', 'opera.com/partner', '1xlite', '1xbet', 'omguk.com',
-    // --- 本次 Skidrow 诊断补充 ---
-    's.shopee.com.my',
-    'track.omguk.com',
-    'www.trip.com',
-    'www.kkday.com',
-    'www.klook.com',
-    'www.opera.com/partner',
-    'adexchangerapid.com',
-    'usrpubtrk.com',
-    'ntwkbc21.com',
-    'ntwkbc42.com',
+    's.shopee.com.my', 'track.omguk.com', 'www.trip.com', 'www.kkday.com',
+    'www.klook.com', 'www.opera.com/partner', 'adexchangerapid.com',
+    'usrpubtrk.com', 'ntwkbc21.com', 'ntwkbc42.com',
 ];
 
-// ===== 双保险 A：onCreatedNavigationTarget（原有）=====
+// ===== 双保险 A =====
 chrome.webNavigation.onCreatedNavigationTarget.addListener((info) => {
     const url = info.url || '';
     const hasAdParam = AD_KEYS.some(k => url.includes(k));
@@ -73,13 +60,11 @@ chrome.webNavigation.onCreatedNavigationTarget.addListener((info) => {
     
     if (hasAdParam || isTargetBrand) {
         warn('🛡️ [后台绞杀] 发现流氓跳转，正在强制关闭:', url);
-        chrome.tabs.remove(info.tabId, () => {
-            if (chrome.runtime.lastError) {}
-        });
+        chrome.tabs.remove(info.tabId, () => { if (chrome.runtime.lastError) {} });
     }
 });
 
-// ===== 双保险 B：tabs.onUpdated（更早捕获 URL 变更）=====
+// ===== 双保险 B =====
 chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
     const url = changeInfo.url || tab.url || '';
     if (!url || isSafeNavigation(url)) return;
@@ -93,7 +78,7 @@ chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
     }
 });
 
-// ===== 双保险 C：tabs.onCreated（标签页创建 0ms 立刻检查）=====
+// ===== 双保险 C =====
 chrome.tabs.onCreated.addListener((tab) => {
     const url = tab.pendingUrl || tab.url || '';
     if (!url || isSafeNavigation(url)) return;
@@ -115,22 +100,11 @@ const LOG_KEY = 'dewsecure_logs';
 const SETTINGS_KEY = 'dewsecure_settings';
 
 const DEFAULT_SETTINGS = {
-    dnrEnabled: true,
-    antiHijackEnabled: true,
-    phishingEnabled: true,
-    aiFourEnabled: true,
-    aiEnabled: true,
-    antiBypassEnabled: true,
-    blockTrackers: true,
-    hideCookieNotices: true,
-    hideAdPlaceholders: true,
-    blockSocialTrackers: true,
-    whitelist: [],
-    tempWhitelist: [],
-    dailyLimit: 50,
-    dailyUsed: 0,
-    lastResetDate: new Date().toDateString(),
-    tier: 'free',
+    dnrEnabled: true, antiHijackEnabled: true, phishingEnabled: true,
+    aiFourEnabled: true, aiEnabled: true, antiBypassEnabled: true,
+    blockTrackers: true, hideCookieNotices: true, hideAdPlaceholders: true,
+    blockSocialTrackers: true, whitelist: [], tempWhitelist: [], dailyLimit: 50,
+    dailyUsed: 0, lastResetDate: new Date().toDateString(), tier: 'free',
 };
 
 async function getSettings() {
@@ -166,8 +140,7 @@ async function applySessionRuleForDomain(domain, shouldAllow) {
             await chrome.declarativeNetRequest.updateSessionRules({
                 removeRuleIds: [ruleId],
                 addRules: [{
-                    id: ruleId,
-                    priority: 100000,
+                    id: ruleId, priority: 100000,
                     action: { type: 'allowAllRequests' },
                     condition: { requestDomains: [domain], resourceTypes: ['main_frame', 'sub_frame'] }
                 }]
@@ -200,12 +173,10 @@ async function recordDetailedBlock(url, type) {
             safeUrl = `${urlObj.hostname}${urlObj.pathname}`;
             domain = urlObj.hostname;
         } catch (e) {}
-        
         let { [LOG_KEY]: logs } = await chrome.storage.local.get(LOG_KEY);
         if (!Array.isArray(logs)) logs = [];
-        
         logs.push({ url: safeUrl, domain: domain, type: type, ts: Date.now(), date: new Date().toDateString() });
-        if (logs.length > 1000) logs.shift(); // 保留最近1000条
+        if (logs.length > 1000) logs.shift();
         await chrome.storage.local.set({ [LOG_KEY]: logs });
     } catch (e) {}
 }
@@ -213,16 +184,13 @@ async function recordDetailedBlock(url, type) {
 async function recordBlock(url, type = 'DNR规则') {
     let { [STATS_KEY]: stats } = await chrome.storage.local.get(STATS_KEY);
     let safeStats = (stats && typeof stats === 'object') ? stats : {};
-    
     safeStats.totalBlocked = Number(safeStats.totalBlocked) || 0;
     safeStats.todayBlocked = Number(safeStats.todayBlocked) || 0;
-    
     const today = new Date().toDateString();
     if (safeStats.lastReset !== today) {
         safeStats.todayBlocked = 0;
         safeStats.lastReset = today;
     }
-    
     safeStats.totalBlocked += 1;
     safeStats.todayBlocked += 1;
     await chrome.storage.local.set({ [STATS_KEY]: safeStats });
@@ -232,11 +200,9 @@ async function recordBlock(url, type = 'DNR规则') {
         chrome.action.setBadgeText({ text });
         chrome.action.setBadgeBackgroundColor({ color: '#4CAF50' });
     }
-    
     await recordDetailedBlock(url, type);
 }
 
-// DNR 规则拦截监听
 chrome.declarativeNetRequest.onRuleMatchedDebug.addListener(async (info) => {
     try {
         const urlObj = new URL(info.request.url);
@@ -270,16 +236,12 @@ async function handleMessage(message, sender) {
                 const settings = await getSettings();
                 const isWhitelisted = (settings.whitelist || []).some(d => host === d || host.endsWith('.' + d)) ||
                                       (settings.tempWhitelist || []).some(d => host === d || host.endsWith('.' + d));
-                if (!isWhitelisted) {
-                    await recordBlock(host + '/dom-hidden', '内容隐藏');
-                }
+                if (!isWhitelisted) await recordBlock(host + '/dom-hidden', '内容隐藏');
             } catch(e) {}
             return { ok: true };
-
         case 'GET_LOGS':
             let { [LOG_KEY]: rawLogs } = await chrome.storage.local.get(LOG_KEY);
             return Array.isArray(rawLogs) ? rawLogs : [];
-
         case 'ADD_TEMP_WHITELIST':
             try {
                 const settings = await getSettings();
@@ -287,23 +249,16 @@ async function handleMessage(message, sender) {
                     settings.tempWhitelist.push(message.domain);
                     await chrome.storage.local.set({ [SETTINGS_KEY]: settings });
                 }
-                
                 const ruleId = Math.floor(Math.abs(message.domain.split('').reduce((a,b)=>((a<<5)-a)+b.charCodeAt(0),0)) % 1000000) + 10000;
                 await chrome.declarativeNetRequest.updateSessionRules({
                     removeRuleIds: [ruleId],
                     addRules: [{
-                        id: ruleId,
-                        priority: 1000000,
-                        action: { type: 'allow' },
-                        condition: {
-                            // 只要请求发起者是该域名，全量放行，不限制目标，不限制资源类型
-                            initiatorDomains: [message.domain] 
-                        }
+                        id: ruleId, priority: 1000000, action: { type: 'allow' },
+                        condition: { initiatorDomains: [message.domain] }
                     }]
                 });
                 return { ok: true };
             } catch (e) { return { ok: false, error: e.message }; }
-
         case 'REMOVE_TEMP_WHITELIST':
             try {
                 const settings = await getSettings();
@@ -313,30 +268,21 @@ async function handleMessage(message, sender) {
                 await chrome.declarativeNetRequest.updateSessionRules({ removeRuleIds: [ruleId] });
                 return { ok: true };
             } catch (e) { return { ok: false, error: e.message }; }
-
         case 'GET_STATS':
             let { [STATS_KEY]: rawStats } = await chrome.storage.local.get(STATS_KEY);
             let { [LOG_KEY]: allLogs = [] } = await chrome.storage.local.get(LOG_KEY);
             if (!Array.isArray(allLogs)) allLogs = [];
-            
             const todayStr = new Date().toDateString();
             const todayCount = allLogs.filter(l => l.date === todayStr).length;
             const totalCount = (rawStats && rawStats.totalBlocked) ? rawStats.totalBlocked : allLogs.length;
-            
-            return { 
-                stats: { todayBlocked: todayCount, totalBlocked: totalCount }, 
-                settings: await getSettings() 
-            };
-
+            return { stats: { todayBlocked: todayCount, totalBlocked: totalCount }, settings: await getSettings() };
         case 'GET_SETTINGS':
             return await getSettings();
-
         case 'UPDATE_SETTING_KEY':
             let s = await getSettings();
             s[message.key] = message.value;
             await chrome.storage.local.set({ [SETTINGS_KEY]: s });
             return { ok: true };
-
         case 'UPDATE_SETTINGS':
             await chrome.storage.local.set({ [SETTINGS_KEY]: message.settings });
             if (message.settings.dnrEnabled !== undefined) {
@@ -348,7 +294,6 @@ async function handleMessage(message, sender) {
                 } catch(e) {}
             }
             return { ok: true };
-
         case 'ADD_WHITELIST':
             let curSettings = await getSettings();
             if (!/^[a-z0-9.-]+$/i.test(message.domain)) return { ok: false, error: '格式非法' };
@@ -357,40 +302,32 @@ async function handleMessage(message, sender) {
                 await chrome.storage.local.set({ [SETTINGS_KEY]: curSettings });
             }
             return { ok: true, whitelist: curSettings.whitelist };
-
         case 'REMOVE_WHITELIST':
             let remSettings = await getSettings();
             remSettings.whitelist = remSettings.whitelist.filter(d => d !== message.domain);
             await chrome.storage.local.set({ [SETTINGS_KEY]: remSettings });
             return { ok: true, whitelist: remSettings.whitelist };
-
         default:
             return { error: '未知消息类型' };
     }
 }
 
-
-
 // ==========================================
 // 云端模型自动同步机制
 // ==========================================
-// 1. 启动 5 秒后静默检查一次（防止阻塞浏览器启动）
 setTimeout(() => {
     checkAndUpdateModel().then(res => {
         if (res && res.updated) console.log('🚀 后台模型已静默更新至最新版本');
     }).catch(console.warn);
 }, 5000);
 
-// 2. 设置每天自动检查一次
 chrome.alarms.create('dewsecure_model_update', { periodInMinutes: 1440 });
-
 chrome.alarms.onAlarm.addListener((alarm) => {
     if (alarm.name === 'dewsecure_model_update') {
         console.log('⏰ 定时任务触发：检查云端模型更新...');
         checkAndUpdateModel().catch(console.warn);
     }
 });
-
 
 // ==========================================
 // 真实特征提取 (与 Python 端对齐, 16,418 维)
@@ -400,7 +337,6 @@ function extractFeaturesFromUrl(url) {
     const STRUCT_SIZE = 34;
     const features = new Float32Array(NGRAM_SIZE + STRUCT_SIZE);
 
-    // 1. 哈希字符 N-gram (n=3)
     for (let i = 0; i <= url.length - 3; i++) {
         const ngram = url.substring(i, i + 3);
         let hash = 0xcbf29ce484222325n;
@@ -413,7 +349,6 @@ function extractFeaturesFromUrl(url) {
         features[bucket] += 1.0;
     }
 
-    // 2. 结构化特征 (34 维)
     const S = 16384;
     features[S + 0] = url.length;
     const count = (str, ch) => str.split(ch).length - 1;
@@ -433,7 +368,6 @@ function extractFeaturesFromUrl(url) {
     for (let i = 0; i < kw.length && i < 22; i++) {
         features[S + 12 + i] = url.toLowerCase().includes(kw[i]) ? 1.0 : 0.0;
     }
-
     return Array.from(features);
 }
 
@@ -448,14 +382,9 @@ async function runAICheck(url) {
         if (AI_CHECKED_DOMAINS.has(domain)) return;
         AI_CHECKED_DOMAINS.add(domain);
 
-        // 1. 提取特征
         const features = extractFeaturesFromUrl(url);
-
-        // 2. 发送给 offscreen 推理 (调用你原有的 CLASSIFY 接口)
         const response = await chrome.runtime.sendMessage({
-            target: 'offscreen',
-            type: 'CLASSIFY',
-            features: features
+            target: 'offscreen', type: 'CLASSIFY', features: features
         });
 
         if (!response || !response.probs) return;
@@ -478,9 +407,7 @@ async function runAICheck(url) {
             await chrome.declarativeNetRequest.updateSessionRules({
                 removeRuleIds: [ruleId],
                 addRules: [{
-                    id: ruleId,
-                    priority: 10000,
-                    action: { type: 'block' },
+                    id: ruleId, priority: 10000, action: { type: 'block' },
                     condition: { requestDomains: [domain], resourceTypes: ["main_frame", "sub_frame", "script", "image", "xmlhttprequest"] }
                 }]
             });
@@ -498,14 +425,20 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     }
 });
 
-
 // ==========================================
-// 监听登录/登出状态变更，立刻执行模型校验
+// 监听登录/登出状态变更，立刻执行模型校验 & 设备上报
 // ==========================================
 chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     if (msg.type === 'AUTH_STATE_CHANGED') {
         console.log('🔄 账号状态变更，立刻重新校验模型权限...');
         checkAndUpdateModel().catch(console.warn);
+        
+        // 🌟 新增：触发设备上报
+        import('./authManager.js').then(async ({ getCurrentUser }) => {
+            const user = await getCurrentUser();
+            if (user && user.token) reportDeviceSilently(user.token);
+        }).catch(e => console.warn(e));
+
         sendResponse({ ok: true });
         return true;
     }

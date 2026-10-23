@@ -46,6 +46,23 @@ async function init() {
 }
 
 function bindMiscEvents() {
+    // 🌟 修复 Setting 死键：绑定设置弹窗打开、关闭、Tab 切换
+    document.getElementById('settingsLink')?.addEventListener('click', (e) => {
+        e.preventDefault();
+        document.getElementById('settingsModal')?.classList.remove('hidden');
+    });
+    document.getElementById('settingsClose')?.addEventListener('click', () => {
+        document.getElementById('settingsModal')?.classList.add('hidden');
+    });
+    document.querySelectorAll('.settings-tab').forEach(tab => {
+        tab.addEventListener('click', () => {
+            document.querySelectorAll('.settings-tab, .settings-pane').forEach(el => el.classList.remove('active'));
+            tab.classList.add('active');
+            document.getElementById(tab.dataset.target)?.classList.add('active');
+        });
+    });
+
+    // 原有逻辑保持不变
     document.getElementById('cardToday')?.addEventListener('click', () => switchView('logsView'));
     document.getElementById('backFromLogs')?.addEventListener('click', () => switchView('mainView'));
     document.getElementById('cardTotal')?.addEventListener('click', () => switchView('statsView'));
@@ -95,7 +112,6 @@ function bindMiscEvents() {
         }
     });
 
-    // 🌟 修复：直接使用顶部静态导入的 getCurrentUser，不再使用动态 import
     document.getElementById('modalClose')?.addEventListener('click', () => {
         document.getElementById('authModal').classList.add('hidden');
         getCurrentUser().then(user => {
