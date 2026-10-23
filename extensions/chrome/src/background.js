@@ -466,3 +466,17 @@ chrome.runtime.onMessageExternal.addListener((message, sender, sendResponse) => 
         return true;
     }
 });
+
+// ==========================================
+// 🌟 强制设备上报 (每次 Service Worker 启动时触发)
+// ==========================================
+import('./authManager.js').then(async ({ getCurrentUser }) => {
+    const user = await getCurrentUser();
+    if (user && user.token) {
+        // 清除节流，强制上报
+        await chrome.storage.local.remove('dewsecure_last_device_report');
+        reportDeviceSilently(user.token).then(() => {
+            console.log('📡 [Background] 启动时设备上报已执行');
+        });
+    }
+});
