@@ -7,9 +7,11 @@ import { updateStats, updateSiteSwitch, disableSiteSwitch, switchView } from './
 import { initAuthUI } from './auth-ui.js';
 import { initAccountUI, renderLoggedInView } from './account-ui.js';
 
+let siteInfoReqId = 0;
 async function updateSiteInfo() {
+    const currentReqId = ++siteInfoReqId;
     try {
-        const [tab] = await chrome.tabs.query({ active: true, lastFocusedWindow: true });
+        const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
         if (tab?.url && /^https?:/.test(tab.url)) {
             const host = new URL(tab.url).hostname;
             const { dewsecure_settings: settings } = await chrome.storage.local.get('dewsecure_settings');
@@ -18,10 +20,12 @@ async function updateSiteInfo() {
             const isWhitelisted = (finalSettings.whitelist || []).some(matchDomain);
             const isTempWhitelisted = (finalSettings.tempWhitelist || []).some(matchDomain);
             
+            if (currentReqId !== siteInfoReqId) return; // 🌟 竞态守卫
             updateSiteSwitch(!isWhitelisted && !isTempWhitelisted, host);
             document.getElementById('siteDomain').textContent = host;
             document.getElementById('siteDomain').removeAttribute('data-i18n'); // 有真实域名时，移除 i18n 标记防止被覆盖
         } else {
+            if (currentReqId !== siteInfoReqId) return;
             disableSiteSwitch();
             document.getElementById('siteDomain').setAttribute('data-i18n', 'site_this');
             document.getElementById('siteDomain').textContent = window.t('site_this');

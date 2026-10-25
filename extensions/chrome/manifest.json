@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
-  "name": "DewSecure - 安全内容净化引擎",
-  "version": "1.2.1",
-  "description": "基于设备端 AI 与联邦学习，保护您免受恶意广告、钓鱼追踪和骚扰弹窗的侵害。",
+  "name": "DewSecure - Content Optimizer & Security Engine",
+  "version": "1.2.2",
+  "description": "On-device AI + 110,000+ rules. Stop phishing redirects, trackers, and intrusive popups. Privacy-first.",
   "permissions": [
     "declarativeNetRequest",
     "declarativeNetRequestFeedback",
@@ -123,9 +123,7 @@
   "externally_connectable": {
     "matches": [
       "https://dewsecure.com/*",
-      "https://www.dewsecure.com/*",
-      "http://localhost/*",
-      "http://127.0.0.1/*"
+      "https://www.dewsecure.com/*"
     ]
   },
   "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAtkg6OlWuWqV789Hzr8YhO0Yd3mhbSHNsCfpBjW79EBq5TYUW0HumDVrJgPPIczuK2BROHafk1wSm1l5l2+axaimccYfDGpn3hTRrHBmuY+OneZqORp90etBEX9sraOlcWp8wONRX5daHuGvtArUB+gsiktT3su1LzsjU//YrS07qDe1dIPYlrRFkksK/clmq/gkPE/wQxj+J2aMXcUuenjpd+4CsIssW4y+5T4Es4WizuKqj96i9ryilbm3vBI9uw8cn6ki5F7Ogf49l/lrGb3Dn1p8HUaqjygSKgq2bIYW/cRIoZDaC/2TxrZ0TKmInXPlIHL/8mOpOI1D5sRTxSwIDAQAB",

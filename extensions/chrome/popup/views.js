@@ -19,6 +19,14 @@ export function updateSiteSwitch(isProtected, host) {
 
     if (!switchEl || !statusEl) return;
 
+    // 🌟 修复：恢复被 disableSiteSwitch 禁用掉的 UI 状态
+    switchEl.disabled = false;
+    const wrap = document.getElementById('siteSwitchWrap');
+    if (wrap) {
+        wrap.style.opacity = '';
+        wrap.style.pointerEvents = '';
+    }
+
     if (domainEl) domainEl.textContent = host || window.t('site_this');
 
     switchEl.checked = isProtected;

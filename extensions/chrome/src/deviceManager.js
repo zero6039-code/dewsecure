@@ -49,7 +49,7 @@ export async function reportDeviceSilently(token) {
         const payload = JSON.parse(atob(payloadBase64));
         const userId = payload.sub;
 
-        const res = await fetch(`${SUPABASE_URL}/rest/v1/devices`, {
+        const res = await fetch(`${SUPABASE_URL}/rest/v1/devices?on_conflict=user_id,fingerprint`, {
             method: 'POST',
             headers: {
                 'apikey': SUPABASE_ANON_KEY,
@@ -69,6 +69,9 @@ export async function reportDeviceSilently(token) {
         if (res.ok) {
             await chrome.storage.local.set({ [LAST_REPORT_KEY]: Date.now() });
             console.log('✅ [DeviceManager] 设备静默上报成功');
+        } else if (res.status === 409) {
+            console.log('ℹ️ [DeviceManager] 设备已存在，跳过更新');
+            await chrome.storage.local.set({ [LAST_REPORT_KEY]: Date.now() });
         } else {
             const errorText = await res.text();
             console.error('❌ [DeviceManager] 设备上报失败:', res.status, errorText);
