@@ -53,19 +53,21 @@ const TARGET_BRANDS = [
 ];
 
 // ===== 双保险 A =====
-chrome.webNavigation.onCreatedNavigationTarget.addListener((info) => {
+chrome.webNavigation.onCreatedNavigationTarget.addListener(async (info) => {
     const url = info.url || '';
     const hasAdParam = AD_KEYS.some(k => url.includes(k));
     const isTargetBrand = TARGET_BRANDS.some(h => url.includes(h));
     
     if (hasAdParam || isTargetBrand) {
+        // 🌟 修复：如果是白名单网站，绝不绞杀
+        try { if (await checkIsWhitelisted(new URL(url).hostname)) return; } catch(e) {}
         warn('🛡️ [后台绞杀] 发现流氓跳转，正在强制关闭:', url);
         chrome.tabs.remove(info.tabId, () => { if (chrome.runtime.lastError) {} });
     }
 });
 
 // ===== 双保险 B =====
-chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
+chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
     const url = changeInfo.url || tab.url || '';
     if (!url || isSafeNavigation(url)) return;
 
@@ -73,13 +75,15 @@ chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
     const isTargetBrand = TARGET_BRANDS.some(h => url.includes(h));
 
     if (hasAdParam || isTargetBrand) {
+        // 🌟 修复：如果是白名单网站，绝不绞杀
+        try { if (await checkIsWhitelisted(new URL(url).hostname)) return; } catch(e) {}
         warn('🛡️ [tabs.onUpdated] 关闭广告标签页:', url);
         chrome.tabs.remove(tabId, () => { if (chrome.runtime.lastError) {} });
     }
 });
 
 // ===== 双保险 C =====
-chrome.tabs.onCreated.addListener((tab) => {
+chrome.tabs.onCreated.addListener(async (tab) => {
     const url = tab.pendingUrl || tab.url || '';
     if (!url || isSafeNavigation(url)) return;
 
@@ -87,10 +91,20 @@ chrome.tabs.onCreated.addListener((tab) => {
     const isTargetBrand = TARGET_BRANDS.some(k => url.includes(k));
 
     if (hasAdParam || isTargetBrand) {
+        // 🌟 修复：如果是白名单网站，绝不绞杀
+        try { if (await checkIsWhitelisted(new URL(url).hostname)) return; } catch(e) {}
         warn('🛡️ [tabs.onCreated] 关闭广告标签页:', url);
         chrome.tabs.remove(tab.id, () => { if (chrome.runtime.lastError) {} });
     }
 });
+
+
+async function checkIsWhitelisted(host) {
+    if (!host) return false;
+    const settings = await getSettings();
+    return (settings.whitelist || []).some(d => host === d || host.endsWith('.' + d)) ||
+           (settings.tempWhitelist || []).some(d => host === d || host.endsWith('.' + d));
+}
 
 // ==========================================
 // 2. 基础设置与常量
@@ -197,7 +211,6 @@ async function recordBlock(url, type = 'DNR规则') {
     }
     safeStats.totalBlocked += 1;
     safeStats.todayBlocked += 1;
-    await recordDetailedBlock(url, type);
     await chrome.storage.local.set({ [STATS_KEY]: safeStats });
     
     if (chrome.action) {
@@ -257,8 +270,13 @@ async function handleMessage(message, sender) {
                 await chrome.declarativeNetRequest.updateSessionRules({
                     removeRuleIds: [ruleId],
                     addRules: [{
-                        id: ruleId, priority: 1000000, action: { type: 'allow' },
-                        condition: { initiatorDomains: [message.domain] }
+                        id: ruleId, 
+                        priority: 1000000, 
+                        action: { type: 'allowAllRequests' }, // 🌟 核心：放行所有类型请求
+                        condition: { 
+                            initiatorDomains: [message.domain],
+                            requestDomains: [message.domain]  // 🌟 同时放行发往该域名的请求
+                        }
                     }]
                 });
                 return { ok: true };
@@ -277,9 +295,57 @@ async function handleMessage(message, sender) {
             let { [LOG_KEY]: allLogs = [] } = await chrome.storage.local.get(LOG_KEY);
             if (!Array.isArray(allLogs)) allLogs = [];
             const todayStr = new Date().toDateString();
+            // 🌟 以 logs 为最高基准，确保 UI 绝对一致
             const todayCount = allLogs.filter(l => l.date === todayStr).length;
             const totalCount = (rawStats && rawStats.totalBlocked) ? rawStats.totalBlocked : allLogs.length;
             return { stats: { todayBlocked: todayCount, totalBlocked: totalCount }, settings: await getSettings() };
+
+        case 'REPORT_FEEDBACK':
+            try {
+                // 获取当前活动的 Tab
+                const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+                if (!tab || !tab.url) return { ok: false };
+                const host = new URL(tab.url).hostname;
+
+                // 从 JWT 获取 user_id（如果有登录）
+                let userId = null;
+                const { dewsecure_user: user } = await chrome.storage.local.get('dewsecure_user');
+                if (user && user.token) {
+                    try {
+                        const payload = JSON.parse(atob(user.token.split('.')[1]));
+                        userId = payload.sub;
+                    } catch (e) {}
+                }
+
+                // 发送到 Supabase（注意：这里用你的 Supabase URL 和 Key，建议之后移到 Worker）
+                const SUPABASE_URL = 'https://uvbaioqqjqseapcancvi.supabase.co';
+                const SUPABASE_ANON_KEY = 'sb_publishable_xiiA-yt_jRKkzRdkYkoWJA_CVZjNjq8';
+                
+                // 获取当前完整 URL
+                const targetUrl = tab.url;
+                const res = await fetch(`${SUPABASE_URL}/rest/v1/reports`, {
+                    method: 'POST',
+                    headers: {
+                        'apikey': SUPABASE_ANON_KEY,
+                        'Authorization': user?.token ? `Bearer ${user.token}` : `Bearer ${SUPABASE_ANON_KEY}`,
+                        'Content-Type': 'application/json',
+                        'Prefer': 'return=minimal'
+                    },
+                    body: JSON.stringify({
+                        user_id: userId,
+                        report_type: message.feedbackType === 'missed' ? 'false_negative' : 'false_positive', // 匹配你的 check 约束
+                        url: targetUrl, // 必填字段
+                        description: host, // 存一下域名方便查
+                        category: 'ai_feedback'
+                    })
+                });
+
+                return { ok: res.ok };
+            } catch (err) {
+                console.error('❌ 上报反馈失败:', err);
+                return { ok: false };
+            }
+
         case 'GET_SETTINGS':
             return await getSettings();
         case 'UPDATE_SETTING_KEY':

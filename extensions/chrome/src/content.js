@@ -1,3 +1,5 @@
+
+
 (function () {
     'use strict';
     // 🌟 官网与本地开发环境白名单（彻底解决 F12 卡死）
@@ -11,11 +13,14 @@
     // ===== DewSecure Wired Bypass =====
     if (window.location.hostname.includes('wired.com')) {
         console.warn('🛡️ [DewSecure] 检测到 Wired，已自动豁免 DOM 清理以防止 React 水合失败。');
-        return; // 退出，不执行任何 DOM 清理
+        return; 
     }
     // ===================================
 
     window.__dewsecureInjected = true;
+
+    // 🌟 动态刷新：侧边栏切换开关时，强制页面刷新
+    
 
     // ===== 调试开关（生产环境必须 false）=====
     const DEBUG = false;
@@ -185,8 +190,6 @@
         appendStyleWhenReady(style, '__dewsecure_style_2');
     }
 
-    injectBrutalCSS();
-    injectExtraCSS();
 
     // ===== 批处理：属性变化（80ms 合并）=====
     const pendingAttr = new Set();
@@ -444,5 +447,31 @@ chrome.runtime.onMessage.addListener((msg) => {
             wall.remove();
             document.documentElement.style.removeProperty('overflow');
         };
+    }
+});
+
+
+// 🌟 动态挂起/恢复拦截
+chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
+    if (msg.type === 'TOGGLE_PROTECTION') {
+        if (msg.enabled === false) {
+            // 挂起：移除注入的 CSS，解锁滚动
+            document.documentElement.setAttribute('data-dewsecure-paused', 'true');
+            const s1 = document.getElementById('__dewsecure_style_1');
+            const s2 = document.getElementById('__dewsecure_style_2');
+            if (s1) s1.remove();
+            if (s2) s2.remove();
+            if (document.body) {
+                document.body.style.setProperty('overflow', 'auto', 'important');
+                document.documentElement.style.setProperty('overflow', 'auto', 'important');
+            }
+            // 通知主世界（inject.js）恢复原生方法
+            window.postMessage({ type: 'DEWSECURE_PAUSE' }, '*');
+            console.warn('🛡️ [DewSecure] 已动态挂起，还原网页状态。');
+        } else {
+            // 恢复：重新加载页面，重新开始拦截
+            location.reload();
+        }
+        sendResponse({ ok: true });
     }
 });

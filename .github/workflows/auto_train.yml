@@ -1,0 +1,119 @@
+name: Auto Train Model
+
+on:
+  schedule:
+    - cron: '0 2 * * 1' # 每周一凌晨 2 点自动运行
+  workflow_dispatch: # 允许手动点击触发
+
+jobs:
+  train:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+          cache-dependency-path: models/training/requirements.txt
+
+      - name: 安装 Python 依赖
+        run: |
+          pip install -r models/training/requirements.txt
+          pip install onnx skl2onnx onnxruntime
+
+      - name: 下载数据集 (含 Supabase 反馈拉取)
+        working-directory: models
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+        run: python training/data_prep.py
+
+      - name: 训练模型
+        working-directory: models
+        run: python training/train.py
+
+      - name: 导出 ONNX
+        working-directory: models
+        run: python conversion/to_onnx.py
+
+      - name: 调试 - 检查文件系统
+        run: |
+          echo "=== 仓库根目录 ==="
+          pwd
+          echo ""
+          echo "=== models/weights/ 内容 ==="
+          ls -la models/weights/ || echo "目录不存在"
+          echo ""
+          echo "=== 查找 model_meta.json ==="
+          find . -name "model_meta.json" -type f 2>/dev/null || echo "找不到"
+
+      - name: 读取模型元信息
+        id: meta
+        working-directory: models
+        run: |
+          if [ ! -f weights/model_meta.json ]; then
+            echo "❌ model_meta.json 不存在"
+            exit 1
+          fi
+          MACRO_F1=$(python -c "import json; print(round(json.load(open('weights/model_meta.json'))['macroF1'], 4))")
+          VERSION="V${{ github.run_number }}.$(date -u +%y%m%d)"
+          echo "macro_f1=$MACRO_F1" >> $GITHUB_OUTPUT
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "✅ 模型 Macro F1: $MACRO_F1"
+          echo "✅ 版本: $VERSION"
+
+      - name: 安装 rclone
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y rclone
+
+      - name: 配置 rclone
+        run: |
+          mkdir -p ~/.config/rclone
+          cat > ~/.config/rclone/rclone.conf << RCLONE_EOF
+          [r2]
+          type = s3
+          provider = Cloudflare
+          access_key_id = ${{ secrets.R2_ACCESS_KEY_ID }}
+          secret_access_key = ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          endpoint = ${{ secrets.R2_ENDPOINT }}
+          no_check_bucket = true
+          RCLONE_EOF
+
+      - name: 上传模型到 R2
+        run: |
+          rclone copy models/weights/classifier_int8.onnx \
+            r2:${{ secrets.R2_BUCKET }}/latest/ --s3-no-check-bucket
+          rclone copy models/weights/model_meta.json \
+            r2:${{ secrets.R2_BUCKET }}/latest/ --s3-no-check-bucket
+          rclone copy models/weights/classifier_int8.onnx \
+            r2:${{ secrets.R2_BUCKET }}/${{ steps.meta.outputs.version }}/ --s3-no-check-bucket
+
+          echo "=== latest 目录内容 ==="
+          rclone ls r2:${{ secrets.R2_BUCKET }}/latest/ --s3-no-check-bucket
+
+      - name: 记录训练历史（不包含模型文件）
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.meta.outputs.version }}
+          name: "Model ${{ steps.meta.outputs.version }} (F1=${{ steps.meta.outputs.macro_f1 }})"
+          body: |
+            Auto-trained 3-class model
+
+            - Macro F1: ${{ steps.meta.outputs.macro_f1 }}
+            - Trained at: ${{ github.event.repository.updated_at }}
+            - Model file size: 49 KB (INT8)
+            - Delivery: Cloudflare R2 (private, presigned URL only)
+
+            ⚠️ Model files are NOT attached to this release.
+            ⚠️ Model is distributed via R2 with 60-second presigned URLs.
+          draft: true
+          files: |
+            models/weights/model_meta.json
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

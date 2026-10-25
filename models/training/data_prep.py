@@ -1,9 +1,10 @@
-"""数据准备：构建三分类（Ad / Tracker / Normal）数据集。"""
+"""数据准备：构建三分类（Ad / Tracker / Normal）数据集 + 融合用户真实反馈。"""
 
 import os
 import requests
 import pandas as pd
 from tqdm import tqdm
+import json
 
 DATA_DIR = os.path.join(os.path.dirname(__file__), '..', 'data')
 
@@ -88,16 +89,74 @@ def download_legit_domains(limit=100000):
     return legit
 
 
+def fetch_supabase_feedbacks():
+    """从 Supabase 获取有效反馈数据"""
+    supabase_url = os.environ.get("SUPABASE_URL")
+    supabase_key = os.environ.get("SUPABASE_ANON_KEY")
+    
+    if not supabase_url or not supabase_key:
+        print("⚠️ 未配置 SUPABASE_URL 或 SUPABASE_ANON_KEY，跳过用户反馈拉取。")
+        return [], []
+
+    print("📡 正在从 Supabase 拉取有效反馈...")
+    headers = {
+        "apikey": supabase_key,
+        "Authorization": f"Bearer {supabase_key}"
+    }
+    
+    try:
+        # 请求我们之前在 SQL 里建的视图
+        res = requests.get(f"{supabase_url}/rest/v1/valid_ai_feedbacks", headers=headers, timeout=30)
+        res.raise_for_status()
+        data = res.json()
+        
+        missed_domains = []    # 漏拦 (需要加入黑名单)
+        false_domains = []     # 误拦 (需要加入白名单)
+        
+        for row in data:
+            domain = row.get("domain", "").strip().lower()
+            report_type = row.get("report_type")
+            if not domain: continue
+            
+            if report_type == "false_negative":
+                missed_domains.append(domain)
+            elif report_type == "false_positive":
+                false_domains.append(domain)
+                
+        print(f"  → 收到漏拦反馈: {len(missed_domains)} 个域名")
+        print(f"  → 收到误拦反馈: {len(false_domains)} 个域名")
+        return missed_domains, false_domains
+        
+    except Exception as e:
+        print(f"❌ 拉取 Supabase 反馈失败: {e}")
+        return [], []
+
+
 def build_dataset():
     os.makedirs(DATA_DIR, exist_ok=True)
 
     print("收集广告域名...")
     ad_domains = download_ad_domains()
-    print(f"  → {len(ad_domains)} 个")
+    print(f"  → 基础恶意域名: {len(ad_domains)} 个")
 
     print("收集合法域名...")
     legit = download_legit_domains(limit=len(ad_domains) * 2)
-    print(f"  → {len(legit)} 个")
+    print(f"  → 基础合法域名: {len(legit)} 个")
+    
+    # 🌟 融合用户真实反馈
+    missed_feedbacks, false_feedbacks = fetch_supabase_feedbacks()
+    
+    # 把误拦的从黑名单踢出，加入白名单
+    for d in false_feedbacks:
+        if d in ad_domains:
+            ad_domains.remove(d)
+        legit.add(d)
+        
+    # 把漏拦的加入黑名单
+    for d in missed_feedbacks:
+        if d in legit:
+            legit.remove(d)
+        ad_domains.add(d)
 
     n = min(len(ad_domains), len(legit))
     ad_list = list(ad_domains)[:n]

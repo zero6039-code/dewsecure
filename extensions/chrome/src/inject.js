@@ -1,3 +1,39 @@
+(async function() {
+    const host = window.location.hostname;
+    try {
+        const settings = await chrome.runtime.sendMessage({ type: 'GET_SETTINGS' });
+        if (settings) {
+            const m = d => host === d || host.endsWith('.' + d);
+            if ((settings.whitelist || []).some(m) || (settings.tempWhitelist || []).some(m)) {
+                console.warn('🛡️ [DewSecure Inject] 命中白名单，已停止主世界 Hook。');
+                return; // 停止执行下方的 Hook 代码
+            }
+        }
+    } catch(e) {}
+
+
+// ===== 🌟 白名单热更新接管 =====
+let isPaused = false;
+// 备份原生方法
+const nativeWindowOpen = window.open;
+const nativeLocationAssign = window.location.assign;
+
+window.addEventListener('message', (e) => {
+    if (e.data && e.data.type === 'DEWSECURE_PAUSE') {
+        isPaused = true;
+        // 恢复原生 window.open
+        window.open = nativeWindowOpen;
+        console.log('🛡️ [DewSecure Inject] 主世界已挂起，恢复原生 API');
+    }
+});
+
+// 包装原本的拦截逻辑
+const originalOpen = window.open;
+window.open = function(...args) {
+    if (isPaused) return nativeWindowOpen.apply(this, args);
+    return originalOpen.apply(this, args);
+};
+
 (function() {
     'use strict';
     // 🌟 官网与本地开发环境白名单（彻底解决 F12 卡死）
@@ -131,4 +167,5 @@
         observer.observe(document.documentElement, { childList: true, subtree: true });
         killMaliciousNodes(document.documentElement);
     }
+})();
 })();

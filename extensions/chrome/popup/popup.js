@@ -304,7 +304,13 @@ function bindMiscEvents() {
         }
 
         chrome.runtime.sendMessage({ type: 'REMOVE_TEMP_WHITELIST', domain: host }, (res) => {
-            if (res && res.ok) updateSiteSwitch(true, host);
+            if (res && res.ok) {
+                updateSiteSwitch(true, host);
+                // 🌟 通知当前标签页动态恢复拦截
+                chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+                    if (tabs[0]?.id) chrome.tabs.sendMessage(tabs[0].id, { type: 'TOGGLE_PROTECTION', enabled: true });
+                });
+            }
         });
     });
 
@@ -336,6 +342,42 @@ function bindMiscEvents() {
             e.target.classList.add('hidden');
         }
     });
+
+    // 🌟 补全：上报漏拦/误拦按钮逻辑
+    // 🌟 防刷上报逻辑
+    async function handleFeedback(btn, type) {
+        const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+        if (!tab || !tab.url) return;
+        const host = new URL(tab.url).hostname;
+        
+        // 检查防刷缓存 (24 小时)
+        const cacheKey = `last_report_${host}_${type}`;
+        const { [cacheKey]: lastTime } = await chrome.storage.local.get(cacheKey);
+        if (lastTime && Date.now() - lastTime < 24 * 60 * 60 * 1000) {
+            btn.innerText = '⏳ 已上报过，24小时内请勿重复提交';
+            setTimeout(() => { btn.innerText = btn.dataset.originalText || btn.innerText; btn.disabled = false; }, 3000);
+            return;
+        }
+
+        btn.disabled = true;
+        btn.dataset.originalText = btn.innerText;
+        btn.innerText = '⏳ 上报中...';
+        
+        chrome.runtime.sendMessage({ type: 'REPORT_FEEDBACK', feedbackType: type }, (res) => {
+            if (res && res.ok) {
+                // 写入防刷缓存
+                chrome.storage.local.set({ [cacheKey]: Date.now() });
+                btn.innerText = '✅ 已收到，感谢！';
+                setTimeout(() => { btn.innerText = btn.dataset.originalText; btn.disabled = false; }, 3000);
+            } else {
+                btn.innerText = '❌ 上报失败';
+                setTimeout(() => { btn.innerText = btn.dataset.originalText; btn.disabled = false; }, 3000);
+            }
+        });
+    }
+
+    document.getElementById('reportMissed')?.addEventListener('click', (e) => handleFeedback(e.currentTarget, 'missed'));
+    document.getElementById('reportFalse')?.addEventListener('click', (e) => handleFeedback(e.currentTarget, 'false_positive'));
 }
 
 // 启动
