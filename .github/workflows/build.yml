@@ -1,0 +1,34 @@
+name: Build Extension
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build-check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.repository.default_branch }} # 修复 detached HEAD
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Install Dependencies & Build
+        run: |
+          cd extensions/chrome
+          npm install
+          npm run build
+          
+      # ⚠️ 注意：我们删除了之前的 "Commit and Push Artifacts" 步骤。
+      # 因为 Github Actions 环境没有模型文件，打出来的包是坏的。
+      # 我们将使用本地手动打包并推送的 releases/chrome/chrome-v1.2.2.zip 作为最终成品。
