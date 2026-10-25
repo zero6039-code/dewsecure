@@ -52,6 +52,12 @@ async function init() {
 
     // 更新登录按钮与升级按钮
     updateUserUI(currentUser);
+
+    // 🌟 动态获取并渲染插件版本号
+    const versionSpan = document.getElementById('appVersion');
+    if (versionSpan && chrome.runtime.getManifest) {
+        versionSpan.textContent = 'v' + chrome.runtime.getManifest().version;
+    }
 }
 
 async function updateUserUI(user) {
