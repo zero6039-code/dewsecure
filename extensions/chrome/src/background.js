@@ -28,7 +28,7 @@ function isSafeNavigation(url) {
         const u = new URL(url);
         const host = u.hostname.replace(/^www\./, '');
         const isOfficial = SAFE_OFFICIAL_DOMAINS.some(d => host === d || host.endsWith('.' + d));
-        const hasAdParam = /[?&](mmp_pid|Allianceid|uls_trackid|affiliate_id|chain_key|trip_sub1|utm_source=an_|utm_source=InvolveAsia|utm_source=adcash|aid=api|ud1)=/i.test(u.search);
+        const hasAdParam = /[?&](mmp_pid|Allianceid|uls_trackid|affiliate_id|chain_key|trip_sub1|utm_source=an_|utm_source=InvolveAsia|utm_source=adcash|aid=api|ud1|laz_trackid|mkttid|exlaz)=/i.test(u.search);
         if (isOfficial && !hasAdParam) return true;
     } catch(_) {}
     return false;
@@ -40,7 +40,7 @@ const AD_KEYS = [
     'partner_id=', 'aid=api|', 'banid=', 'campid=',
     'affiliate_id=', 'sub_id=scs', 'utm_source=InvolveAsia',
     'utm_source=open_api', 'uls_trackid=', 'chain_key=',
-    'utm_source=adcash', 'trip_sub1=', 'ud1=',
+    'utm_source=adcash', 'trip_sub1=', 'ud1=', 'laz_trackid=', 'mkttid=', 'exlaz=',
 ];
 const TARGET_BRANDS = [
     'generali.com.my', 'steampowered.com', 'store.steampowered.com',
@@ -182,6 +182,10 @@ async function recordDetailedBlock(url, type) {
 }
 
 async function recordBlock(url, type = 'DNR规则') {
+    // 🌟 1. 先写详细日志（确保 logs 先落盘）
+    await recordDetailedBlock(url, type);
+
+    // 🌟 2. 再更新统计总数
     let { [STATS_KEY]: stats } = await chrome.storage.local.get(STATS_KEY);
     let safeStats = (stats && typeof stats === 'object') ? stats : {};
     safeStats.totalBlocked = Number(safeStats.totalBlocked) || 0;
@@ -193,6 +197,7 @@ async function recordBlock(url, type = 'DNR规则') {
     }
     safeStats.totalBlocked += 1;
     safeStats.todayBlocked += 1;
+    await recordDetailedBlock(url, type);
     await chrome.storage.local.set({ [STATS_KEY]: safeStats });
     
     if (chrome.action) {
@@ -200,7 +205,6 @@ async function recordBlock(url, type = 'DNR规则') {
         chrome.action.setBadgeText({ text });
         chrome.action.setBadgeBackgroundColor({ color: '#4CAF50' });
     }
-    await recordDetailedBlock(url, type);
 }
 
 chrome.declarativeNetRequest.onRuleMatchedDebug.addListener(async (info) => {

@@ -74,7 +74,8 @@ export async function reportDeviceSilently(token) {
             await chrome.storage.local.set({ [LAST_REPORT_KEY]: Date.now() });
         } else {
             const errorText = await res.text();
-            console.error('❌ [DeviceManager] 设备上报失败:', res.status, errorText);
+            if (res.status === 401) console.log('ℹ️ [DeviceManager] Token过期，静默等待下次刷新');
+            else console.error('❌ [DeviceManager] 设备上报失败:', res.status, errorText);
         }
     } catch (e) {
         console.error('❌ [DeviceManager] 上报异常:', e.message, e.stack);

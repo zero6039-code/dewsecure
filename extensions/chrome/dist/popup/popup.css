@@ -1869,3 +1869,15 @@ body {
 /* 滚动条美化 */
 .lang-options::-webkit-scrollbar { width: 4px; }
 .lang-options::-webkit-scrollbar-thumb { background: rgba(0,0,0,0.1); border-radius: 4px; }
+
+
+/* 🌟 列表项悬停动画 */
+.hover-card {
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    cursor: pointer;
+}
+.hover-card:hover {
+    transform: scale(1.02);
+    background: linear-gradient(135deg, rgba(255,255,255,0.9), rgba(255,255,255,0.6)) !important;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+}

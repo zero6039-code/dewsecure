@@ -3,7 +3,7 @@
 // ==========================================
 
 import { getCurrentUser } from '../src/authManager.js';
-import { updateStats, updateSiteSwitch, disableSiteSwitch, switchView } from './views.js';
+import { updateStats as _updateStats, updateSiteSwitch, disableSiteSwitch, switchView } from './views.js';
 import { initAuthUI } from './auth-ui.js';
 import { initAccountUI, renderLoggedInView } from './account-ui.js';
 
@@ -35,6 +35,138 @@ async function updateSiteInfo() {
         disableSiteSwitch();
     }
 }
+
+
+// 🌟 渲染今日拦截详情（合并相同域名，支持折叠展开）
+async function renderTodayLogs() {
+    const res = await chrome.storage.local.get('dewsecure_logs');
+    const logs = Array.isArray(res.dewsecure_logs) ? res.dewsecure_logs : [];
+    const todayStr = new Date().toDateString();
+    const todayLogs = logs.filter(l => l.date === todayStr);
+
+    const badge = document.getElementById('logCountBadge');
+    if (badge) badge.textContent = `${todayLogs.length} 条`;
+
+    const list = document.getElementById('logsList');
+    if (!list) return;
+
+    if (todayLogs.length === 0) {
+        list.innerHTML = `<div style="text-align: center; color: #9ca3af; font-size: 12px; padding: 20px;">${window.t('logs_empty') || '暂无拦截记录'}</div>`;
+        return;
+    }
+
+    const grouped = {};
+    todayLogs.forEach(log => {
+        if (!grouped[log.domain]) grouped[log.domain] = [];
+        grouped[log.domain].push(log);
+    });
+
+    const sortedDomains = Object.keys(grouped).map(domain => ({
+        domain: domain,
+        count: grouped[domain].length,
+        records: grouped[domain].reverse()
+    })).sort((a, b) => b.count - a.count);
+
+    list.innerHTML = sortedDomains.map((item) => {
+        const firstRecord = item.records[0];
+        const time = new Date(firstRecord.ts).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        const innerHTML = item.records.map(r => {
+            const rTime = new Date(r.ts).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+            return `<div style="display: flex; justify-content: space-between; padding: 6px 10px; font-size: 11px; color: #6b7280; border-bottom: 1px solid rgba(0,0,0,0.05);">
+                <span>${r.url || '未知路径'}</span>
+                <span>${rTime}</span>
+            </div>`;
+        }).join('');
+
+        return `
+        <details class="hover-card" style="background: rgba(255,255,255,0.6); border-radius: 8px; margin-bottom: 8px; overflow: hidden;">
+            <summary style="display: flex; justify-content: space-between; align-items: center; padding: 10px; outline: none; list-style: none;">
+                <div style="flex: 1; overflow: hidden;">
+                    <div style="font-weight: 600; font-size: 13px; color: #1c1c1e; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${item.domain}</div>
+                    <div style="font-size: 11px; color: #6b7280;">${firstRecord.type}</div>
+                </div>
+                <div style="display: flex; align-items: center; gap: 8px;">
+                    <span style="font-size: 12px; font-weight: bold; color: #3b82f6; background: rgba(59,130,246,0.1); padding: 2px 8px; border-radius: 12px;">${item.count} 次</span>
+                    <span style="font-size: 11px; color: #9ca3af;">${time}</span>
+                </div>
+            </summary>
+            <div style="background: rgba(255,255,255,0.4); padding: 4px 0;">${innerHTML}</div>
+        </details>`;
+    }).join('');
+}
+
+// 🌟 渲染累计统计与 Top 10 域名
+async function renderTotalStats() {
+    const res = await chrome.storage.local.get('dewsecure_logs');
+    const logs = Array.isArray(res.dewsecure_logs) ? res.dewsecure_logs : [];
+    const statsRes = await chrome.storage.local.get('dewsecure_stats');
+    const totalBlocked = statsRes.dewsecure_stats?.totalBlocked || logs.length;
+
+    const totalEl = document.getElementById('totalStatsValue');
+    if (totalEl) totalEl.textContent = totalBlocked;
+
+    const domainCounts = {};
+    logs.forEach(log => {
+        if (log.domain && log.domain !== '未知') {
+            domainCounts[log.domain] = (domainCounts[log.domain] || 0) + 1;
+        }
+    });
+
+    const topDomains = Object.entries(domainCounts).sort((a, b) => b[1] - a[1]).slice(0, 10);
+    const list = document.getElementById('topDomainsList');
+    if (!list) return;
+
+    if (topDomains.length === 0) {
+        list.innerHTML = `<div style="text-align: center; color: #9ca3af; font-size: 12px; padding: 10px;">暂无数据</div>`;
+        return;
+    }
+
+    list.innerHTML = topDomains.map((item, index) => {
+        return `<div class="hover-card" style="display: flex; justify-content: space-between; align-items: center; padding: 10px; background: rgba(255,255,255,0.6); border-radius: 8px;">
+            <div style="font-size: 13px; font-weight: 500; color: #1c1c1e;">
+                <span style="color: #6b7280; margin-right: 5px;">${index + 1}</span> ${item[0]}
+            </div>
+            <div style="font-size: 13px; font-weight: bold; color: #58a6ff;">${item[1]}</div>
+        </div>`;
+    }).join('');
+}
+
+
+// 🌟 监听本地存储变化，实现侧边栏数据实时更新
+let renderTimeout = null;
+chrome.storage.onChanged.addListener((changes, namespace) => {
+    if (namespace === 'local') {
+        // 如果统计或日志发生变化
+        if (changes['dewsecure_stats'] || changes['dewsecure_logs']) {
+            
+            // 防抖：避免瞬间拦截几十个导致前端频繁重绘
+            if (renderTimeout) clearTimeout(renderTimeout);
+            renderTimeout = setTimeout(() => {
+                // 1. 更新主页面的数字
+                chrome.storage.local.get('dewsecure_stats').then(res => {
+                    if (window.updateStats && res.dewsecure_stats) {
+                        window.updateStats(res.dewsecure_stats);
+                    }
+                });
+
+                // 2. 如果当前在详情页，刷新详情页
+                const logsView = document.getElementById('logsView');
+                if (logsView && !logsView.classList.contains('hidden')) {
+                    renderTodayLogs();
+                }
+
+                // 3. 如果当前在统计页，刷新统计页
+                const statsView = document.getElementById('statsView');
+                if (statsView && !statsView.classList.contains('hidden')) {
+                    renderTotalStats();
+                }
+            }, 300); // 300ms 防抖
+        }
+    }
+});
+
+const updateStats = (stats) => { if (typeof _updateStats === 'function') _updateStats(stats); };
+window.updateStats = updateStats;
 
 async function init() {
     bindMiscEvents();
@@ -135,9 +267,16 @@ function bindMiscEvents() {
         });
     });
 
-    document.getElementById('cardToday')?.addEventListener('click', () => switchView('logsView'));
+    document.getElementById('cardToday')?.addEventListener('click', () => {
+        switchView('logsView');
+        renderTodayLogs();
+    });
     document.getElementById('backFromLogs')?.addEventListener('click', () => switchView('mainView'));
-    document.getElementById('cardTotal')?.addEventListener('click', () => switchView('statsView'));
+    
+    document.getElementById('cardTotal')?.addEventListener('click', () => {
+        switchView('statsView');
+        renderTotalStats();
+    });
     document.getElementById('backFromStats')?.addEventListener('click', () => switchView('mainView'));
 
     document.getElementById('siteSwitch')?.addEventListener('change', (e) => {
