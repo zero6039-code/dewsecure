@@ -16,7 +16,6 @@ jobs:
       - name: Checkout Repository
         uses: actions/checkout@v4
         with:
-          ref: main
           fetch-depth: 0
 
       - name: Setup Node.js
@@ -41,28 +40,24 @@ jobs:
         run: |
           cd extensions/chrome/dist
           zip -r ../../../releases/chrome/chrome-v${{ env.VERSION }}.zip .
-          # 顺便为 Firefox 也生成一份，如果你需要的话
-          # zip -r ../../../releases/chrome/dewsecure-firefox-v${{ env.VERSION }}.zip .
 
       - name: Commit and Push Artifacts
         run: |
           git config --local user.email "github-actions[bot]@users.noreply.github.com"
           git config --local user.name "github-actions[bot]"
-          
-          # 把 dist 目录下未被追踪的文件也全部加上
           git add -A
           
           if ! git diff --staged --quiet; then
             git commit -m "chore: auto-build chrome extension v${{ env.VERSION }}"
-            # 使用 pull --no-rebase 合并最新代码，避免 rebase 报错
-            git pull origin main --no-rebase --no-edit
-            git push origin main
+            # 🌟 核心修复：强制推送到远端 main 分支，无视 detached HEAD
+            git pull origin main --rebase
+            git push origin HEAD:main
           else
             echo "No changes to commit"
           fi
 
       - name: Upload to GitHub Release
-        uses: softprops/action-gh-release@v1
+        uses: softprops/action-gh-release@v2
         with:
           files: releases/chrome/*.zip
           name: Release v${{ env.VERSION }}
