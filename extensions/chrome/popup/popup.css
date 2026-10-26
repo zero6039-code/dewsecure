@@ -1881,3 +1881,29 @@ body {
     background: linear-gradient(135deg, rgba(255,255,255,0.9), rgba(255,255,255,0.6)) !important;
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
 }
+
+
+/* 🌟 完美自适应布局 */
+html, body {
+    width: 100%;
+    min-width: 340px; /* 保证弹窗模式下不会被挤压变形 */
+    height: 100vh;    /* 在侧边栏中自动撑满全高 */
+    margin: 0;
+    padding: 0;
+    overflow: hidden; /* 防止双重滚动条 */
+}
+
+/* 确保主视图区域填满高度并可滚动 */
+.app {
+    height: 100%;
+    overflow-y: auto;
+    overflow-x: hidden;
+}
+
+
+/* 🌟 完美呼吸感：上下左右全部留白 */
+.app {
+    padding: 12px 12px 20px 12px !important;
+    box-sizing: border-box;
+    height: 100%;
+}
