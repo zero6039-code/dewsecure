@@ -95,5 +95,6 @@
   "auth_resend_cooldown": "Tidak menerima? Hantar semula dalam {s}s",
   "auth_verifying": "Mengesahkan...",
   "auth_network_error": "Ralat rangkaian. Sila cuba lagi.",
-  "auth_invalid_otp": "Sila masukkan kod 8 digit"
+  "auth_invalid_otp": "Sila masukkan kod 8 digit",
+  "type_dom_hidden": "Kandungan Disembunyi"
 }

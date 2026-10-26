@@ -1,5 +1,5 @@
 import { getSettings, SETTINGS_KEY, STATS_KEY, LOG_KEY } from './settings.js';
-import { recordBlock } from './stats.js';
+import { recordBlock, getMatchedStats } from './stats.js';
 
 export async function handleMessage(message, sender) {
     switch (message.type) {
@@ -9,7 +9,7 @@ export async function handleMessage(message, sender) {
                 const settings = await getSettings();
                 const isWhitelisted = (settings.whitelist || []).some(d => host === d || host.endsWith('.' + d)) ||
                                       (settings.tempWhitelist || []).some(d => host === d || host.endsWith('.' + d));
-                if (!isWhitelisted) await recordBlock(host + '/dom-hidden', '内容隐藏');
+                if (!isWhitelisted) await recordBlock(host + '/dom-hidden', 'dom-hidden');
             } catch(e) {}
             return { ok: true };
         case 'GET_LOGS':
@@ -39,13 +39,8 @@ export async function handleMessage(message, sender) {
                 return { ok: true };
             } catch (e) { return { ok: false, error: e.message }; }
         case 'GET_STATS':
-            let { [STATS_KEY]: rawStats } = await chrome.storage.local.get(STATS_KEY);
-            let { [LOG_KEY]: allLogs = [] } = await chrome.storage.local.get(LOG_KEY);
-            if (!Array.isArray(allLogs)) allLogs = [];
-            const todayStr = new Date().toDateString();
-            const todayCount = allLogs.filter(l => l.date === todayStr).length;
-            const totalCount = (rawStats && rawStats.totalBlocked) ? rawStats.totalBlocked : allLogs.length;
-            return { stats: { todayBlocked: todayCount, totalBlocked: totalCount }, settings: await getSettings() };
+            const stats = await getMatchedStats();
+            return { stats: stats, settings: await getSettings() };
         case 'REPORT_FEEDBACK':
             try {
                 const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });

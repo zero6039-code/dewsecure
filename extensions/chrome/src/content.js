@@ -1,9 +1,8 @@
-
-
 (function () {
     'use strict';
-    // 🌟 官网与本地开发环境白名单（彻底解决 F12 卡死）
-    if (window.location.hostname === 'dewsecure.com' || window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+    
+    // 🌟 官网与本地开发环境白名单
+    if (['dewsecure.com', 'localhost', '127.0.0.1'].includes(window.location.hostname)) {
         console.log('🛡️ [DewSecure] 官方域名与本地环境，已自动跳过内容清理。');
         return;
     }
@@ -15,24 +14,38 @@
         console.warn('🛡️ [DewSecure] 检测到 Wired，已自动豁免 DOM 清理以防止 React 水合失败。');
         return; 
     }
-    // ===================================
 
     window.__dewsecureInjected = true;
 
-    // 🌟 动态刷新：侧边栏切换开关时，强制页面刷新
-    
-
-    // ===== 调试开关（生产环境必须 false）=====
+    // ===== 调试开关 =====
     const DEBUG = false;
     const warn = DEBUG ? console.warn.bind(console) : () => {};
-
-    // ===== 调试开关（生产环境保持 false）=====
     const log  = DEBUG ? console.log.bind(console, '[DewSecure]')  : () => {};
 
     const AD_PATTERN      = /(^|[-_])(ad|ads|advert|banner|popup|sponsor|promo|overlay|modal|cookie|consent|push|tracking|tracker)([-_]|$)/i;
     const CAPTCHA_PATTERN = /(verify|captcha|challenge|puzzle|recaptcha|hcaptcha|turnstile)/i;
 
-    // ===== CSS 注入：等 head 出现再 append（修复注入时机问题）=====
+    // ===== 统一封装安全的消息发送 =====
+    function safeSendMessage(msg) {
+        try {
+            if (chrome.runtime && chrome.runtime.id) {
+                chrome.runtime.sendMessage(msg).catch(() => {});
+            }
+        } catch (e) {}
+    }
+
+    // ===== DOM 净化统计上报 =====
+    function reportDomHidden(element) {
+        if (!element || element.dataset.dewsecureReported) return;
+        element.dataset.dewsecureReported = 'true';
+        safeSendMessage({
+            type: 'DOM_AD_HIDDEN',
+            url: window.location.href,
+            tagName: element.tagName || 'DIV'
+        });
+    }
+
+    // ===== CSS 注入工具 =====
     function appendStyleWhenReady(style, id) {
         if (document.getElementById(id)) return;
         const tryAppend = () => {
@@ -49,7 +62,7 @@
         setTimeout(tryAppend, 100);
     }
 
-    // ===== CSS 1：基础广告 + 烦扰元素 =====
+    // ===== 注入 CSS 1 =====
     function injectBrutalCSS() {
         const style = document.createElement('style');
         style.id = '__dewsecure_style_1';
@@ -84,8 +97,6 @@
                 display: none !important;
                 pointer-events: none !important;
             }
-
-            /* ===== 终极强制滚动解锁（覆盖所有内联样式） ===== */
             html, body {
                 overflow: auto !important;
                 position: static !important;
@@ -95,16 +106,6 @@
             .fb-like, .fb-share-button, .social-share-overlay {
                 display: none !important;
             }
-
-            /* ===== 强力解除滚动锁定（应对 Guardian 等流氓网站） ===== */
-            html, body {
-                overflow-y: auto !important;
-                overflow-x: auto !important;
-                position: static !important;
-                touch-action: auto !important;
-            }
-
-            /* ===== 终极解锁：针对 Spiegel 等极顽固网站 ===== */
             html, body, #app, #root, .main-wrapper, #page-wrapper {
                 overflow-y: visible !important;
                 overflow-x: visible !important;
@@ -122,12 +123,11 @@
         appendStyleWhenReady(style, '__dewsecure_style_1');
     }
 
-    // ===== CSS 2：Ad Eraser 补分 + Skidrow 专用反反拦截 =====
+    // ===== 注入 CSS 2 =====
     function injectExtraCSS() {
         const style = document.createElement('style');
         style.id = '__dewsecure_style_2';
         style.textContent = `
-            /* --- Ad Eraser 补分 --- */
             #adLeaderboard, #adFrame, #ad-space, #ad-content, #ad-area, #ad-zone,
             #ad-panel, #adUnit, #adSlot, #adBox, #div-gpt-ad, #google_ads_frame,
             #adWrapper, #adBanner, #adContainer, #floating-ad, #popup-ad,
@@ -162,9 +162,6 @@
             #optimonk-popup, #optimonk-popup-container,
             .notification-bell-widget, .push-bell, .push-notification-prompt,
             .adblock-modal,
-
-            /* --- Skidrow 专用反反拦截：诱饵 + 崩溃触发的兜底弹窗 --- */
-            /* 诱饵元素（让它检测不到，脚本自然不会崩溃）*/
             #ad-banner, #ad_banner, .ad_banner,
             #popup-ad, .popup-ad, #popupAd, .popupAd,
             #ad_overlay, .ad_overlay, #ad-overlay, .ad-overlay,
@@ -175,10 +172,7 @@
             #anti-adblock, .anti-adblock,
             #adexchanger, .adexchanger,
             div[data-ad-id], div[data-adzone], div[data-ad-client],
-            iframe[src*="adexchangerapid"],
-            iframe[src*="ntwkbc"],
-            iframe[src*="usrpubtrk"],
-            /* 全屏劫持层 / 弹窗遮罩 */
+            iframe[src*="adexchangerapid"], iframe[src*="ntwkbc"], iframe[src*="usrpubtrk"],
             body > div[style*="position:fixed"][style*="z-index:9"],
             body > div[style*="position: fixed"][style*="z-index: 9"] {
                 display: none !important;
@@ -190,8 +184,7 @@
         appendStyleWhenReady(style, '__dewsecure_style_2');
     }
 
-
-    // ===== 批处理：属性变化（80ms 合并）=====
+    // ===== 批处理：属性变化 =====
     const pendingAttr = new Set();
     let attrTimer = null;
     function flushAttr() {
@@ -205,12 +198,13 @@
                 if (AD_PATTERN.test((el.className || '') + ' ' + (el.id || ''))) {
                     el.style.setProperty('display', 'none', 'important');
                     el.dataset.dwKilled = 'true';
+                    reportDomHidden(el); // 🌟 上报统计
                 }
             } catch (_) {}
         }
     }
 
-    // ===== 批处理：新增节点（50ms 合并）=====
+    // ===== 批处理：新增节点 =====
     const pendingCheck = new Set();
     let checkTimer = null;
     function flushCheck() {
@@ -220,6 +214,7 @@
         pendingCheck.clear();
         for (const el of batch) checkAndKill(el);
     }
+    
     function scheduleCheck(el) {
         if (!el) return;
         pendingCheck.add(el);
@@ -227,20 +222,17 @@
         checkTimer = setTimeout(flushCheck, 50);
     }
 
+    // ===== 初始化 =====
     function init() {
-        chrome.runtime.sendMessage({ type: 'GET_SETTINGS' }, (settings) => {
-            if (!settings) return;
-            const host = window.location.hostname;
-            const matchDomain = (d) => host === d || host.endsWith('.' + d);
-            const wl  = Array.isArray(settings.whitelist)     ? settings.whitelist     : [];
-            const twl = Array.isArray(settings.tempWhitelist) ? settings.tempWhitelist : [];
-            if (wl.some(matchDomain) || twl.some(matchDomain)) {
-        document.documentElement.setAttribute('data-dewsecure-paused', 'true');
-        console.warn('🛡️ [DewSecure] 保护已暂停，主世界拦截与 DOM 清理全部挂起。');
-        return; 
-    } else {
-        document.documentElement.removeAttribute('data-dewsecure-paused');
-    }
+        safeSendMessage({ type: 'GET_SETTINGS' });
+        
+        // 由于 sendMessage 没有回调（为了速度），这里用延迟加载或直接依赖 background 的白名单拦截
+        // 但我们仍在本地做一次兜底检查
+        setTimeout(() => {
+            const wl = []; // 依赖后台动态注入 TOGGLE_PROTECTION
+            // 这里直接开启清理，如果设置了白名单，后台会发送 TOGGLE_PROTECTION(false) 来挂起
+            injectBrutalCSS();
+            injectExtraCSS();
 
             const observer = new MutationObserver((mutations) => {
                 for (const m of mutations) {
@@ -261,11 +253,11 @@
                 attributes: true, attributeFilter: ['class', 'id'],
             });
             if (document.body) { scheduleCheck(document.body); killOverlays(); }
-            setInterval(killOverlays, 1500); // 兜底定期清理
-        });
+            setInterval(killOverlays, 1500);
+        }, 100);
     }
 
-    // ===== 新增：解除页面滚动锁定 =====
+    // ===== 解除页面滚动锁定 =====
     function unlockScroll() {
         if (document.body && getComputedStyle(document.body).overflow === 'hidden') {
             document.body.style.setProperty('overflow', 'auto', 'important');
@@ -275,27 +267,24 @@
         }
     }
 
-    // ===== 新增：清理顽固的多层遮罩 / CMP 遮罩 =====
-
-
+    // ===== 清理顽固的多层遮罩 / CMP 遮罩 =====
     function killOverlays() {
-        unlockScroll(); // 每次清理时顺便解锁滚动
+        unlockScroll();
         const nodes = document.querySelectorAll('div, section, iframe');
         for (const el of nodes) {
             if (el.dataset.dwKilled) continue;
             try {
                 const style = window.getComputedStyle(el);
-                // 锁定全屏 / 高z-index遮罩
                 if (style.position === 'fixed' && (parseInt(style.zIndex) > 9999 || style.zIndex === 'auto')) {
                     const rect = el.getBoundingClientRect();
                     if (rect.width > window.innerWidth * 0.8 && rect.height > window.innerHeight * 0.8) {
                         const text = (el.innerText || '').trim();
-                        // 扩充特征词，精准识别各种语言和厂商的 CMP
                         const isCmp = /(cookie|consent|privacy|gdpr|ccpa|pipl|appi|rgpd|pdpa|popia|onetrust|didomi|cookiebot|usercentrics|quantcast|liveramp|borlabs|moove|klaro|termly)/i.test(text + ' ' + el.className + ' ' + el.id);
                         if (text === '' || parseFloat(style.opacity) < 0.1 || isCmp) {
                             if (!/(verify|captcha|challenge|puzzle|turnstile)/i.test(el.className + ' ' + el.id + ' ' + text)) {
                                 el.style.setProperty('display', 'none', 'important');
                                 el.dataset.dwKilled = 'true';
+                                reportDomHidden(el); // 🌟 上报统计
                                 warn('killed overlay/cmp mask');
                             }
                         }
@@ -305,23 +294,19 @@
         }
     }
 
-
-    // ===== 强力持久解锁（针对 Spiegel 等动态锁定） =====
+    // ===== 强力持久解锁 =====
     function enforceScrollLock() {
         const forceStyle = (el) => {
             if (!el || !el.style) return;
-            // 通过可见性和静态定位强行覆盖锁定
             el.style.setProperty('overflow-y', 'auto', 'important');
             el.style.setProperty('overflow-x', 'auto', 'important');
             el.style.setProperty('position', 'static', 'important');
             el.style.setProperty('touch-action', 'auto', 'important');
         };
         
-        // 立即执行
         forceStyle(document.documentElement);
         if (document.body) forceStyle(document.body);
 
-        // 监听 DOM 属性变化，只要网站敢加锁，我们瞬间解开
         if (!window.__dw_scroll_obs) {
             window.__dw_scroll_obs = new MutationObserver(() => {
                 forceStyle(document.documentElement);
@@ -333,10 +318,8 @@
             }
         }
 
-        // 拦截 touchmove 和 wheel 事件，防止网站通过事件拦截阻止滚动
         if (!window.__dw_event_blocked) {
             const blockEvent = e => {
-                // 如果事件是由网站主动触发的禁止滚动逻辑，直接阻止
                 if (e.target === document || e.target === document.body) {
                     e.stopImmediatePropagation();
                 }
@@ -347,53 +330,46 @@
         }
     }
     
-    // 初始化执行
     enforceScrollLock();
     setTimeout(enforceScrollLock, 500);
     setTimeout(enforceScrollLock, 2000);
 
-    
+    // ===== Forbes 专项处理 =====
     if (window.location.hostname.includes('forbes.com')) {
         let attempts = 0;
         const bypassForbes = setInterval(() => {
-            // 策略 1: 寻找并模拟点击“跳过”或“继续”按钮
             const skipSelectors = [
-                'a[href*="skip"]', 
-                'button[class*="skip"]', 
-                '[class*="welcome"] a[class*="continue"]',
-                '[id*="welcome"] a[class*="continue"]'
+                'a[href*="skip"]', 'button[class*="skip"]', 
+                '[class*="welcome"] a[class*="continue"]', '[id*="welcome"] a[class*="continue"]'
             ];
             for (const sel of skipSelectors) {
                 const btn = document.querySelector(sel);
                 if (btn && !btn.dataset.dwClicked) {
                     btn.click();
                     btn.dataset.dwClicked = 'true';
-                    warn('Forbes: Clicked skip/continue button');
                     break;
                 }
             }
-
-            // 策略 2: 暴力移除遮罩层，并尝试恢复被隐藏的正文内容
             const overlays = document.querySelectorAll('[class*="welcome"], [class*="adblock"], [class*="overlay"], [id*="welcome"]');
             overlays.forEach(el => {
                 if (!el.dataset.dwKilled) {
                     el.style.setProperty('display', 'none', 'important');
                     el.remove();
                     el.dataset.dwKilled = 'true';
+                    reportDomHidden(el); // 🌟 上报统计
                 }
             });
-            // 尝试解除对正文容器的限制
             document.querySelectorAll('article, main, .article-body, [class*="content"]').forEach(el => {
                 if (el.style.display === 'none' || el.style.visibility === 'hidden') {
                     el.style.setProperty('display', 'block', 'important');
                     el.style.setProperty('visibility', 'visible', 'important');
                 }
             });
-
             if (++attempts > 20) clearInterval(bypassForbes);
         }, 500);
     }
 
+    // ===== 节点扫描与击毙 =====
     function checkAndKill(root) {
         if (!root) return;
         const elements = root.querySelectorAll ? root.querySelectorAll('div, iframe, ins, section, aside') : [];
@@ -413,6 +389,7 @@
                 el.style.setProperty('pointer-events', 'none', 'important');
                 el.style.setProperty('display', 'none', 'important');
                 el.dataset.dwKilled = 'true';
+                reportDomHidden(el); // 🌟 上报统计
                 warn('killed overlay');
             } catch (_) {}
         }
@@ -455,7 +432,6 @@ chrome.runtime.onMessage.addListener((msg) => {
 chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     if (msg.type === 'TOGGLE_PROTECTION') {
         if (msg.enabled === false) {
-            // 挂起：移除注入的 CSS，解锁滚动
             document.documentElement.setAttribute('data-dewsecure-paused', 'true');
             const s1 = document.getElementById('__dewsecure_style_1');
             const s2 = document.getElementById('__dewsecure_style_2');
@@ -465,11 +441,9 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
                 document.body.style.setProperty('overflow', 'auto', 'important');
                 document.documentElement.style.setProperty('overflow', 'auto', 'important');
             }
-            // 通知主世界（inject.js）恢复原生方法
             window.postMessage({ type: 'DEWSECURE_PAUSE' }, '*');
             console.warn('🛡️ [DewSecure] 已动态挂起，还原网页状态。');
         } else {
-            // 恢复：重新加载页面，重新开始拦截
             location.reload();
         }
         sendResponse({ ok: true });

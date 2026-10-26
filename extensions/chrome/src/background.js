@@ -75,3 +75,10 @@ import('./authManager.js').then(async ({ getCurrentUser }) => {
         reportDeviceSilently(user.token).catch(console.warn);
     }
 });
+
+// 🌟 Firefox 侧边栏自动打开逻辑
+if (typeof chrome !== 'undefined' && chrome.sidebarAction) {
+    chrome.action.onClicked.addListener(() => {
+        chrome.sidebarAction.open();
+    });
+}

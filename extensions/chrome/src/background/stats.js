@@ -40,18 +40,30 @@ export async function recordBlock(url, type = 'dnr') {
 }
 
 export function initStatsListener() {
-    chrome.declarativeNetRequest.onRuleMatchedDebug.addListener(async (info) => {
-        try {
-            const urlObj = new URL(info.request.url);
-            const host = urlObj.hostname;
-            const settings = await getSettings();
-            if ((settings.whitelist || []).some(d => host === d || host.endsWith('.' + d)) ||
-                (settings.tempWhitelist || []).some(d => host === d || host.endsWith('.' + d))) return;
+    if (chrome.declarativeNetRequest && chrome.declarativeNetRequest.onRuleMatchedDebug) {
+        chrome.declarativeNetRequest.onRuleMatchedDebug.addListener(async (info) => {
+            try {
+                const urlObj = new URL(info.request.url);
+                const host = urlObj.hostname;
+                const settings = await getSettings();
+                if ((settings.whitelist || []).some(d => host === d || host.endsWith('.' + d)) ||
+                    (settings.tempWhitelist || []).some(d => host === d || host.endsWith('.' + d))) return;
+                let type = 'dnr';
+                if (info.rule && info.rule.rulesetId && info.rule.rulesetId.includes('tracker')) type = 'tracker';
+                else if (info.rule && info.rule.rulesetId && info.rule.rulesetId.includes('ads')) type = 'ad';
+                await recordBlock(info.request.url, type);
+            } catch(e) {}
+        });
+    }
+}
 
-            let type = 'dnr';
-            if (info.rule && info.rule.rulesetId && info.rule.rulesetId.includes('tracker')) type = 'tracker';
-            else if (info.rule && info.rule.rulesetId && info.rule.rulesetId.includes('ads')) type = 'ad';
-            await recordBlock(info.request.url, type);
-        } catch(e) {}
-    });
+// 🌟 终极兜底：数据只看 LocalStorage，完全放弃在 Firefox 下查 API
+export async function getMatchedStats() {
+    // 直接读取我们在 DOM 上报和 Chrome Debug 上报时写入的本地数据
+    const { [STATS_KEY]: stats } = await chrome.storage.local.get(STATS_KEY);
+    
+    return {
+        todayBlocked: stats?.todayBlocked || 0,
+        totalBlocked: stats?.totalBlocked || 0
+    };
 }

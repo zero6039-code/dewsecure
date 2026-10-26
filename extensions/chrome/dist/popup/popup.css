@@ -1483,9 +1483,12 @@ body {
 
 /* ---- 语言选项 ---- */
 .lang-options {
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
+    display: grid !important;
+    grid-template-columns: 1fr;
+    gap: 8px;
+    max-height: 250px;
+    overflow-y: auto;
+    padding-right: 4px;
 }
 
 .lang-option {
@@ -1749,8 +1752,10 @@ body {
 
 /* 设置弹窗分栏 */
 .settings-card {
-    max-width: 340px;
+    width: 100% !important;
+    max-width: 380px !important;
     padding: 20px;
+    box-sizing: border-box;
 }
 .settings-container {
     display: flex;
@@ -1758,12 +1763,13 @@ body {
     height: 240px;
 }
 .settings-sidebar {
-    width: 90px;
+    width: 100px;
+    flex-shrink: 0;
     display: flex;
     flex-direction: column;
     gap: 4px;
     border-right: 1px solid rgba(0,0,0,0.06);
-    padding-right: 8px;
+    padding-right: 12px;
 }
 .settings-tab {
     display: flex;
@@ -1857,11 +1863,11 @@ body {
 /* 多语言按钮双列网格 */
 .lang-options {
     display: grid !important;
-    grid-template-columns: 1fr 1fr;
+    grid-template-columns: 1fr;
     gap: 8px;
     max-height: 250px;
     overflow-y: auto;
-    padding-right: 4px; /* 留出滚动条空间 */
+    padding-right: 4px;
 }
 .lang-option {
     margin-bottom: 0 !important;

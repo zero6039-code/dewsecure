@@ -1,45 +1,133 @@
 {
   "manifest_version": 3,
-  "name": "DewSecure",
-  "version": "0.1.0",
-  "description": "用户端内容优化引擎 - 你的设备，你的规则。",
-  "browser_specific_settings": {
-    "gecko": {
-      "id": "dewsecure@dewsecure.com",
-      "strict_min_version": "115.0"
-    }
-  },
+  "name": "DewSecure - Content Optimizer",
+  "version": "1.2.4",
+  "description": "On-device AI + 110,000+ rules. Stop phishing redirects, trackers, and intrusive popups. Privacy-first.",
   "permissions": [
-    "webRequest",
-    "webRequestBlocking",
-    "webRequestFilterResponse",
+    "declarativeNetRequest",
+    "declarativeNetRequestFeedback",
     "storage",
     "alarms",
     "scripting",
-    "tabs"
+    "tabs",
+    "webNavigation"
   ],
-  "host_permissions": ["<all_urls>"],
+  "host_permissions": [
+    "<all_urls>",
+    "https://cdn.dewsecure.com/*",
+    "https://dewsecure-api.zero6039.workers.dev/*"
+  ],
+  "content_security_policy": {
+    "extension_pages": "script-src 'self' 'wasm-unsafe-eval'; object-src 'self'"
+  },
   "background": {
-    "scripts": ["src/background.js"],
-    "type": "module"
+    "scripts": [
+      "src/background.js"
+    ]
   },
   "content_scripts": [
     {
-      "matches": ["<all_urls>"],
-      "js": ["src/content.js"],
+      "matches": [
+        "<all_urls>"
+      ],
+      "js": [
+        "src/content.js"
+      ],
+      "run_at": "document_start"
+    },
+    {
+      "matches": [
+        "<all_urls>"
+      ],
+      "js": [
+        "src/inject.js"
+      ],
       "run_at": "document_start",
-      "all_frames": true
+      "world": "MAIN"
     }
   ],
+  "declarative_net_request": {
+    "rule_resources": [
+      {
+        "id": "ads_1a",
+        "enabled": true,
+        "path": "rules/ads-1a.json"
+      },
+      {
+        "id": "ads_1b",
+        "enabled": true,
+        "path": "rules/ads-1b.json"
+      },
+      {
+        "id": "ads_2",
+        "enabled": true,
+        "path": "rules/ads-2.json"
+      },
+      {
+        "id": "ads_3",
+        "enabled": true,
+        "path": "rules/ads-3.json"
+      },
+      {
+        "id": "ads_4",
+        "enabled": true,
+        "path": "rules/ads-4.json"
+      },
+      {
+        "id": "trackers_1a",
+        "enabled": true,
+        "path": "rules/trackers-1a.json"
+      },
+      {
+        "id": "trackers_1b",
+        "enabled": true,
+        "path": "rules/trackers-1b.json"
+      },
+      {
+        "id": "trackers_2a",
+        "enabled": true,
+        "path": "rules/trackers-2a.json"
+      },
+      {
+        "id": "trackers_2b",
+        "enabled": true,
+        "path": "rules/trackers-2b.json"
+      },
+      {
+        "id": "anti_affiliate",
+        "enabled": true,
+        "path": "rules/anti-affiliate.json"
+      },
+      {
+        "id": "annoyances",
+        "enabled": false,
+        "path": "rules/annoyances.json"
+      }
+    ]
+  },
+  "icons": {
+    "16": "icons/icon-16.png",
+    "32": "icons/icon-32.png",
+    "48": "icons/icon-48.png",
+    "128": "icons/icon-128.png"
+  },
   "action": {
-    "default_popup": "popup/index.html",
     "default_icon": {
+      "16": "icons/icon-16.png",
+      "32": "icons/icon-32.png",
       "48": "icons/icon-48.png",
       "128": "icons/icon-128.png"
     }
   },
-  "icons": {
-    "48": "icons/icon-48.png",
-    "128": "icons/icon-128.png"
+  "sidebar_action": {
+    "default_panel": "popup/index.html",
+    "default_title": "DewSecure",
+    "default_icon": "icons/icon-48.png"
+  },
+  "browser_specific_settings": {
+    "gecko": {
+      "id": "dewsecure@dewsecure.com",
+      "strict_min_version": "109.0"
+    }
   }
 }

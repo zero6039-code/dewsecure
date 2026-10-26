@@ -95,5 +95,6 @@
   "auth_resend_cooldown": "Didn't receive? Resend in {s}s",
   "auth_verifying": "Verifying...",
   "auth_network_error": "Network error. Please try again.",
-  "auth_invalid_otp": "Please enter an 8-digit code"
+  "auth_invalid_otp": "Please enter an 8-digit code",
+  "type_dom_hidden": "Content Hidden"
 }
