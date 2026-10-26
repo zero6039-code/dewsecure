@@ -130,5 +130,10 @@
   "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAtkg6OlWuWqV789Hzr8YhO0Yd3mhbSHNsCfpBjW79EBq5TYUW0HumDVrJgPPIczuK2BROHafk1wSm1l5l2+axaimccYfDGpn3hTRrHBmuY+OneZqORp90etBEX9sraOlcWp8wONRX5daHuGvtArUB+gsiktT3su1LzsjU//YrS07qDe1dIPYlrRFkksK/clmq/gkPE/wQxj+J2aMXcUuenjpd+4CsIssW4y+5T4Es4WizuKqj96i9ryilbm3vBI9uw8cn6ki5F7Ogf49l/lrGb3Dn1p8HUaqjygSKgq2bIYW/cRIoZDaC/2TxrZ0TKmInXPlIHL/8mOpOI1D5sRTxSwIDAQAB",
   "side_panel": {
     "default_path": "popup/index.html"
+  },
+  "sidebar_action": {
+    "default_panel": "popup/index.html",
+    "default_title": "DewSecure",
+    "default_icon": "icons/icon-48.png"
   }
 }
