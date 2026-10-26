@@ -84,7 +84,7 @@ async function renderTodayLogs() {
             <summary style="display: flex; justify-content: space-between; align-items: center; padding: 10px; outline: none; list-style: none;">
                 <div style="flex: 1; overflow: hidden;">
                     <div style="font-weight: 600; font-size: 13px; color: #1c1c1e; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${item.domain}</div>
-                    <div style="font-size: 11px; color: #6b7280;">${firstRecord.type}</div>
+                    <div style="font-size: 11px; color: #6b7280;">${getTypeText(firstRecord.type)}</div>
                 </div>
                 <div style="display: flex; align-items: center; gap: 8px;">
                     <span style="font-size: 12px; font-weight: bold; color: #3b82f6; background: rgba(59,130,246,0.1); padding: 2px 8px; border-radius: 12px;">${item.count} ${window.t('log_times')}</span>
