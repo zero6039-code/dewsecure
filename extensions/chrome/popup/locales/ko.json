@@ -88,5 +88,8 @@
   "unsupported_page": "지원되지 않는 페이지",
   "status_unavailable": "사용 불가",
   "log_items": "개",
-  "log_times": "회"
+  "log_times": "회",
+  "type_tracker": "트래커",
+  "type_dnr": "DNR 규칙",
+  "type_ad": "광고"
 }

@@ -88,5 +88,8 @@
   "unsupported_page": "Nicht unterstützte Seite",
   "status_unavailable": "Nicht verfügbar",
   "log_items": "Einträge",
-  "log_times": "Mal"
+  "log_times": "Mal",
+  "type_tracker": "Tracker",
+  "type_dnr": "DNR-Regel",
+  "type_ad": "Anzeige"
 }

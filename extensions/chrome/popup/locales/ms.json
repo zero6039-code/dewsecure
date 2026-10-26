@@ -88,5 +88,8 @@
   "unsupported_page": "Halaman Tidak Disokong",
   "status_unavailable": "Tidak Tersedia",
   "log_items": "item",
-  "log_times": "kali"
+  "log_times": "kali",
+  "type_tracker": "Penjejak",
+  "type_dnr": "Peraturan DNR",
+  "type_ad": "Iklan"
 }

@@ -195,7 +195,7 @@ async function recordDetailedBlock(url, type) {
     } catch (e) {}
 }
 
-async function recordBlock(url, type = 'DNR规则') {
+async function recordBlock(url, type = 'dnr') {
     // 🌟 1. 先写详细日志（确保 logs 先落盘）
     await recordDetailedBlock(url, type);
 
@@ -229,9 +229,9 @@ chrome.declarativeNetRequest.onRuleMatchedDebug.addListener(async (info) => {
                               (settings.tempWhitelist || []).some(d => host === d || host.endsWith('.' + d));
         if (isWhitelisted) return;
 
-        let type = 'DNR规则';
-        if (info.rule && info.rule.rulesetId && info.rule.rulesetId.includes('tracker')) type = '追踪器';
-        else if (info.rule && info.rule.rulesetId && info.rule.rulesetId.includes('ads')) type = '广告';
+        let type = 'dnr';
+        if (info.rule && info.rule.rulesetId && info.rule.rulesetId.includes('tracker')) type = 'tracker';
+        else if (info.rule && info.rule.rulesetId && info.rule.rulesetId.includes('ads')) type = 'ad';
         
         await recordBlock(info.request.url, type);
     } catch(e) {}

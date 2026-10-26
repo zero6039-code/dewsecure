@@ -88,5 +88,8 @@
   "unsupported_page": "Page non prise en charge",
   "status_unavailable": "Indisponible",
   "log_items": "éléments",
-  "log_times": "fois"
+  "log_times": "fois",
+  "type_tracker": "Traqueur",
+  "type_dnr": "Règle DNR",
+  "type_ad": "Publicité"
 }

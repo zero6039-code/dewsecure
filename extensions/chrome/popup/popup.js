@@ -1,3 +1,4 @@
+function getTypeText(type) { const t = window.t || (window.i18n && window.i18n.t) || ((k) => k); const map = { dnr: "type_dnr", tracker: "type_tracker", ad: "type_ad" }; const key = map[type]; return (key && t(key)) ? t(key) : type; }
 // ==========================================
 // 📁 popup.js (主入口 - 终极稳定版)
 // ==========================================

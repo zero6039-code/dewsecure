@@ -88,5 +88,8 @@
   "unsupported_page": "当前页面不支持",
   "status_unavailable": "不可用",
   "log_items": "条",
-  "log_times": "次"
+  "log_times": "次",
+  "type_tracker": "追踪器",
+  "type_dnr": "DNR规则",
+  "type_ad": "广告"
 }

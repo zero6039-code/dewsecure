@@ -88,5 +88,8 @@
   "unsupported_page": "Página no compatible",
   "status_unavailable": "No disponible",
   "log_items": "elementos",
-  "log_times": "veces"
+  "log_times": "veces",
+  "type_tracker": "Rastreador",
+  "type_dnr": "Regla DNR",
+  "type_ad": "Anuncio"
 }

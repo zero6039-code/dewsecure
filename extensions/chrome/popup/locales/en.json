@@ -88,5 +88,8 @@
   "unsupported_page": "Unsupported Page",
   "status_unavailable": "Unavailable",
   "log_items": "items",
-  "log_times": "times"
+  "log_times": "times",
+  "type_tracker": "Tracker",
+  "type_dnr": "DNR Rule",
+  "type_ad": "Ad"
 }

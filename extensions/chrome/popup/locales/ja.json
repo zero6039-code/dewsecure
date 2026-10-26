@@ -88,5 +88,8 @@
   "unsupported_page": "サポートされていないページ",
   "status_unavailable": "利用不可",
   "log_items": "件",
-  "log_times": "回"
+  "log_times": "回",
+  "type_tracker": "トラッカー",
+  "type_dnr": "DNRルール",
+  "type_ad": "広告"
 }
