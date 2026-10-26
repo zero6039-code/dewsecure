@@ -89,6 +89,37 @@ def download_legit_domains(limit=100000):
     return legit
 
 
+
+def mark_feedbacks_as_processed():
+    """训练数据提取完毕后，将 pending 状态标记为 processed"""
+    supabase_url = os.environ.get("SUPABASE_URL")
+    service_key = os.environ.get("SUPABASE_SERVICE_ROLE_KEY")
+    
+    if not supabase_url or not service_key:
+        print("⚠️ 未配置 SUPABASE_SERVICE_ROLE_KEY，跳过状态更新。")
+        return
+
+    print("🧹 正在将已处理的反馈标记为 processed...")
+    headers = {
+        "apikey": service_key,
+        "Authorization": f"Bearer {service_key}",
+        "Content-Type": "application/json",
+        "Prefer": "return=minimal"
+    }
+    
+    try:
+        # 批量更新所有 pending 的数据为 processed
+        res = requests.patch(
+            f"{supabase_url}/rest/v1/reports?status=eq.pending",
+            headers=headers,
+            json={"status": "processed"},
+            timeout=30
+        )
+        res.raise_for_status()
+        print("✅ 状态标记完成，下周不会重复训练这批数据！")
+    except Exception as e:
+        print(f"❌ 标记状态失败: {e}")
+
 def fetch_supabase_feedbacks():
     """从 Supabase 获取有效反馈数据"""
     supabase_url = os.environ.get("SUPABASE_URL")
@@ -185,6 +216,9 @@ def build_dataset():
     print(f"\n训练集: {len(df[:split])} 条")
     print(f"测试集: {len(df[split:])} 条")
     print(f"标签分布:\n{df['label'].value_counts().sort_index()}")
+
+    # 🌟 提取并写入 CSV 成功后，标记数据库状态，防止重复训练
+    mark_feedbacks_as_processed()
 
 
 if __name__ == "__main__":

@@ -26,11 +26,12 @@ jobs:
           pip install -r models/training/requirements.txt
           pip install onnx skl2onnx onnxruntime
 
-      - name: 下载数据集 (含 Supabase 反馈拉取)
+      - name: 下载数据集 (含 Supabase 反馈拉取与标记)
         working-directory: models
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }} # 🌟 新增：用于修改数据状态
         run: python training/data_prep.py
 
       - name: 训练模型
@@ -40,17 +41,6 @@ jobs:
       - name: 导出 ONNX
         working-directory: models
         run: python conversion/to_onnx.py
-
-      - name: 调试 - 检查文件系统
-        run: |
-          echo "=== 仓库根目录 ==="
-          pwd
-          echo ""
-          echo "=== models/weights/ 内容 ==="
-          ls -la models/weights/ || echo "目录不存在"
-          echo ""
-          echo "=== 查找 model_meta.json ==="
-          find . -name "model_meta.json" -type f 2>/dev/null || echo "找不到"
 
       - name: 读取模型元信息
         id: meta
@@ -85,14 +75,14 @@ jobs:
           no_check_bucket = true
           RCLONE_EOF
 
-      - name: 上传模型到 R2
+      - name: 上传模型到 R2 (优化分块防报错)
         run: |
           rclone copy models/weights/classifier_int8.onnx \
-            r2:${{ secrets.R2_BUCKET }}/latest/ --s3-no-check-bucket
+            r2:${{ secrets.R2_BUCKET }}/latest/ --s3-no-check-bucket --s3-chunk-size 5M --s3-upload-concurrency 2
           rclone copy models/weights/model_meta.json \
-            r2:${{ secrets.R2_BUCKET }}/latest/ --s3-no-check-bucket
+            r2:${{ secrets.R2_BUCKET }}/latest/ --s3-no-check-bucket --s3-chunk-size 5M --s3-upload-concurrency 2
           rclone copy models/weights/classifier_int8.onnx \
-            r2:${{ secrets.R2_BUCKET }}/${{ steps.meta.outputs.version }}/ --s3-no-check-bucket
+            r2:${{ secrets.R2_BUCKET }}/${{ steps.meta.outputs.version }}/ --s3-no-check-bucket --s3-chunk-size 5M --s3-upload-concurrency 2
 
           echo "=== latest 目录内容 ==="
           rclone ls r2:${{ secrets.R2_BUCKET }}/latest/ --s3-no-check-bucket
