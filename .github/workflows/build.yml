@@ -1,22 +1,24 @@
-name: Build Extension
+name: Build & Release Extension
 
 on:
   push:
     tags:
-      - 'v*'
-  workflow_dispatch:
+      - 'v*' # 打 tag 时触发
+  workflow_dispatch: # 允许手动触发
 
+# 赋予 Actions 推送代码的权限
 permissions:
-  contents: read
+  contents: write
 
 jobs:
-  build-check:
+  build-and-release:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
+      - name: Checkout Repository
         uses: actions/checkout@v4
         with:
-          ref: ${{ github.event.repository.default_branch }} # 修复 detached HEAD
+          ref: main
+          fetch-depth: 0
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -28,7 +30,32 @@ jobs:
           cd extensions/chrome
           npm install
           npm run build
+
+      - name: Get Version & Prepare Release Directory
+        id: get_version
+        run: |
+          # 从 manifest.json 提取版本号
+          VERSION=$(node -p "require('./extensions/chrome/manifest.json').version")
+          echo "VERSION=$VERSION" >> $GITHUB_ENV
+          mkdir -p releases/chrome
+
+      - name: Create Zip Archive
+        run: |
+          cd extensions/chrome/dist
+          # 打包为 chrome-v版本号.zip 并存放到根目录
+          zip -r ../../../releases/chrome/chrome-v${{ env.VERSION }}.zip .
+
+      - name: Commit and Push Artifacts
+        run: |
+          git config --local user.email "github-actions[bot]@users.noreply.github.com"
+          git config --local user.name "github-actions[bot]"
+          git add releases/
           
-      # ⚠️ 注意：我们删除了之前的 "Commit and Push Artifacts" 步骤。
-      # 因为 Github Actions 环境没有模型文件，打出来的包是坏的。
-      # 我们将使用本地手动打包并推送的 releases/chrome/chrome-v1.2.2.zip 作为最终成品。
+          if ! git diff --staged --quiet; then
+            git commit -m "chore: auto-build chrome extension v${{ env.VERSION }}"
+            # 拉取最新代码避免冲突，然后再推送
+            git pull origin main --rebase
+            git push origin main
+          else
+            echo "No changes to commit"
+          fi
