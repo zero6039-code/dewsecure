@@ -91,5 +91,9 @@
   "log_times": "times",
   "type_tracker": "Tracker",
   "type_dnr": "DNR Rule",
-  "type_ad": "Ad"
+  "type_ad": "Ad",
+  "auth_resend_cooldown": "Didn't receive? Resend in {s}s",
+  "auth_verifying": "Verifying...",
+  "auth_network_error": "Network error. Please try again.",
+  "auth_invalid_otp": "Please enter an 8-digit code"
 }

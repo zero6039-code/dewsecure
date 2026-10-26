@@ -1,7 +1,6 @@
 // ==========================================
 // 📁 auth-ui.js
 // 职责：专门处理认证弹窗（登录/注册）的所有逻辑。
-// 包含：发送 OTP、验证 OTP、重发倒计时（30秒）、Enter键支持、防刷爆与防卡死。
 // ==========================================
 
 import { sendOTP, verifyOTP, getCurrentUser } from '../src/authManager.js';
@@ -37,14 +36,18 @@ export function initAuthUI() {
     const emailHint = document.getElementById('emailHint');
     const otpHint = document.getElementById('otpHint');
 
-    // 🛡️ 防刷冷却倒计时（默认30秒）
+    // 🛡️ 防刷冷却倒计时
     const startCooldown = (btn, originalText, seconds = 60) => {
         let count = seconds;
         btn.disabled = true;
-        btn.textContent = `未收到？${count}s 后可重发`;
+        
+        // 🌟 多语言修复
+        const tpl = window.t ? window.t('auth_resend_cooldown') : "未收到？{s}s 后可重发";
+        btn.textContent = tpl.replace('{s}', count);
+
         const timer = setInterval(() => {
             count--;
-            btn.textContent = `未收到？${count}s 后可重发`;
+            btn.textContent = tpl.replace('{s}', count);
             if (count <= 0) {
                 clearInterval(timer);
                 btn.disabled = false;
@@ -59,35 +62,30 @@ export function initAuthUI() {
         const email = emailInput.value.trim();
         
         if (!email || !email.includes('@')) {
-            if (emailHint) { emailHint.textContent = '请输入有效的邮箱地址'; emailHint.style.color = '#f85149'; emailHint.style.display = 'block'; }
+            if (emailHint) { emailHint.textContent = window.t ? window.t('auth_invalid_email') : '请输入有效的邮箱地址'; emailHint.style.color = '#f85149'; emailHint.style.display = 'block'; }
             return;
         }
 
         btnSend.disabled = true;
-        btnSend.textContent = '发送中...';
+        btnSend.textContent = '...';
         if (emailHint) emailHint.style.display = 'none';
 
         try {
             const res = await sendOTP(email);
             if (res.ok) {
-                document.getElementById('sentEmail').textContent = email;
                 showAuthStep('otp');
-                // 发送成功后，立刻给重发按钮加上 30 秒冷却
-                if (btnResend) startCooldown(btnResend, '重新发送验证码', 60);
+                document.getElementById('sentEmail').textContent = email;
+                // 开启重发倒计时
+                startCooldown(btnResend, window.t ? window.t('auth_resend') : '重新发送验证码', 60);
             } else {
                 if (emailHint) { emailHint.textContent = res.error || '发送失败'; emailHint.style.color = '#f85149'; emailHint.style.display = 'block'; }
                 btnSend.disabled = false;
-                btnSend.textContent = '发送验证码';
+                btnSend.textContent = window.t ? window.t('auth_send') : '发送验证码';
             }
         } catch (e) {
-            if (emailHint) { emailHint.textContent = '网络异常，请检查网络'; emailHint.style.color = '#f85149'; emailHint.style.display = 'block'; }
+            if (emailHint) { emailHint.textContent = window.t ? window.t('auth_network_error') : '网络异常'; emailHint.style.color = '#f85149'; emailHint.style.display = 'block'; }
             btnSend.disabled = false;
-            btnSend.textContent = '发送验证码';
-        } finally {
-            // 发送成功后主按钮进入长时间冷却（60秒），防止回退再发
-            if (btnSend.textContent === '发送中...') {
-                if (!btnSend.dataset.cooldown) startCooldown(btnSend, '发送验证码', 60);
-            }
+            btnSend.textContent = window.t ? window.t('auth_send') : '发送验证码';
         }
     };
 
@@ -97,12 +95,16 @@ export function initAuthUI() {
         const otp = otpInput.value.trim();
         
         if (otp.length !== 8) {
-            if (otpHint) { otpHint.textContent = '请输入 8 位验证码'; otpHint.style.color = '#f85149'; otpHint.style.display = 'block'; }
+            if (otpHint) { 
+                otpHint.textContent = window.t ? window.t('auth_invalid_otp') : '请输入 8 位验证码'; 
+                otpHint.style.color = '#f85149'; 
+                otpHint.style.display = 'block'; 
+            }
             return;
         }
 
         btnVerify.disabled = true;
-        btnVerify.textContent = '验证中...';
+        btnVerify.textContent = window.t ? window.t('auth_verifying') : '验证中...';
         if (otpHint) otpHint.style.display = 'none';
 
         try {
@@ -113,16 +115,15 @@ export function initAuthUI() {
                 const user = await getCurrentUser();
                 showAuthStep('logged-in');
                 renderLoggedInView(user);
-                // 保持弹窗显示，让用户确认状态。主界面的刷新在用户关闭弹窗时触发。
             } else {
                 if (otpHint) { otpHint.textContent = res.error || '验证失败，请检查验证码'; otpHint.style.color = '#f85149'; otpHint.style.display = 'block'; }
                 btnVerify.disabled = false;
-                btnVerify.textContent = '验证';
+                btnVerify.textContent = window.t ? window.t('auth_verify') : '验证';
             }
         } catch (e) {
-            if (otpHint) { otpHint.textContent = '网络异常，请稍后再试'; otpHint.style.color = '#f85149'; otpHint.style.display = 'block'; }
+            if (otpHint) { otpHint.textContent = window.t ? window.t('auth_network_error') : '网络异常，请稍后再试'; otpHint.style.color = '#f85149'; otpHint.style.display = 'block'; }
             btnVerify.disabled = false;
-            btnVerify.textContent = '验证';
+            btnVerify.textContent = window.t ? window.t('auth_verify') : '验证';
         }
     };
 
@@ -131,12 +132,23 @@ export function initAuthUI() {
     if (btnVerify) btnVerify.onclick = doVerifyOtp;
     if (btnBack) btnBack.onclick = () => showAuthStep('email');
 
-    // 4. 绑定 Enter 键
+    // 4. 绑定 Enter 键与自动提交
     if (emailInput) {
         emailInput.onkeydown = (e) => { if (e.key === 'Enter') { e.preventDefault(); doSendOtp(); } };
     }
     if (otpInput) {
         otpInput.onkeydown = (e) => { if (e.key === 'Enter') { e.preventDefault(); doVerifyOtp(); } };
+        
+        // 🌟 高端体验：粘贴或输入满 8 位，自动过滤非数字并提交
+        otpInput.oninput = (e) => {
+            // 1. 只保留数字，并强制截断到 8 位
+            e.target.value = e.target.value.replace(/\D/g, '').slice(0, 8);
+            
+            // 2. 自动提交（给 100ms 缓冲，防止用户按退格键时误触）
+            if (e.target.value.length === 8 && !btnVerify.disabled) {
+                setTimeout(() => doVerifyOtp(), 100);
+            }
+        };
     }
 
     // 5. 重发按钮（带防刷与错误捕获）
@@ -144,25 +156,23 @@ export function initAuthUI() {
         btnResend.onclick = async () => {
             if (btnResend.disabled) return;
             
-            const orig = '重新发送验证码';
+            const orig = window.t ? window.t('auth_resend') : '重新发送验证码';
             btnResend.disabled = true;
-            btnResend.textContent = '发送中...';
-            if (otpHint) otpHint.style.display = 'none';
+            btnResend.textContent = '...';
             
             try {
                 const email = document.getElementById('sentEmail').textContent;
                 const res = await sendOTP(email);
                 if (res.ok) {
-                    if (otpHint) { otpHint.textContent = '✅ 验证码已重新发送'; otpHint.style.color = '#3fb950'; otpHint.style.display = 'block'; }
                     startCooldown(btnResend, orig, 60);
                 } else {
-                    // 🚨 核心修复：把 Supabase 的限流错误暴露出来
-                    if (otpHint) { otpHint.textContent = res.error || '发送失败'; otpHint.style.color = '#f85149'; otpHint.style.display = 'block'; }
-                    startCooldown(btnResend, orig, 60); // 失败也要冷却30秒，防止狂点
+                    alert(res.error || '发送失败');
+                    btnResend.disabled = false;
+                    btnResend.textContent = orig;
                 }
             } catch (e) {
-                if (otpHint) { otpHint.textContent = '网络异常'; otpHint.style.color = '#f85149'; otpHint.style.display = 'block'; }
-                startCooldown(btnResend, orig, 60);
+                btnResend.disabled = false;
+                btnResend.textContent = orig;
             }
         };
     }

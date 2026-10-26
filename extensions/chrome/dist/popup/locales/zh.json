@@ -91,5 +91,9 @@
   "log_times": "次",
   "type_tracker": "追踪器",
   "type_dnr": "DNR规则",
-  "type_ad": "广告"
+  "type_ad": "广告",
+  "auth_resend_cooldown": "未收到？{s}s 后可重发",
+  "auth_verifying": "验证中...",
+  "auth_network_error": "网络异常，请稍后再试",
+  "auth_invalid_otp": "请输入 8 位验证码"
 }

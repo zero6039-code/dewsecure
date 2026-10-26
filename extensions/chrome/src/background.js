@@ -274,8 +274,9 @@ async function handleMessage(message, sender) {
                         priority: 1000000, 
                         action: { type: 'allowAllRequests' }, // 🌟 核心：放行所有类型请求
                         condition: { 
-                            initiatorDomains: [message.domain],
-                            requestDomains: [message.domain]  // 🌟 同时放行发往该域名的请求
+                            initiatorDomains: [message.domain], 
+                            requestDomains: [message.domain], 
+                            resourceTypes: ["main_frame", "sub_frame"] 
                         }
                     }]
                 });

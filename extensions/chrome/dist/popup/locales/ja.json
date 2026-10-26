@@ -91,5 +91,9 @@
   "log_times": "回",
   "type_tracker": "トラッカー",
   "type_dnr": "DNRルール",
-  "type_ad": "広告"
+  "type_ad": "広告",
+  "auth_resend_cooldown": "届きませんか？{s}秒後に再送",
+  "auth_verifying": "確認中...",
+  "auth_network_error": "ネットワークエラー。もう一度お試しください。",
+  "auth_invalid_otp": "8桁のコードを入力してください"
 }

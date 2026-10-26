@@ -91,5 +91,9 @@
   "log_times": "fois",
   "type_tracker": "Traqueur",
   "type_dnr": "Règle DNR",
-  "type_ad": "Publicité"
+  "type_ad": "Publicité",
+  "auth_resend_cooldown": "Pas reçu ? Renvoyer dans {s}s",
+  "auth_verifying": "Vérification...",
+  "auth_network_error": "Erreur réseau. Veuillez réessayer.",
+  "auth_invalid_otp": "Veuillez saisir un code à 8 chiffres"
 }

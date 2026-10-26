@@ -91,5 +91,9 @@
   "log_times": "veces",
   "type_tracker": "Rastreador",
   "type_dnr": "Regla DNR",
-  "type_ad": "Anuncio"
+  "type_ad": "Anuncio",
+  "auth_resend_cooldown": "¿No lo recibiste? Reenviar en {s}s",
+  "auth_verifying": "Verificando...",
+  "auth_network_error": "Error de red. Inténtalo de nuevo.",
+  "auth_invalid_otp": "Por favor, introduce un código de 8 dígitos"
 }
