@@ -45,7 +45,7 @@ async function renderTodayLogs() {
     const todayLogs = logs.filter(l => l.date === todayStr);
 
     const badge = document.getElementById('logCountBadge');
-    if (badge) badge.textContent = `${todayLogs.length} 条`;
+    if (badge) badge.textContent = `${todayLogs.length} ${window.t('log_items')}`;
 
     const list = document.getElementById('logsList');
     if (!list) return;
@@ -86,7 +86,7 @@ async function renderTodayLogs() {
                     <div style="font-size: 11px; color: #6b7280;">${firstRecord.type}</div>
                 </div>
                 <div style="display: flex; align-items: center; gap: 8px;">
-                    <span style="font-size: 12px; font-weight: bold; color: #3b82f6; background: rgba(59,130,246,0.1); padding: 2px 8px; border-radius: 12px;">${item.count} 次</span>
+                    <span style="font-size: 12px; font-weight: bold; color: #3b82f6; background: rgba(59,130,246,0.1); padding: 2px 8px; border-radius: 12px;">${item.count} ${window.t('log_times')}</span>
                     <span style="font-size: 11px; color: #9ca3af;">${time}</span>
                 </div>
             </summary>
