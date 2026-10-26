@@ -1,5 +1,5 @@
 /**
- * DewSecure 认证管理器（真实线上版）
+ * DewSecure 认证管理器（真实线上版 - 终极修复）
  */
 const USER_KEY = 'dewsecure_user';
 const SETTINGS_KEY = 'dewsecure_settings';
@@ -59,12 +59,10 @@ export async function saveExternalAuth(payload) {
     if (!token) return { ok: false, error: 'Missing token' };
 
     const { [USER_KEY]: oldUser } = await chrome.storage.local.get(USER_KEY);
-    // 🌟 判断这是不是一个完整的业务数据包（比如来自 page-dashboard.js）
     const isFullPayload = tier !== undefined;
 
     const user = { 
         email: email || oldUser?.email || '',
-        // 只有提供了 tier 才更新，否则保留原有数据，防止被 app-init.js 的空包洗掉
         tier: tier !== undefined ? tier : (oldUser?.tier || 'free'), 
         token: token, 
         refreshToken: refreshToken || oldUser?.refreshToken || null,
@@ -82,8 +80,6 @@ export async function saveExternalAuth(payload) {
     settings.tier = user.tier;
     await chrome.storage.local.set({ [SETTINGS_KEY]: settings });
 
-    console.log('✅ [AuthManager] 数据已更新:', user.email, '当前Tier:', user.tier, '(完整包:', isFullPayload, ')');
-    
     if (isFullPayload) {
         chrome.runtime.sendMessage({ type: 'AUTH_STATE_CHANGED' }).catch(() => {});
     }
@@ -118,7 +114,7 @@ export async function fetchUserProfile() {
     if (!user || !user.token) return null;
 
     try {
-        // 1. 获取 Profile
+        // 1. 获取 Profile (拉取所有需要的字段)
         const res = await fetch(`${SUPABASE_URL}/rest/v1/profiles?select=*`, {
             headers: { 'apikey': SUPABASE_ANON_KEY, 'Authorization': `Bearer ${user.token}` }
         });
@@ -129,15 +125,32 @@ export async function fetchUserProfile() {
             const profiles = await res.json();
             if (profiles && profiles.length > 0) {
                 const p = profiles[0];
-                // 如果 profile 表里带了 family_owner_id，或者原本缓存里就有，说明是子账号
                 updatedUser.familyOwnerId = p.family_owner_id || user.familyOwnerId || null;
                 isFamilySub = !!updatedUser.familyOwnerId;
 
-                // 🌟 核心防降级：如果不是子账号，才允许用 profile 里的普通 tier 覆盖
-                // 如果是子账号，绝不用 profile 表的 tier 覆盖现有的 family 状态
                 if (!isFamilySub) {
                     updatedUser.tier = p.tier || 'free';
-                    updatedUser.expiresAt = p.trial_ends_at || null;
+                    
+                    // 🌟 核心修复：把真实的返利天数和订阅时间拉出来
+                    let baseTime = Date.now();
+                    if (p.subscription_ends_at && new Date(p.subscription_ends_at).getTime() > baseTime) {
+                        baseTime = new Date(p.subscription_ends_at).getTime();
+                    }
+                    
+                    let balance = p.referral_days_balance || 0;
+                    
+                    if (balance > 0 || baseTime > Date.now()) {
+                        // 算入返利天数
+                        let finalTime = new Date(baseTime + (balance * 86400000));
+                        updatedUser.expiresAt = finalTime.toISOString();
+                        
+                        // 有有效期，强行提权
+                        if (updatedUser.tier === 'free') {
+                            updatedUser.tier = 'pro';
+                        }
+                    } else {
+                        updatedUser.expiresAt = p.trial_ends_at || null;
+                    }
                 }
             }
         }
@@ -153,7 +166,7 @@ export async function fetchUserProfile() {
             }
         } catch(e) {}
 
-        // 3. 如果是子账号，或者本地缓存本来是 family，必须强查 RPC 更新时间和邮箱
+        // 3. 如果是子账号，强查 RPC
         if (isFamilySub || user.tier === 'family') {
             try {
                 const rpcRes = await fetch(`${SUPABASE_URL}/rest/v1/rpc/get_family_shared_status`, {
