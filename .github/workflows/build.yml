@@ -6,7 +6,6 @@ on:
       - 'v*' # 打 tag 时触发
   workflow_dispatch: # 允许手动触发
 
-# 赋予 Actions 推送代码的权限
 permissions:
   contents: write
 
@@ -34,7 +33,6 @@ jobs:
       - name: Get Version & Prepare Release Directory
         id: get_version
         run: |
-          # 从 manifest.json 提取版本号
           VERSION=$(node -p "require('./extensions/chrome/manifest.json').version")
           echo "VERSION=$VERSION" >> $GITHUB_ENV
           mkdir -p releases/chrome
@@ -42,20 +40,31 @@ jobs:
       - name: Create Zip Archive
         run: |
           cd extensions/chrome/dist
-          # 打包为 chrome-v版本号.zip 并存放到根目录
           zip -r ../../../releases/chrome/chrome-v${{ env.VERSION }}.zip .
+          # 顺便为 Firefox 也生成一份，如果你需要的话
+          # zip -r ../../../releases/chrome/dewsecure-firefox-v${{ env.VERSION }}.zip .
 
       - name: Commit and Push Artifacts
         run: |
           git config --local user.email "github-actions[bot]@users.noreply.github.com"
           git config --local user.name "github-actions[bot]"
-          git add releases/
+          
+          # 把 dist 目录下未被追踪的文件也全部加上
+          git add -A
           
           if ! git diff --staged --quiet; then
             git commit -m "chore: auto-build chrome extension v${{ env.VERSION }}"
-            # 拉取最新代码避免冲突，然后再推送
-            git pull origin main --rebase
+            # 使用 pull --no-rebase 合并最新代码，避免 rebase 报错
+            git pull origin main --no-rebase --no-edit
             git push origin main
           else
             echo "No changes to commit"
           fi
+
+      - name: Upload to GitHub Release
+        uses: softprops/action-gh-release@v1
+        with:
+          files: releases/chrome/*.zip
+          name: Release v${{ env.VERSION }}
+          tag_name: ${{ github.ref_name }}
+          generate_release_notes: true
