@@ -60,3 +60,6 @@ extensions/chrome/src/r2-config.js
 
 # 时间戳备份文件 (*.bak.20261025-xxx)
 *.bak.*
+
+# 忽略所有打包产物
+*.zip
