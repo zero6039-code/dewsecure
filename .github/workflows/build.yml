@@ -38,37 +38,15 @@ jobs:
 
       - name: Create Zip Archives (Dist & Source)
         run: |
-          # ================= 1. 编译产物打包 =================
-          # Chrome
-          cd extensions/chrome/dist
-          zip -r ../../../releases/chrome/chrome-v${{ env.VERSION }}.zip ./*
-          cd ../../..
-          
-          # Firefox
-          cd extensions/firefox/dist
-          zip -r ../../../releases/firefox/dewsecure-firefox-v${{ env.VERSION }}.zip ./*
-          cd ../../..
-          
-          # Opera
-          cd extensions/opera/dist
-          zip -r ../../../releases/opera/opera-v${{ env.VERSION }}.zip ./*
-          cd ../../..
+          # 编译产物
+          cd extensions/chrome/dist && zip -r ../../../releases/chrome/chrome-v${{ env.VERSION }}.zip ./* && cd ../../..
+          cd extensions/firefox/dist && zip -r ../../../releases/firefox/dewsecure-firefox-v${{ env.VERSION }}.zip ./* && cd ../../..
+          cd extensions/opera/dist && zip -r ../../../releases/opera/opera-v${{ env.VERSION }}.zip ./* && cd ../../..
 
-          # ================= 2. 纯净源码打包（用于审核） =================
-          # Opera (必须严格排除 dist/node_modules/bak)
-          cd extensions/opera
-          zip -r ../../releases/source/opera-source-v${{ env.VERSION }}.zip . -x "dist/*" -x "node_modules/*" -x "*bak*" -x "package-lock.json"
-          cd ../..
-          
-          # Firefox
-          cd extensions/firefox
-          zip -r ../../releases/source/firefox-source-v${{ env.VERSION }}.zip . -x "dist/*" -x "node_modules/*" -x "*bak*" -x "package-lock.json"
-          cd ../..
-          
-          # Chrome
-          cd extensions/chrome
-          zip -r ../../releases/source/chrome-source-v${{ env.VERSION }}.zip . -x "dist/*" -x "node_modules/*" -x "*bak*" -x "package-lock.json"
-          cd ../..
+          # 纯净源码
+          cd extensions/chrome && zip -r ../../releases/source/chrome-source-v${{ env.VERSION }}.zip . -x "dist/*" -x "node_modules/*" -x "*bak*" -x "package-lock.json" && cd ../..
+          cd extensions/firefox && zip -r ../../releases/source/firefox-source-v${{ env.VERSION }}.zip . -x "dist/*" -x "node_modules/*" -x "*bak*" -x "package-lock.json" && cd ../..
+          cd extensions/opera && zip -r ../../releases/source/opera-source-v${{ env.VERSION }}.zip . -x "dist/*" -x "node_modules/*" -x "*bak*" -x "package-lock.json" && cd ../..
 
       - name: Commit and Push Artifacts to Repo
         run: |
@@ -89,6 +67,7 @@ jobs:
           name: Release v${{ env.VERSION }}
           draft: false
           prerelease: false
+          overwrite: true # 🌟 核心修复：允许覆盖同名文件
           files: |
             releases/chrome/chrome-v${{ env.VERSION }}.zip
             releases/firefox/dewsecure-firefox-v${{ env.VERSION }}.zip
