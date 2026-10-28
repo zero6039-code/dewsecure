@@ -99,6 +99,12 @@ function copyStatic() {
         }
     }
 
+    // 🌟 清理 Chrome 自动生成的编译缓存，防止被打包进商店 ZIP
+    const metaDir = path.join('dist', '_metadata');
+    if (fs.existsSync(metaDir)) {
+        fs.rmSync(metaDir, { recursive: true, force: true });
+    }
+
     console.log('Build complete!');
 }
 

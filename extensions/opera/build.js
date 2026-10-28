@@ -57,7 +57,6 @@ function copyStatic() {
     if (fs.existsSync('icons')) fs.cpSync('icons', 'dist/icons', { recursive: true, force: true });
     if (fs.existsSync('rules')) fs.cpSync('rules', 'dist/rules', { recursive: true, force: true });
     
-    // 拷贝 src 其他文件
     if (fs.existsSync('src')) {
         const srcFiles = fs.readdirSync('src');
         for (const file of srcFiles) {
@@ -73,19 +72,23 @@ function copyStatic() {
         }
     }
 
-    // 🌟 核心修复：拷贝 onnxruntime-web 的 wasm 文件
+    // 🌟 核心修复：只拷贝 AI 模型真正需要的 2 个文件，而不是全量拷贝！
     const wasmSource = path.join('node_modules', 'onnxruntime-web', 'dist');
     const wasmDest = path.join('dist', 'wasm');
+    const neededFiles = [
+        'ort-wasm-simd-threaded.wasm',
+        'ort-wasm-simd-threaded.mjs',
+    ];
+    
     if (fs.existsSync(wasmSource)) {
         fs.mkdirSync(wasmDest, { recursive: true });
-        // 拷贝 .wasm 和 .mjs 文件
-        const files = fs.readdirSync(wasmSource);
-        files.forEach(file => {
-            if (file.endsWith('.wasm') || file.endsWith('.mjs')) {
-                fs.copyFileSync(path.join(wasmSource, file), path.join(wasmDest, file));
+        for (const f of neededFiles) {
+            const src = path.join(wasmSource, f);
+            if (fs.existsSync(src)) {
+                fs.copyFileSync(src, path.join(wasmDest, f));
             }
-        });
-        console.log('✅ 已复制 AI 模型 wasm 文件');
+        }
+        console.log('✅ 已精准复制 AI 模型 wasm 文件 (2个)');
     }
 
     console.log('Opera 扩展构建完成! (使用 MV3 + sidebar_action)');
