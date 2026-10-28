@@ -3,10 +3,9 @@ name: Build & Release Extension
 on:
   push:
     tags:
-      - 'v*' # 打 tag 时触发
-  workflow_dispatch: # 允许手动触发
+      - 'v*'
+  workflow_dispatch:
 
-# 赋予 Actions 推送代码的权限
 permissions:
   contents: write
 
@@ -14,7 +13,6 @@ jobs:
   build-and-release:
     runs-on: ubuntu-latest
     steps:
-      # 🌟 核心修复：强制切换到 main 分支，并获取完整历史，解决 detached HEAD 报错
       - uses: actions/checkout@v4
         with:
           ref: main
@@ -27,62 +25,76 @@ jobs:
 
       - name: Install Dependencies & Build (All Platforms)
         run: |
-          # Chrome
-          cd extensions/chrome
-          npm install
-          node build.js
-          cd ../..
-
-          # Firefox
-          cd extensions/firefox
-          npm install
-          node build.js
-          cd ../..
-
-          # Opera
-          cd extensions/opera
-          npm install
-          node build.js
-          cd ../..
+          cd extensions/chrome && npm install && node build.js && cd ../..
+          cd extensions/firefox && npm install && node build.js && cd ../..
+          cd extensions/opera && npm install && node build.js && cd ../..
 
       - name: Get Version & Prepare Release Directory
         id: get_version
         run: |
-          # 从 chrome/manifest.json 提取版本号，例如 "1.2.5"
           VERSION=$(node -p "require('./extensions/chrome/manifest.json').version")
           echo "VERSION=$VERSION" >> $GITHUB_ENV
-          # 创建各端的归档目录
-          mkdir -p releases/chrome releases/firefox releases/opera
+          mkdir -p releases/chrome releases/firefox releases/opera releases/source
 
-      - name: Create Zip Archives
+      - name: Create Zip Archives (Dist & Source)
         run: |
-          # 打包 Chrome
+          # ================= 1. 编译产物打包 =================
+          # Chrome
           cd extensions/chrome/dist
-          zip -r ../../../releases/chrome/chrome-v${{ env.VERSION }}.zip .
+          zip -r ../../../releases/chrome/chrome-v${{ env.VERSION }}.zip ./*
           cd ../../..
           
-          # 打包 Firefox
+          # Firefox
           cd extensions/firefox/dist
-          zip -r ../../../releases/firefox/dewsecure-firefox-v${{ env.VERSION }}.zip .
+          zip -r ../../../releases/firefox/dewsecure-firefox-v${{ env.VERSION }}.zip ./*
           cd ../../..
           
-          # 打包 Opera
+          # Opera
           cd extensions/opera/dist
-          zip -r ../../../releases/opera/opera-v${{ env.VERSION }}.zip .
+          zip -r ../../../releases/opera/opera-v${{ env.VERSION }}.zip ./*
           cd ../../..
 
-      - name: Commit and Push Artifacts
+          # ================= 2. 纯净源码打包（用于审核） =================
+          # Opera (必须严格排除 dist/node_modules/bak)
+          cd extensions/opera
+          zip -r ../../releases/source/opera-source-v${{ env.VERSION }}.zip . -x "dist/*" -x "node_modules/*" -x "*bak*" -x "package-lock.json"
+          cd ../..
+          
+          # Firefox
+          cd extensions/firefox
+          zip -r ../../releases/source/firefox-source-v${{ env.VERSION }}.zip . -x "dist/*" -x "node_modules/*" -x "*bak*" -x "package-lock.json"
+          cd ../..
+          
+          # Chrome
+          cd extensions/chrome
+          zip -r ../../releases/source/chrome-source-v${{ env.VERSION }}.zip . -x "dist/*" -x "node_modules/*" -x "*bak*" -x "package-lock.json"
+          cd ../..
+
+      - name: Commit and Push Artifacts to Repo
         run: |
           git config --local user.email "github-actions[bot]@users.noreply.github.com"
           git config --local user.name "github-actions[bot]"
-          # 🌟 核心修复：使用 -f 强制添加，无视 .gitignore 的 *.zip 忽略规则
           git add -f releases/
-          
-          # 检查是否有变更，如果有才 commit
           if ! git diff --staged --quiet; then
-            git commit -m "chore: auto-build extensions v${{ env.VERSION }} (Chrome/Firefox/Opera)"
-            # 🌟 核心修复：明确推送到 main 分支
+            git commit -m "chore: auto-build v${{ env.VERSION }} artifacts (Chrome/Firefox/Opera + Sources)"
             git push origin HEAD:main
           else
             echo "No changes to commit"
           fi
+
+      - name: Create GitHub Release & Upload Assets
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ env.VERSION }}
+          name: Release v${{ env.VERSION }}
+          draft: false
+          prerelease: false
+          files: |
+            releases/chrome/chrome-v${{ env.VERSION }}.zip
+            releases/firefox/dewsecure-firefox-v${{ env.VERSION }}.zip
+            releases/opera/opera-v${{ env.VERSION }}.zip
+            releases/source/chrome-source-v${{ env.VERSION }}.zip
+            releases/source/firefox-source-v${{ env.VERSION }}.zip
+            releases/source/opera-source-v${{ env.VERSION }}.zip
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
