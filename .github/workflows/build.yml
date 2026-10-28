@@ -53,10 +53,8 @@ jobs:
           git add -f releases/
           if ! git diff --staged --quiet; then
             git commit -m "chore: auto-build v${{ env.VERSION }} artifacts (Chrome/Firefox/Opera + Sources)"
-            # 🌟 修复：强制创建一个本地 main 分支指向当前 HEAD，并切换过去，彻底解决 detached HEAD 报错
-            git branch -f main HEAD
-            git checkout main
-            git push origin main
+            # 🌟 核心修复：直接推送到远端 main，不折腾本地分支
+            git push origin HEAD:main
           else
             echo "No changes to commit"
           fi
