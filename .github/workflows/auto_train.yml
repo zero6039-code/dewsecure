@@ -2,7 +2,7 @@ name: Auto Train Model
 
 on:
   schedule:
-    - cron: '0 2 * * 1' # 每周一凌晨 2 点自动运行
+    - cron: '0 18 * * *' # 每天 UTC 18 点（即本地凌晨 2 点）自动运行
   workflow_dispatch: # 允许手动点击触发
 
 jobs:
