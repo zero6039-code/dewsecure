@@ -46,15 +46,15 @@ jobs:
           cd extensions/firefox && zip -r ../../releases/source/firefox-source-v${{ env.VERSION }}.zip . -x "dist/*" -x "node_modules/*" -x "*bak*" -x "package-lock.json" && cd ../..
           cd extensions/opera && zip -r ../../releases/source/opera-source-v${{ env.VERSION }}.zip . -x "dist/*" -x "node_modules/*" -x "*bak*" -x "package-lock.json" && cd ../..
 
-      - name: Commit and Push Artifacts to Repo
+      - name: Commit and Push Artifacts
         run: |
           git config --local user.email "github-actions[bot]@users.noreply.github.com"
           git config --local user.name "github-actions[bot]"
           git add -f releases/
           if ! git diff --staged --quiet; then
             git commit -m "chore: auto-build v${{ env.VERSION }} artifacts (Chrome/Firefox/Opera + Sources)"
-            # 🌟 核心修复：直接推送到远端 main，不折腾本地分支
-            git push origin HEAD:main
+            # 🌟 究极修复：明确指定将当前的 HEAD 推送到远端的 main 分支
+            git push origin HEAD:refs/heads/main
           else
             echo "No changes to commit"
           fi
