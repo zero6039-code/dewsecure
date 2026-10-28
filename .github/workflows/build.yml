@@ -6,6 +6,7 @@ on:
       - 'v*' # 打 tag 时触发
   workflow_dispatch: # 允许手动触发
 
+# 赋予 Actions 推送代码的权限
 permissions:
   contents: write
 
@@ -13,9 +14,10 @@ jobs:
   build-and-release:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout Repository
-        uses: actions/checkout@v4
+      # 🌟 核心修复：强制切换到 main 分支，并获取完整历史，解决 detached HEAD 报错
+      - uses: actions/checkout@v4
         with:
+          ref: main
           fetch-depth: 0
 
       - name: Setup Node.js
@@ -23,43 +25,64 @@ jobs:
         with:
           node-version: '22'
 
-      - name: Install Dependencies & Build
+      - name: Install Dependencies & Build (All Platforms)
         run: |
+          # Chrome
           cd extensions/chrome
           npm install
-          npm run build
+          node build.js
+          cd ../..
+
+          # Firefox
+          cd extensions/firefox
+          npm install
+          node build.js
+          cd ../..
+
+          # Opera
+          cd extensions/opera
+          npm install
+          node build.js
+          cd ../..
 
       - name: Get Version & Prepare Release Directory
         id: get_version
         run: |
+          # 从 chrome/manifest.json 提取版本号，例如 "1.2.5"
           VERSION=$(node -p "require('./extensions/chrome/manifest.json').version")
           echo "VERSION=$VERSION" >> $GITHUB_ENV
-          mkdir -p releases/chrome
+          # 创建各端的归档目录
+          mkdir -p releases/chrome releases/firefox releases/opera
 
-      - name: Create Zip Archive
+      - name: Create Zip Archives
         run: |
+          # 打包 Chrome
           cd extensions/chrome/dist
           zip -r ../../../releases/chrome/chrome-v${{ env.VERSION }}.zip .
+          cd ../../..
+          
+          # 打包 Firefox
+          cd extensions/firefox/dist
+          zip -r ../../../releases/firefox/dewsecure-firefox-v${{ env.VERSION }}.zip .
+          cd ../../..
+          
+          # 打包 Opera
+          cd extensions/opera/dist
+          zip -r ../../../releases/opera/opera-v${{ env.VERSION }}.zip .
+          cd ../../..
 
       - name: Commit and Push Artifacts
         run: |
           git config --local user.email "github-actions[bot]@users.noreply.github.com"
           git config --local user.name "github-actions[bot]"
-          git add -A
+          # 🌟 核心修复：使用 -f 强制添加，无视 .gitignore 的 *.zip 忽略规则
+          git add -f releases/
           
+          # 检查是否有变更，如果有才 commit
           if ! git diff --staged --quiet; then
-            git commit -m "chore: auto-build chrome extension v${{ env.VERSION }}"
-            # 🌟 核心修复：强制推送到远端 main 分支，无视 detached HEAD
-            git pull origin main --rebase
+            git commit -m "chore: auto-build extensions v${{ env.VERSION }} (Chrome/Firefox/Opera)"
+            # 🌟 核心修复：明确推送到 main 分支
             git push origin HEAD:main
           else
             echo "No changes to commit"
           fi
-
-      - name: Upload to GitHub Release
-        uses: softprops/action-gh-release@v2
-        with:
-          files: releases/chrome/*.zip
-          name: Release v${{ env.VERSION }}
-          tag_name: ${{ github.ref_name }}
-          generate_release_notes: true
