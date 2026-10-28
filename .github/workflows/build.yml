@@ -38,12 +38,10 @@ jobs:
 
       - name: Create Zip Archives (Dist & Source)
         run: |
-          # 编译产物
           cd extensions/chrome/dist && zip -r ../../../releases/chrome/chrome-v${{ env.VERSION }}.zip ./* && cd ../../..
           cd extensions/firefox/dist && zip -r ../../../releases/firefox/dewsecure-firefox-v${{ env.VERSION }}.zip ./* && cd ../../..
           cd extensions/opera/dist && zip -r ../../../releases/opera/opera-v${{ env.VERSION }}.zip ./* && cd ../../..
 
-          # 纯净源码
           cd extensions/chrome && zip -r ../../releases/source/chrome-source-v${{ env.VERSION }}.zip . -x "dist/*" -x "node_modules/*" -x "*bak*" -x "package-lock.json" && cd ../..
           cd extensions/firefox && zip -r ../../releases/source/firefox-source-v${{ env.VERSION }}.zip . -x "dist/*" -x "node_modules/*" -x "*bak*" -x "package-lock.json" && cd ../..
           cd extensions/opera && zip -r ../../releases/source/opera-source-v${{ env.VERSION }}.zip . -x "dist/*" -x "node_modules/*" -x "*bak*" -x "package-lock.json" && cd ../..
@@ -55,7 +53,10 @@ jobs:
           git add -f releases/
           if ! git diff --staged --quiet; then
             git commit -m "chore: auto-build v${{ env.VERSION }} artifacts (Chrome/Firefox/Opera + Sources)"
-            git push origin HEAD:main
+            # 🌟 修复：强制创建一个本地 main 分支指向当前 HEAD，并切换过去，彻底解决 detached HEAD 报错
+            git branch -f main HEAD
+            git checkout main
+            git push origin main
           else
             echo "No changes to commit"
           fi
@@ -67,7 +68,7 @@ jobs:
           name: Release v${{ env.VERSION }}
           draft: false
           prerelease: false
-          overwrite: true # 🌟 核心修复：允许覆盖同名文件
+          overwrite: true
           files: |
             releases/chrome/chrome-v${{ env.VERSION }}.zip
             releases/firefox/dewsecure-firefox-v${{ env.VERSION }}.zip
