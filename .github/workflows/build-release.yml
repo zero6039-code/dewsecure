@@ -1,0 +1,86 @@
+name: Build & Release Extension
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Install Dependencies & Build (All Platforms)
+        run: |
+          cd extensions/chrome && npm install && node build.js && cd ../..
+          cd extensions/firefox && npm install && node build.js && cd ../..
+          cd extensions/opera && npm install && node build.js && cd ../..
+
+      - name: Get Version & Prepare Release Directory
+        id: get_version
+        run: |
+          VERSION=$(node -p "require('./extensions/chrome/manifest.json').version")
+          echo "VERSION=$VERSION" >> $GITHUB_ENV
+          mkdir -p releases/chrome releases/firefox releases/opera releases/source
+
+      - name: Create Zip Archives (Dist & Source)
+        run: |
+          # 1. 标准三端打包
+          cd extensions/chrome/dist && zip -r ../../../releases/chrome/chrome-v${{ env.VERSION }}.zip ./* && cd ../../..
+          cd extensions/firefox/dist && zip -r ../../../releases/firefox/dewsecure-firefox-v${{ env.VERSION }}.zip ./* && cd ../../..
+          cd extensions/opera/dist && zip -r ../../../releases/opera/opera-v${{ env.VERSION }}.zip ./* && cd ../../..
+
+          # 2. 源码打包（用于 Firefox 审核）
+          cd extensions/chrome && zip -r ../../releases/source/chrome-source-v${{ env.VERSION }}.zip . -x "dist/*" -x "node_modules/*" -x "*bak*" -x "package-lock.json" && cd ../..
+          cd extensions/firefox && zip -r ../../releases/source/firefox-source-v${{ env.VERSION }}.zip . -x "dist/*" -x "node_modules/*" -x "*bak*" -x "package-lock.json" && cd ../..
+          cd extensions/opera && zip -r ../../releases/source/opera-source-v${{ env.VERSION }}.zip . -x "dist/*" -x "node_modules/*" -x "*bak*" -x "package-lock.json" && cd ../..
+
+          # 3. 🌟 新增：Edge 专用包（解压 -> 删 key -> 重新打包）
+          mkdir -p /tmp/edge_temp
+          unzip releases/chrome/chrome-v${{ env.VERSION }}.zip -d /tmp/edge_temp
+          node -e "const fs=require('fs'); let m=JSON.parse(fs.readFileSync('/tmp/edge_temp/manifest.json', 'utf8')); delete m.key; fs.writeFileSync('/tmp/edge_temp/manifest.json', JSON.stringify(m, null, 2));"
+          cd /tmp/edge_temp && zip -r $GITHUB_WORKSPACE/releases/chrome/edge-v${{ env.VERSION }}.zip ./* && cd -
+
+      - name: Commit and Push Artifacts
+        run: |
+          git config --local user.email "github-actions[bot]@users.noreply.github.com"
+          git config --local user.name "github-actions[bot]"
+          git add -f releases/
+          if ! git diff --staged --quiet; then
+            git commit -m "chore: auto-build v${{ env.VERSION }} artifacts (Chrome/Edge/Firefox/Opera + Sources)"
+            git push origin HEAD:refs/heads/main
+          else
+            echo "No changes to commit"
+          fi
+
+      - name: Create GitHub Release & Upload Assets
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ env.VERSION }}
+          name: Release v${{ env.VERSION }}
+          draft: false
+          prerelease: false
+          overwrite: true
+          files: |
+            releases/chrome/chrome-v${{ env.VERSION }}.zip
+            releases/chrome/edge-v${{ env.VERSION }}.zip
+            releases/firefox/dewsecure-firefox-v${{ env.VERSION }}.zip
+            releases/opera/opera-v${{ env.VERSION }}.zip
+            releases/source/chrome-source-v${{ env.VERSION }}.zip
+            releases/source/firefox-source-v${{ env.VERSION }}.zip
+            releases/source/opera-source-v${{ env.VERSION }}.zip
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
