@@ -43,7 +43,7 @@ async function checkIsWhitelisted(host) {
 }
 
 export function initSecurityListeners() {
-    chrome.webNavigation.onCreatedNavigationTarget.addListener(async (info) => {
+    if (chrome.webNavigation && chrome.webNavigation.onCreatedNavigationTarget) chrome.webNavigation.onCreatedNavigationTarget.addListener(async (info) => {
         const url = info.url || '';
         if (AD_KEYS.some(k => url.includes(k)) || TARGET_BRANDS.some(h => url.includes(h))) {
             try { if (await checkIsWhitelisted(new URL(url).hostname)) return; } catch(e) {}

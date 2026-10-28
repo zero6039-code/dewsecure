@@ -78,5 +78,6 @@
   "trial_modal_title": "激活 30 天高级版",
   "trial_modal_desc": "您将被引导至官网 Pricing 页面，激活成功后插件会自动更新状态。是否继续？",
   "trial_modal_btn": "前往激活",
-  "logs_count": "条"
+  "logs_count": "条",
+  "auth_rate_limit": "登录太频繁，请稍后重试。"
 }

@@ -1,135 +1,102 @@
-/**
- * DewSecure Firefox Background Script
- *
- * Firefox 使用 webRequest.filterResponseData 提供比 Chrome DNR 更灵活的拦截能力。
- */
+// 🌟 动态适配 Chrome 与 Edge 的 Side Panel
+if (typeof chrome !== 'undefined' && chrome.sidePanel && chrome.sidePanel.setPanelBehavior) {
+    chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: true }).catch(console.warn);
+}
 
-const AD_DOMAINS = [
-    'doubleclick.net',
-    'googlesyndication.com',
-    'googleadservices.com',
-    'adservice.google.com',
-    'advertising.com',
-    'criteo.com',
-    'outbrain.com',
-    'taboola.com',
-    'pubmatic.com',
-    'rubiconproject.com',
-    'openx.net',
-];
+import { checkAndUpdateModel } from './modelManager.js';
+import { reportDeviceSilently } from './deviceManager.js';
+import { saveExternalAuth, logoutUser, getCurrentUser } from './authManager.js';
 
-const TRACKER_DOMAINS = [
-    'google-analytics.com',
-    'googletagmanager.com',
-    'connect.facebook.net',
-    'hotjar.com',
-    'mixpanel.com',
-    'segment.com',
-    'amplitude.com',
-    'fullstory.com',
-];
+import { initSettings, getSettings, SETTINGS_KEY } from './background/settings.js';
+import { initSecurityListeners } from './background/security.js';
+import { initStatsListener } from './background/stats.js';
+import { restoreSessionRules } from './background/dnr.js';
+import { runAICheck } from './background/ai.js';
+import { handleMessage } from './background/messageHandler.js';
 
-let settings = {
-    aiEnabled: true,
-    antiBypassEnabled: true,
-    blockTrackers: true,
-    whitelist: [],
-    subscription: 'free',
-    dailyUsed: 0,
-    dailyLimit: 100,
-    lastResetDate: new Date().toDateString(),
-};
+// 初始化
+initSettings();
+chrome.action.setBadgeText({ text: '' });
+initSecurityListeners();
+initStatsListener();
+restoreSessionRules();
 
-// ============ 初始化 ============
+// 消息中心
+chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+    handleMessage(message, sender).then(sendResponse);
+    return true;
+});
 
-browser.storage.local.get('settings').then((data) => {
-    if (data.settings) {
-        settings = { ...settings, ...data.settings };
+// AI 通信
+chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
+    if (msg.type === 'CHECK_URL_AI') {
+        runAICheck(msg.url);
+        sendResponse({ ok: true });
+        return true;
     }
 });
 
-browser.storage.onChanged.addListener((changes) => {
-    if (changes.settings) {
-        settings = changes.settings.newValue;
+// 模型同步
+setTimeout(() => { checkAndUpdateModel().catch(console.warn); }, 5000);
+chrome.alarms.create('dewsecure_model_update', { periodInMinutes: 1440 });
+chrome.alarms.onAlarm.addListener((alarm) => {
+    if (alarm.name === 'dewsecure_model_update') checkAndUpdateModel().catch(console.warn);
+});
+
+// 登录/登出监听
+chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
+    if (msg.type === 'AUTH_STATE_CHANGED') {
+        checkAndUpdateModel().catch(console.warn);
+        import('./authManager.js').then(async ({ getCurrentUser }) => {
+            const user = await getCurrentUser();
+            if (user && user.token) reportDeviceSilently(user.token);
+        }).catch(e => console.warn(e));
+        sendResponse({ ok: true });
+        return true;
     }
 });
 
-// ============ 请求拦截 ============
-
-browser.webRequest.onBeforeRequest.addListener(
-    (details) => {
-        // 检查白名单
-        try {
-            const host = new URL(details.url).hostname;
-            if (settings.whitelist.some((d) => host.endsWith(d))) {
-                return {};
+// 外部通信
+chrome.runtime.onMessageExternal.addListener((message, sender, sendResponse) => {
+    if (message.type === 'SYNC_AUTH') {
+        saveExternalAuth(message.payload).then(res => sendResponse({ ok: res.ok }));
+        return true;
+    }
+    if (message.type === 'LOGOUT') {
+        logoutUser().then(() => sendResponse({ ok: true }));
+        return true;
+    }
+    // 🌟 接收网页端的设备解绑通知，立刻广播给侧边栏去刷新并重新抢占坑位
+    if (message.type === 'REFRESH_DEVICES') {
+        chrome.runtime.sendMessage({ type: 'AUTH_STATE_CHANGED' }).catch(() => {});
+        // 强制再次上报当前设备（此时如果网页端腾出了空位，这里就能插进去了）
+        import('./authManager.js').then(async ({ getCurrentUser }) => {
+            const user = await getCurrentUser();
+            if (user && user.token) {
+                import('./deviceManager.js').then(({ reportDeviceSilently }) => {
+                    reportDeviceSilently(user.token, true);
+                });
             }
-        } catch (e) {
-            return {};
-        }
-
-        // 检查每日限额
-        if (settings.subscription === 'free' && settings.dailyUsed >= settings.dailyLimit) {
-            return {};
-        }
-
-        const url = details.url.toLowerCase();
-
-        // 检查广告域名
-        if (AD_DOMAINS.some((d) => url.includes(d))) {
-            if (settings.subscription === 'free') {
-                settings.dailyUsed++;
-                browser.storage.local.set({ settings });
-            }
-            return { cancel: true };
-        }
-
-        // 检查追踪器域名
-        if (settings.blockTrackers && TRACKER_DOMAINS.some((d) => url.includes(d))) {
-            if (settings.subscription === 'free') {
-                settings.dailyUsed++;
-                browser.storage.local.set({ settings });
-            }
-            return { cancel: true };
-        }
-
-        return {};
-    },
-    { urls: ['<all_urls>'] },
-    ['blocking']
-);
-
-// ============ 消息处理 ============
-
-browser.runtime.onMessage.addListener((message, sender) => {
-    switch (message.type) {
-        case 'GET_STATS':
-            return browser.storage.local.get(['stats', 'settings']).then((data) => ({
-                stats: data.stats || { totalBlocked: 0, todayBlocked: 0 },
-                settings: data.settings || settings,
-            }));
-
-        case 'GET_SETTINGS':
-            return Promise.resolve(settings);
-
-        case 'UPDATE_SETTINGS':
-            settings = { ...settings, ...message.settings };
-            return browser.storage.local.set({ settings }).then(() => ({ ok: true }));
-
-        case 'ADD_WHITELIST':
-            if (!settings.whitelist.includes(message.domain)) {
-                settings.whitelist.push(message.domain);
-                return browser.storage.local.set({ settings }).then(() => ({ ok: true }));
-            }
-            return Promise.resolve({ ok: true });
-
-        case 'REMOVE_WHITELIST':
-            settings.whitelist = settings.whitelist.filter((d) => d !== message.domain);
-            return browser.storage.local.set({ settings }).then(() => ({ ok: true }));
-
-        default:
-            return Promise.resolve({ error: '未知消息类型' });
+        }).catch(() => {});
+        sendResponse({ ok: true });
+        return true;
     }
 });
 
-console.log('DewSecure Firefox Background 已启动');
+// 启动强制设备上报
+import('./authManager.js').then(async ({ getCurrentUser }) => {
+    const user = await getCurrentUser();
+    if (user && user.token) {
+        await chrome.storage.local.remove('dewsecure_last_device_report');
+        reportDeviceSilently(user.token).catch(console.warn);
+    }
+});
+
+// 🌟 Firefox 侧边栏自动打开逻辑（加了严格判断）
+if (typeof chrome !== 'undefined' && chrome.sidebarAction && chrome.action && chrome.action.onClicked) {
+    chrome.action.onClicked.addListener(() => {
+        if (chrome.sidebarAction.open) {
+            chrome.sidebarAction.open();
+        }
+    });
+}

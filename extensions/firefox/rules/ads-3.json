@@ -1,0 +1,18 @@
+[
+  { "id": 90001, "priority": 100, "action": { "type": "block" }, "condition": { "urlFilter": "||cdn.raygun.io^" } },
+  { "id": 90002, "priority": 100, "action": { "type": "block" }, "condition": { "urlFilter": "||rover.ebay.com^" } },
+  { "id": 90003, "priority": 100, "action": { "type": "block" }, "condition": { "urlFilter": "||xp.apple.com^" } },
+  { "id": 90004, "priority": 100, "action": { "type": "block" }, "condition": { "urlFilter": "||t.co^" } },
+  { "id": 90005, "priority": 100, "action": { "type": "block" }, "condition": { "urlFilter": "||cast.io^" } },
+  { "id": 90006, "priority": 100, "action": { "type": "block" }, "condition": { "urlFilter": "||tags.tiqcdn.com^" } },
+  { "id": 90007, "priority": 100, "action": { "type": "block" }, "condition": { "urlFilter": "||assets.adobedtm.com^" } },
+  { "id": 90008, "priority": 100, "action": { "type": "block" }, "condition": { "urlFilter": "||js.userpilot.io^" } },
+  { "id": 90009, "priority": 100, "action": { "type": "block" }, "condition": { "urlFilter": "||cdn.onesignal.com^" } },
+  { "id": 90010, "priority": 100, "action": { "type": "block" }, "condition": { "urlFilter": "||pushowl.com^" } },
+  { "id": 90011, "priority": 100, "action": { "type": "block" }, "condition": { "urlFilter": "||cleverpush.com^" } },
+  { "id": 90012, "priority": 100, "action": { "type": "block" }, "condition": { "urlFilter": "||webpushr.com^" } },
+  { "id": 90013, "priority": 100, "action": { "type": "block" }, "condition": { "urlFilter": "||loader.wisepops.com^" } },
+  { "id": 90014, "priority": 100, "action": { "type": "block" }, "condition": { "urlFilter": "||widget.privy.com^" } },
+  { "id": 90015, "priority": 100, "action": { "type": "block" }, "condition": { "urlFilter": "||g.ezoic.net^" } },
+  { "id": 90016, "priority": 100, "action": { "type": "block" }, "condition": { "urlFilter": "||tpc.googlesyndication.com/safeframe^" } }
+]

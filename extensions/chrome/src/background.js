@@ -1,4 +1,5 @@
-if (chrome.sidePanel && chrome.sidePanel.setPanelBehavior) {
+// 🌟 动态适配 Chrome 与 Edge 的 Side Panel
+if (typeof chrome !== 'undefined' && chrome.sidePanel && chrome.sidePanel.setPanelBehavior) {
     chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: true }).catch(console.warn);
 }
 
@@ -65,6 +66,21 @@ chrome.runtime.onMessageExternal.addListener((message, sender, sendResponse) => 
         logoutUser().then(() => sendResponse({ ok: true }));
         return true;
     }
+    // 🌟 接收网页端的设备解绑通知，立刻广播给侧边栏去刷新并重新抢占坑位
+    if (message.type === 'REFRESH_DEVICES') {
+        chrome.runtime.sendMessage({ type: 'AUTH_STATE_CHANGED' }).catch(() => {});
+        // 强制再次上报当前设备（此时如果网页端腾出了空位，这里就能插进去了）
+        import('./authManager.js').then(async ({ getCurrentUser }) => {
+            const user = await getCurrentUser();
+            if (user && user.token) {
+                import('./deviceManager.js').then(({ reportDeviceSilently }) => {
+                    reportDeviceSilently(user.token, true);
+                });
+            }
+        }).catch(() => {});
+        sendResponse({ ok: true });
+        return true;
+    }
 });
 
 // 启动强制设备上报
@@ -76,9 +92,11 @@ import('./authManager.js').then(async ({ getCurrentUser }) => {
     }
 });
 
-// 🌟 Firefox 侧边栏自动打开逻辑
-if (typeof chrome !== 'undefined' && chrome.sidebarAction) {
+// 🌟 Firefox 侧边栏自动打开逻辑（加了严格判断）
+if (typeof chrome !== 'undefined' && chrome.sidebarAction && chrome.action && chrome.action.onClicked) {
     chrome.action.onClicked.addListener(() => {
-        chrome.sidebarAction.open();
+        if (chrome.sidebarAction.open) {
+            chrome.sidebarAction.open();
+        }
     });
 }

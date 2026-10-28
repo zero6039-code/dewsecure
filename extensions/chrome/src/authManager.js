@@ -1,5 +1,5 @@
 /**
- * DewSecure 认证管理器（真实线上版 - 终极修复）
+ * DewSecure 认证管理器（Token 自动续期版）
  */
 const USER_KEY = 'dewsecure_user';
 const SETTINGS_KEY = 'dewsecure_settings';
@@ -47,7 +47,14 @@ export async function verifyOTP(email, token) {
             if (profiles && profiles.length > 0) tier = profiles[0].tier;
         } catch (e) {}
 
-        await saveExternalAuth({ token: data.access_token, email: data.user.email, tier: tier });
+        // 🌟 修复：把 refresh_token 和 token 的有效期时间也传进去
+        await saveExternalAuth({ 
+            token: data.access_token, 
+            refreshToken: data.refresh_token,
+            email: data.user.email, 
+            tier: tier,
+            tokenExpiresAt: Date.now() + (data.expires_in * 1000)
+        });
         return { ok: true };
     } catch (e) {
         return { ok: false, error: '网络连接失败' };
@@ -55,7 +62,7 @@ export async function verifyOTP(email, token) {
 }
 
 export async function saveExternalAuth(payload) {
-    const { token, refreshToken, email, tier, expiresAt, ownerEmail } = payload;
+    const { token, refreshToken, email, tier, expiresAt, ownerEmail, tokenExpiresAt } = payload;
     if (!token) return { ok: false, error: 'Missing token' };
 
     const { [USER_KEY]: oldUser } = await chrome.storage.local.get(USER_KEY);
@@ -66,6 +73,7 @@ export async function saveExternalAuth(payload) {
         tier: tier !== undefined ? tier : (oldUser?.tier || 'free'), 
         token: token, 
         refreshToken: refreshToken || oldUser?.refreshToken || null,
+        tokenExpiresAt: tokenExpiresAt || oldUser?.tokenExpiresAt || (Date.now() + 3600 * 1000), // 兜底 1 小时
         expiresAt: expiresAt !== undefined ? expiresAt : (oldUser?.expiresAt || null),
         ownerEmail: ownerEmail !== undefined ? ownerEmail : (oldUser?.ownerEmail || null),
         familyOwnerId: oldUser?.familyOwnerId || null,
@@ -80,7 +88,7 @@ export async function saveExternalAuth(payload) {
     settings.tier = user.tier;
     await chrome.storage.local.set({ [SETTINGS_KEY]: settings });
 
-    if (isFullPayload) {
+    if (true) { // 🌟 强制发送通知
         chrome.runtime.sendMessage({ type: 'AUTH_STATE_CHANGED' }).catch(() => {});
     }
     
@@ -109,15 +117,73 @@ export function formatDate(timestamp) {
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
 
+// 🌟 核心：无感刷新 Token
+async function refreshAccessToken(user) {
+    if (!user.refreshToken) return null;
+    try {
+        const res = await fetch(`${SUPABASE_URL}/auth/v1/token?grant_type=refresh_token`, {
+            method: 'POST',
+            headers: { 'apikey': SUPABASE_ANON_KEY, 'Content-Type': 'application/json' },
+            body: JSON.stringify({ refresh_token: user.refreshToken })
+        });
+        if (!res.ok) throw new Error('Refresh failed');
+        
+        const data = await res.json();
+        const newUser = {
+            ...user,
+            token: data.access_token,
+            refreshToken: data.refresh_token,
+            tokenExpiresAt: Date.now() + (data.expires_in * 1000)
+        };
+        await chrome.storage.local.set({ [USER_KEY]: newUser });
+        return newUser;
+    } catch (e) {
+        console.warn("Token 续期失败:", e);
+        return null;
+    }
+}
+
+// 拦截请求，如果 401 或提前 5 分钟过期则自动续期重试
+async function fetchWithAuth(url, options, user) {
+    let currentUser = { ...user };
+    
+    // 如果 Token 已经过期，或距离过期不到 5 分钟，提前刷新
+    if (Date.now() >= (currentUser.tokenExpiresAt - 5 * 60 * 1000) && currentUser.refreshToken) {
+        const refreshed = await refreshAccessToken(currentUser);
+        if (refreshed) currentUser = refreshed;
+    }
+
+    const doFetch = () => fetch(url, {
+        ...options,
+        headers: { ...options.headers, 'Authorization': `Bearer ${currentUser.token}` }
+    });
+
+    let res = await doFetch();
+
+    // 如果被动 401，强制刷新再重试一次
+    if (res.status === 401 && currentUser.refreshToken) {
+        const refreshed = await refreshAccessToken(currentUser);
+        if (refreshed) {
+            currentUser = refreshed;
+            res = await doFetch();
+        } else {
+            // 彻底失效，只有这里才应该清理登录态
+            console.warn("Refresh token 已失效，需要重新登录");
+        }
+    }
+    return res;
+}
+
 export async function fetchUserProfile() {
     const { [USER_KEY]: user } = await chrome.storage.local.get(USER_KEY);
     if (!user || !user.token) return null;
 
     try {
-        // 1. 获取 Profile (拉取所有需要的字段)
-        const res = await fetch(`${SUPABASE_URL}/rest/v1/profiles?select=*`, {
-            headers: { 'apikey': SUPABASE_ANON_KEY, 'Authorization': `Bearer ${user.token}` }
-        });
+        // 1. 获取 Profile (使用自带续期的 fetchWithAuth)
+        const res = await fetchWithAuth(`${SUPABASE_URL}/rest/v1/profiles?select=*`, {
+            headers: { 'apikey': SUPABASE_ANON_KEY }
+        }, user);
+        
         let updatedUser = { ...user };
         let isFamilySub = false;
         
@@ -131,35 +197,49 @@ export async function fetchUserProfile() {
                 if (!isFamilySub) {
                     updatedUser.tier = p.tier || 'free';
                     
-                    // 🌟 核心修复：把真实的返利天数和订阅时间拉出来
-                    let baseTime = Date.now();
-                    if (p.subscription_ends_at && new Date(p.subscription_ends_at).getTime() > baseTime) {
-                        baseTime = new Date(p.subscription_ends_at).getTime();
+                    const nowTs = Date.now();
+                    const balance = p.referral_days_balance || 0;
+                    let expireDate = null;
+
+                    if (p.subscription_ends_at) {
+                        let subEnd = new Date(p.subscription_ends_at).getTime();
+                        let baseTime = subEnd > nowTs ? subEnd : nowTs; 
+                        expireDate = baseTime + (balance * 86400000);
+                    } else if (p.trial_ends_at) {
+                        let trialEnd = new Date(p.trial_ends_at).getTime();
+                        let baseTime = trialEnd > nowTs ? trialEnd : nowTs;
+                        expireDate = baseTime + (balance * 86400000);
+                    } else if (balance > 0) {
+                        const regTime = new Date(p.created_at || nowTs).getTime();
+                        let calculatedExpire = regTime + (balance * 86400000);
+                        expireDate = calculatedExpire > nowTs ? calculatedExpire : nowTs + (balance * 86400000);
                     }
-                    
-                    let balance = p.referral_days_balance || 0;
-                    
-                    if (balance > 0 || baseTime > Date.now()) {
-                        // 算入返利天数
-                        let finalTime = new Date(baseTime + (balance * 86400000));
-                        updatedUser.expiresAt = finalTime.toISOString();
-                        
-                        // 有有效期，强行提权
+
+                    const isPremium = (expireDate && expireDate > nowTs);
+
+                    if (isPremium) {
+                        updatedUser.expiresAt = new Date(expireDate).toISOString();
                         if (updatedUser.tier === 'free') {
                             updatedUser.tier = 'pro';
                         }
                     } else {
-                        updatedUser.expiresAt = p.trial_ends_at || null;
+                        updatedUser.expiresAt = p.subscription_ends_at || p.trial_ends_at || null;
+                        if (updatedUser.tier === 'pro') {
+                            updatedUser.tier = 'free';
+                        }
                     }
                 }
             }
+        } else if (res.status === 401) {
+             // 如果彻底 401 无法续签，则返回空，让上层处理
+             return null;
         }
 
         // 2. 获取设备数
         try {
-            const devRes = await fetch(`${SUPABASE_URL}/rest/v1/devices?select=id`, {
-                headers: { 'apikey': SUPABASE_ANON_KEY, 'Authorization': `Bearer ${user.token}` }
-            });
+            const devRes = await fetchWithAuth(`${SUPABASE_URL}/rest/v1/devices?select=id`, {
+                headers: { 'apikey': SUPABASE_ANON_KEY }
+            }, updatedUser);
             if (devRes.ok) {
                 const devices = await devRes.json();
                 updatedUser.deviceCount = devices.length;
@@ -167,12 +247,12 @@ export async function fetchUserProfile() {
         } catch(e) {}
 
         // 3. 如果是子账号，强查 RPC
-        if (isFamilySub || user.tier === 'family') {
+        if (isFamilySub || updatedUser.tier === 'family') {
             try {
-                const rpcRes = await fetch(`${SUPABASE_URL}/rest/v1/rpc/get_family_shared_status`, {
+                const rpcRes = await fetchWithAuth(`${SUPABASE_URL}/rest/v1/rpc/get_family_shared_status`, {
                     method: 'POST',
-                    headers: { 'apikey': SUPABASE_ANON_KEY, 'Authorization': `Bearer ${user.token}`, 'Content-Type': 'application/json' }
-                });
+                    headers: { 'apikey': SUPABASE_ANON_KEY, 'Content-Type': 'application/json' }
+                }, updatedUser);
                 if (rpcRes.ok) {
                     const shared = await rpcRes.json();
                     if (shared && shared.success) {

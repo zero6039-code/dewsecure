@@ -27,24 +27,27 @@ function parseDeviceInfo() {
 
     let browser = 'Unknown Browser';
     if (ua.includes('Edg/')) browser = 'Edge';
+    else if (ua.includes('OPR/') || ua.includes('Opera')) browser = 'Opera';
+    else if (ua.includes('Brave')) browser = 'Brave';
+    else if (ua.includes('Vivaldi')) browser = 'Vivaldi';
     else if (ua.includes('Firefox/')) browser = 'Firefox';
     else if (ua.includes('Chrome/')) browser = 'Chrome';
 
     return { os, browser, deviceName: `${os} - ${browser}` };
 }
 
-export async function reportDeviceSilently(token) {
-    if (!token) return;
+export async function reportDeviceSilently(token, force = false) {
+    if (!token) return { status: 'AUTH_ERROR' };
     
-    // 24小时节流
-    const { [LAST_REPORT_KEY]: lastReport } = await chrome.storage.local.get(LAST_REPORT_KEY);
-    if (lastReport && Date.now() - lastReport < 24 * 60 * 60 * 1000) return;
+    if (!force) {
+        const { [LAST_REPORT_KEY]: lastReport } = await chrome.storage.local.get(LAST_REPORT_KEY);
+        if (lastReport && Date.now() - lastReport < 24 * 60 * 60 * 1000) return { status: 'SUCCESS' };
+    }
 
     try {
         const installationId = await getInstallationId();
         const { browser, deviceName } = parseDeviceInfo();
 
-        // 获取 Supabase Auth 里的 user_id (从 JWT 中解析)
         const payloadBase64 = token.split('.')[1];
         const payload = JSON.parse(atob(payloadBase64));
         const userId = payload.sub;
@@ -55,11 +58,11 @@ export async function reportDeviceSilently(token) {
                 'apikey': SUPABASE_ANON_KEY,
                 'Authorization': `Bearer ${token}`,
                 'Content-Type': 'application/json',
-                'Prefer': 'resolution=merge-duplicates' // 基于 fingerprint 去重更新
+                'Prefer': 'resolution=merge-duplicates'
             },
             body: JSON.stringify({
                 user_id: userId,
-                fingerprint: installationId, // 混合兜底：用 UUID 做指纹，防浏览器升级掉槽位
+                fingerprint: installationId,
                 device_name: deviceName,
                 browser: browser,
                 last_seen_at: new Date().toISOString()
@@ -69,15 +72,20 @@ export async function reportDeviceSilently(token) {
         if (res.ok) {
             await chrome.storage.local.set({ [LAST_REPORT_KEY]: Date.now() });
             console.log('✅ [DeviceManager] 设备静默上报成功');
-        } else if (res.status === 409) {
-            console.log('ℹ️ [DeviceManager] 设备已存在，跳过更新');
-            await chrome.storage.local.set({ [LAST_REPORT_KEY]: Date.now() });
+            return { status: 'SUCCESS' };
         } else {
             const errorText = await res.text();
-            if (res.status === 401) console.log('ℹ️ [DeviceManager] Token过期，静默等待下次刷新');
-            else console.error('❌ [DeviceManager] 设备上报失败:', res.status, errorText);
+            if (errorText.includes('DEVICE_LIMIT_EXCEEDED')) {
+                return { status: 'LIMIT_EXCEEDED' };
+            } else if (res.status === 401) {
+                return { status: 'AUTH_ERROR' };
+            } else {
+                console.error('❌ [DeviceManager] 设备上报失败:', res.status, errorText);
+                return { status: 'ERROR' };
+            }
         }
     } catch (e) {
-        console.error('❌ [DeviceManager] 上报异常:', e.message, e.stack);
+        console.error('❌ [DeviceManager] 上报异常:', e.message);
+        return { status: 'ERROR' };
     }
 }

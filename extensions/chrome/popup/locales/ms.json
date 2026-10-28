@@ -96,5 +96,12 @@
   "auth_verifying": "Mengesahkan...",
   "auth_network_error": "Ralat rangkaian. Sila cuba lagi.",
   "auth_invalid_otp": "Sila masukkan kod 8 digit",
-  "type_dom_hidden": "Kandungan Disembunyi"
+  "type_dom_hidden": "Kandungan Disembunyi",
+  "auth_rate_limit": "Terlalu banyak percubaan. Sila cuba lagi nanti.",
+  "auth_device_limit": "Had peranti telah dicapai! Sila nyahikat peranti di papan pemuka.",
+  "dash_load_failed": "Gagal memuatkan data. Sila muat semula.",
+  "limit_title": "Had Peranti Dicapai",
+  "limit_desc": "Anda telah mencapai had peranti (3/3). Sila nyahikat peranti lain di Papan Pemuka.",
+  "limit_btn_go": "Pergi ke Papan Pemuka",
+  "limit_btn_close": "Tutup"
 }

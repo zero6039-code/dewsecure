@@ -96,5 +96,12 @@
   "auth_verifying": "確認中...",
   "auth_network_error": "ネットワークエラー。もう一度お試しください。",
   "auth_invalid_otp": "8桁のコードを入力してください",
-  "type_dom_hidden": "コンテンツ非表示"
+  "type_dom_hidden": "コンテンツ非表示",
+  "auth_rate_limit": "試行回数が多すぎます。後でもう一度お試しください。",
+  "auth_device_limit": "デバイス数の上限に達しました！ダッシュボードでデバイスを解除してください。",
+  "dash_load_failed": "データの読み込みに失敗しました。再読み込みしてください。",
+  "limit_title": "デバイス数の上限に達しました",
+  "limit_desc": "デバイスの上限（3/3）に達しました。ダッシュボードで他のデバイスを解除してください。",
+  "limit_btn_go": "ダッシュボードへ",
+  "limit_btn_close": "閉じる"
 }

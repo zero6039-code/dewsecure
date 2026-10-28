@@ -1,3 +1,5 @@
+html, body { width: 380px !important; min-width: 380px !important; margin: 0; padding: 0; }
+body { width: 380px; min-height: 580px; }
 /* ============================================================
    DewSecure Popup — 毛玻璃 Apple 风格
    ============================================================ */

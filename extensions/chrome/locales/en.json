@@ -78,5 +78,6 @@
   "trial_modal_title": "Activate 30-Day Pro",
   "trial_modal_desc": "You will be guided to the Pricing page. Continue?",
   "trial_modal_btn": "Go to Activate",
-  "logs_count": "items"
+  "logs_count": "items",
+  "auth_rate_limit": "Too many attempts. Please try again later."
 }

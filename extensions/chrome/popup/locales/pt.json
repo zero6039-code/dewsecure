@@ -96,5 +96,12 @@
   "auth_verifying": "Verificando...",
   "auth_network_error": "Erro de rede. Tente novamente.",
   "auth_invalid_otp": "Por favor insira um código de 8 dígitos",
-  "type_dom_hidden": "Conteúdo Oculto"
+  "type_dom_hidden": "Conteúdo Oculto",
+  "auth_rate_limit": "Muitas tentativas. Por favor, tente novamente mais tarde.",
+  "auth_device_limit": "Limite de dispositivos atingido! Desvincule um dispositivo no painel.",
+  "dash_load_failed": "Falha ao carregar dados. Atualize a página.",
+  "limit_title": "Limite de Dispositivos",
+  "limit_desc": "Você atingiu o limite (3/3). Desvincule outros dispositivos no Painel.",
+  "limit_btn_go": "Ir para o Painel",
+  "limit_btn_close": "Fechar"
 }

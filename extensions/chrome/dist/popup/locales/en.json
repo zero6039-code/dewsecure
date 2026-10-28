@@ -96,5 +96,12 @@
   "auth_verifying": "Verifying...",
   "auth_network_error": "Network error. Please try again.",
   "auth_invalid_otp": "Please enter an 8-digit code",
-  "type_dom_hidden": "Content Hidden"
+  "type_dom_hidden": "Content Hidden",
+  "auth_rate_limit": "Too many attempts. Please try again later.",
+  "auth_device_limit": "Device limit reached! Please unbind a device on the dashboard.",
+  "dash_load_failed": "Failed to load data. Please refresh and try again.",
+  "limit_title": "Device Limit Reached",
+  "limit_desc": "You have reached the device limit (3/3). Please unbind other devices on the Dashboard.",
+  "limit_btn_go": "Go to Dashboard",
+  "limit_btn_close": "Close"
 }

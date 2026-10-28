@@ -41,7 +41,6 @@ export function initAuthUI() {
         let count = seconds;
         btn.disabled = true;
         
-        // 🌟 多语言修复
         const tpl = window.t ? window.t('auth_resend_cooldown') : "未收到？{s}s 后可重发";
         btn.textContent = tpl.replace('{s}', count);
 
@@ -75,17 +74,29 @@ export function initAuthUI() {
             if (res.ok) {
                 showAuthStep('otp');
                 document.getElementById('sentEmail').textContent = email;
-                // 开启重发倒计时
                 startCooldown(btnResend, window.t ? window.t('auth_resend') : '重新发送验证码', 60);
             } else {
-                if (emailHint) { emailHint.textContent = res.error || '发送失败'; emailHint.style.color = '#f85149'; emailHint.style.display = 'block'; }
-                btnSend.disabled = false;
-                btnSend.textContent = window.t ? window.t('auth_send') : '发送验证码';
+                // 🌟 核心优化：如果触发了限流，直接跳转到输入验证码界面！
+                // 因为用户大概率在之前的 60 秒内已经收到了验证码。
+                if (res.error && (res.error.includes('频繁') || res.error.includes('limit'))) {
+                    // 🌟 严格按照逻辑：两边验证码独立，直接提示限流
+                    if (emailHint) { 
+                        emailHint.textContent = window.t ? window.t('auth_rate_limit') : '登录太频繁，请稍后重试。'; 
+                        emailHint.style.color = '#f85149'; 
+                        emailHint.style.display = 'block'; 
+                    }
+                    btnSend.disabled = false;
+                    btnSend.textContent = window.t ? window.t('auth_send_otp') : '发送验证码';
+                } else {
+                    if (emailHint) { emailHint.textContent = res.error || '发送失败'; emailHint.style.color = '#f85149'; emailHint.style.display = 'block'; }
+                    btnSend.disabled = false;
+                    btnSend.textContent = window.t ? window.t('auth_send_otp') : '发送验证码';
+                }
             }
         } catch (e) {
             if (emailHint) { emailHint.textContent = window.t ? window.t('auth_network_error') : '网络异常'; emailHint.style.color = '#f85149'; emailHint.style.display = 'block'; }
             btnSend.disabled = false;
-            btnSend.textContent = window.t ? window.t('auth_send') : '发送验证码';
+            btnSend.textContent = window.t ? window.t('auth_send_otp') : '发送验证码';
         }
     };
 
@@ -141,17 +152,14 @@ export function initAuthUI() {
         
         // 🌟 高端体验：粘贴或输入满 8 位，自动过滤非数字并提交
         otpInput.oninput = (e) => {
-            // 1. 只保留数字，并强制截断到 8 位
             e.target.value = e.target.value.replace(/\D/g, '').slice(0, 8);
-            
-            // 2. 自动提交（给 100ms 缓冲，防止用户按退格键时误触）
             if (e.target.value.length === 8 && !btnVerify.disabled) {
                 setTimeout(() => doVerifyOtp(), 100);
             }
         };
     }
 
-    // 5. 重发按钮（带防刷与错误捕获）
+    // 5. 重发按钮
     if (btnResend) {
         btnResend.onclick = async () => {
             if (btnResend.disabled) return;

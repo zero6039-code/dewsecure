@@ -86,5 +86,6 @@
   "tier_pro_plan": "Proプラン",
   "group_belong": "グループ",
   "unsupported_page": "サポートされていないページ",
-  "status_unavailable": "利用不可"
+  "status_unavailable": "利用不可",
+  "auth_rate_limit": "試行回数が多すぎます。後でもう一度お試しください。"
 }

@@ -177,7 +177,7 @@
         </div>
 
         <footer class="footer">
-            <span id="appVersion">v1.2.2</span>
+            <span id="appVersion"></span>
             <a href="#" id="settingsLink" data-i18n="footer_settings">设置</a>
         </footer>
     </div>
@@ -334,5 +334,23 @@
 
     <script type="module" src="popup.js"></script>
         <script src="i18n.js"></script>
+
+<!-- 🌟 毛玻璃设备超限弹窗 -->
+<div id="glassLimitModal" class="glass-modal hidden" style="position: fixed; inset: 0; z-index: 9999; display: flex; align-items: center; justify-content: center; background: rgba(0,0,0,0.4); backdrop-filter: blur(12px); transition: opacity 0.3s ease;">
+    <div style="background: rgba(255, 255, 255, 0.85); border-radius: 16px; padding: 24px; width: 320px; box-shadow: 0 10px 30px rgba(0,0,0,0.2); text-align: center; border: 1px solid rgba(255,255,255,0.5);">
+        <div style="font-size: 40px; margin-bottom: 12px;">🚫</div>
+        <h3 style="margin: 0 0 10px 0; color: #1c1c1e; font-size: 18px;">Device Limit Reached</h3>
+        <p style="margin: 0 0 20px 0; color: #3a3a3c; font-size: 13px; line-height: 1.4;">
+            您的设备数已达上限 (3/3)。请前往 Dashboard 解绑其他设备后重试。
+        </p>
+        <button id="btnGoDashboard" style="width: 100%; padding: 12px; margin-bottom: 10px; border: none; border-radius: 10px; background: #10b981; color: white; font-weight: 600; font-size: 14px; cursor: pointer; box-shadow: 0 4px 12px rgba(16,185,129,0.3);">
+            去 Dashboard 解绑
+        </button>
+        <button id="btnCloseLimitModal" style="width: 100%; padding: 12px; border: none; border-radius: 10px; background: rgba(0,0,0,0.05); color: #8b949e; font-weight: 600; font-size: 14px; cursor: pointer;">
+            关闭
+        </button>
+    </div>
+</div>
+
 </body>
 </html>
