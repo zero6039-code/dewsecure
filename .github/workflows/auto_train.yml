@@ -2,7 +2,7 @@ name: Auto Train Model
 
 on:
   schedule:
-    - cron: '0 2 * * 1' # 每周一凌晨 2 点自动运行
+    - cron: '0 2 * * *' # 每日凌晨 2 点自动运行
   workflow_dispatch: # 允许手动点击触发
 
 jobs:
@@ -64,10 +64,11 @@ jobs:
           VERSION: ${{ steps.meta.outputs.version }}
         run: python training/sign_model.py
 
-      - name: 安装 rclone
+      - name: 安装 rclone (使用官方最新版避免 R2 501 错误)
         run: |
-          sudo apt-get update
-          sudo apt-get install -y rclone
+          wget https://downloads.rclone.org/v1.68.1/rclone-v1.68.1-linux-amd64.deb
+          sudo dpkg -i rclone-v1.68.1-linux-amd64.deb
+          rclone version
 
       - name: 配置 rclone
         run: |
@@ -82,14 +83,14 @@ jobs:
           no_check_bucket = true
           RCLONE_EOF
 
-      - name: 上传模型到 R2 (优化分块防报错)
+      - name: 上传模型到 R2 (跳过 HEAD 请求防 501)
         run: |
           rclone copy models/weights/classifier_int8.onnx \
-            r2:${{ secrets.R2_BUCKET }}/latest/ --s3-no-check-bucket --s3-chunk-size 5M --s3-upload-concurrency 2
+            r2:${{ secrets.R2_BUCKET }}/latest/ --s3-no-check-bucket --s3-no-head --s3-chunk-size 5M --s3-upload-concurrency 2
           rclone copy models/weights/model_meta.json \
-            r2:${{ secrets.R2_BUCKET }}/latest/ --s3-no-check-bucket --s3-chunk-size 5M --s3-upload-concurrency 2
+            r2:${{ secrets.R2_BUCKET }}/latest/ --s3-no-check-bucket --s3-no-head --s3-chunk-size 5M --s3-upload-concurrency 2
           rclone copy models/weights/classifier_int8.onnx \
-            r2:${{ secrets.R2_BUCKET }}/${{ steps.meta.outputs.version }}/ --s3-no-check-bucket --s3-chunk-size 5M --s3-upload-concurrency 2
+            r2:${{ secrets.R2_BUCKET }}/${{ steps.meta.outputs.version }}/ --s3-no-check-bucket --s3-no-head --s3-chunk-size 5M --s3-upload-concurrency 2
 
           echo "=== latest 目录内容 ==="
           rclone ls r2:${{ secrets.R2_BUCKET }}/latest/ --s3-no-check-bucket
