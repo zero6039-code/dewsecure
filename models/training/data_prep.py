@@ -123,10 +123,11 @@ def mark_feedbacks_as_processed():
 def fetch_supabase_feedbacks():
     """从 Supabase 获取有效反馈数据"""
     supabase_url = os.environ.get("SUPABASE_URL")
-    supabase_key = os.environ.get("SUPABASE_ANON_KEY")
+    # 🔒 修复 401：必须使用 Service Role Key 才能突破视图的 RLS 限制
+    supabase_key = os.environ.get("SUPABASE_SERVICE_ROLE_KEY") 
     
     if not supabase_url or not supabase_key:
-        print("⚠️ 未配置 SUPABASE_URL 或 SUPABASE_ANON_KEY，跳过用户反馈拉取。")
+        print("⚠️ 未配置 SUPABASE_SERVICE_ROLE_KEY，跳过用户反馈拉取。")
         return [], []
 
     print("📡 正在从 Supabase 拉取有效反馈...")
@@ -200,13 +201,23 @@ def build_dataset():
 
     rows = []
     tracker_count = 0
+    trackers_to_oversample = []
+    
     for d in ad_list:
         label = classify_label(d)
         if label == 2:
             tracker_count += 1
+            trackers_to_oversample.append({"domain": d, "label": label})
         rows.append({"domain": d, "label": label})
+        
     for d in legit_list:
         rows.append({"domain": d, "label": 0})
+        
+    # 🔒 核心修复：数据过采样，把偏少的 Tracker 数据复制 5 倍，强行拉高占比
+    if trackers_to_oversample:
+        print(f"⚖️ 对 {len(trackers_to_oversample)} 个 Tracker 样本进行 5 倍过采样，提升模型召回率...")
+        for _ in range(4): # 已经有一份了，再加 4 份
+            rows.extend(trackers_to_oversample)
 
     print(f"\n  Tracker 识别数: {tracker_count}")
 
