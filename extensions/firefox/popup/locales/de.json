@@ -24,6 +24,8 @@
   "feat_phishing_desc": "Identifiziert bösartige Seiten und Phishing-Seiten",
   "feat_intel": "Cloud-Threat-Intelligence",
   "feat_intel_desc": "Blockiert dynamisch neu aufgetauchte Phishing-Domains (PRO)",
+  "intel_warning_title": "⛔ Blockiert durch Echtzeit-Bedrohungsintelligenz",
+  "intel_warning_desc": "Diese Domain wurde als bösartige Quelle identifiziert. DewSecure PRO hat den Zugriff blockiert.",
   "feat_ai": "Intelligente KI-Echtzeiterkennung",
   "feat_ai_desc": "Identifiziert unentdeckte Werbung und Bedrohungen",
   "feat_tracker": "Tracker blockieren",

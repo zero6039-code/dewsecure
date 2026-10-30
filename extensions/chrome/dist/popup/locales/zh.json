@@ -24,6 +24,8 @@
   "feat_phishing_desc": "智能识别恶意与钓鱼网页",
   "feat_intel": "云端威胁情报拦截",
   "feat_intel_desc": "动态拉取最新黑名单，精准封杀刚爆发的钓鱼域名",
+  "intel_warning_title": "⛔ 实时威胁情报已阻断该域名",
+  "intel_warning_desc": "该域名已被全球威胁情报网络确认为恶意钓鱼、病毒投放或诈骗源。DewSecure Real-time Threat Intel PRO 已为您强制阻断，保护您的资产安全。",
   "feat_ai": "AI 智能实时检测",
   "feat_ai_desc": "识别规则库未收录的广告与威胁",
   "feat_tracker": "阻止追踪器",

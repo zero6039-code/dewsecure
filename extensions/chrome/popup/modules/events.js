@@ -57,7 +57,7 @@ export function bindMiscEvents() {
     };
     
     // 🔒 PRO 专属的高级防御开关
-    const PRO_ONLY_TOGGLES = ['phishingEnabled', 'intelEnabled', 'aiFourEnabled', 'blockSocialTrackers', 'antiBypassEnabled'];
+    const PRO_ONLY_TOGGLES = ['phishingEnabled', 'intelEnabled', 'aiFourEnabled', 'blockSocialTrackers'];
 
     Object.keys(toggleIdMap).forEach(id => {
         document.getElementById(id)?.addEventListener('change', async (e) => {
@@ -67,13 +67,19 @@ export function bindMiscEvents() {
             // 如果是 PRO 专属开关，检查用户权限
             if (PRO_ONLY_TOGGLES.includes(settingKey)) {
                 const user = await getCurrentUser();
-                const isPro = user && user.tier !== 'free';
+                // 🌟 统一判定标准：包含 pro, trial, family, premium
+                const isPro = user && ['pro', 'trial', 'family', 'premium'].includes(user.tier);
 
                 if (!isPro && isChecked) {
                     // 阻止切换，回退 UI 状态
                     e.target.checked = false;
-                    if (window.showUpgradeModal) window.showUpgradeModal();
-                    else alert('此功能为 PRO 专属，请升级以解锁。');
+                    // 🚀 直接调用原生升级提示，不再用 alert
+                    if (window.showUpgradeModal) {
+                        window.showUpgradeModal();
+                    } else {
+                        // 如果没有弹窗，强制触发跳到升级页的逻辑
+                        document.getElementById('upgradeBtn')?.click();
+                    }
                     return;
                 }
             }

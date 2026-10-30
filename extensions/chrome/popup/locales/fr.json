@@ -24,6 +24,8 @@
   "feat_phishing_desc": "Identifie les pages malveillantes et de phishing",
   "feat_intel": "Renseignement sur les menaces",
   "feat_intel_desc": "Bloque dynamiquement les domaines d'hameçonnage émergents (PRO)",
+  "intel_warning_title": "⛔ Bloqué par le Renseignement sur les Menaces",
+  "intel_warning_desc": "Ce domaine a été identifié comme une source malveillante. DewSecure PRO a bloqué l'accès.",
   "feat_ai": "Détection intelligente en temps réel par IA",
   "feat_ai_desc": "Identifie les publicités et menaces non capturées",
   "feat_tracker": "Bloquer les traqueurs",

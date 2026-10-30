@@ -24,6 +24,8 @@
   "feat_phishing_desc": "Identifies malicious and phishing pages",
   "feat_intel": "Real-time Threat Intel",
   "feat_intel_desc": "Dynamically blocks newly emerged phishing domains (PRO)",
+  "intel_warning_title": "⛔ Blocked by Real-time Threat Intel",
+  "intel_warning_desc": "This domain has been identified as a malicious source (phishing, malware, or scam) by global threat intelligence. DewSecure PRO has blocked access to protect your assets.",
   "feat_ai": "AI Smart Real-time Detection",
   "feat_ai_desc": "Identifies uncaptured ads and threats",
   "feat_tracker": "Block Trackers",

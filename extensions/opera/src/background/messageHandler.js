@@ -63,6 +63,7 @@ export async function handleMessage(message, sender) {
                     settings.tempWhitelist.push(message.domain);
                     await chrome.storage.local.set({ [SETTINGS_KEY]: settings });
                 }
+                if (message.domain === 'dewsecure.com' || message.domain.endsWith('.dewsecure.com')) return;
                 const ruleId = Math.floor(Math.abs(message.domain.split('').reduce((a,b)=>((a<<5)-a)+b.charCodeAt(0),0)) % 1000000) + 10000;
                 await chrome.declarativeNetRequest.updateSessionRules({
                     removeRuleIds: [ruleId],
@@ -89,6 +90,7 @@ export async function handleMessage(message, sender) {
                 const settings = await getSettings();
                 settings.tempWhitelist = settings.tempWhitelist.filter(d => d !== message.domain);
                 await chrome.storage.local.set({ [SETTINGS_KEY]: settings });
+                if (message.domain === 'dewsecure.com' || message.domain.endsWith('.dewsecure.com')) return;
                 const ruleId = Math.floor(Math.abs(message.domain.split('').reduce((a,b)=>((a<<5)-a)+b.charCodeAt(0),0)) % 1000000) + 10000;
                 await chrome.declarativeNetRequest.updateSessionRules({ removeRuleIds: [ruleId] });
                 return { ok: true };

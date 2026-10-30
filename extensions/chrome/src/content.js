@@ -2,7 +2,13 @@
     'use strict';
     
     // 🌟 官网与本地开发环境白名单
-    if (['dewsecure.com', 'localhost', '127.0.0.1'].includes(window.location.hostname)) {
+    const hostname = window.location.hostname;
+    if (
+        hostname === 'dewsecure.com' || 
+        hostname.endsWith('.dewsecure.com') || 
+        hostname === 'localhost' || 
+        hostname === '127.0.0.1'
+    ) {
         console.log('🛡️ [DewSecure] 官方域名与本地环境，已自动跳过内容清理。');
         return;
     }
@@ -339,9 +345,17 @@
 // ==========================================
 // 钓鱼网站全屏警告拦截 (PRO 卖点)
 // ==========================================
-chrome.runtime.onMessage.addListener((msg) => {
+chrome.runtime.onMessage.addListener(async (msg) => {
     if (msg.type === 'PHISHING_DETECTED') {
         if (document.getElementById('__dewsecure_phishing_wall')) return;
+
+        // 🌟 必须查开关，关了就不盖黑布
+        const { dewsecure_settings } = await chrome.storage.local.get('dewsecure_settings');
+        if (dewsecure_settings && dewsecure_settings.phishingEnabled === false) {
+            console.log('🛡️ [DewSecure] 用户已关闭钓鱼拦截，已忽略黑墙。');
+            return;
+        }
+        
         
         const wall = document.createElement('div');
         wall.id = '__dewsecure_phishing_wall';
@@ -383,5 +397,42 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
             location.reload();
         }
         sendResponse({ ok: true });
+    }
+});
+
+// ==========================================
+// 🛡️ AI 软隐藏指令监听（绝对安全，绝不阻断网络请求）
+// ==========================================
+chrome.runtime.onMessage.addListener((msg) => {
+    if (msg.type === 'HIDE_AI_AD' && msg.domain) {
+        const domain = msg.domain;
+        console.log(`🛡️ [DewSecure] 正在执行 AI 软隐藏: ${domain}`);
+        
+        // 隐藏所有指向该域名的 iframe
+        document.querySelectorAll('iframe').forEach(el => {
+            if (el.src && el.src.includes(domain)) {
+                el.style.setProperty('display', 'none', 'important');
+            }
+        });
+        
+        // 隐藏所有指向该域名的 script
+        document.querySelectorAll('script').forEach(el => {
+            if (el.src && el.src.includes(domain)) {
+                // 无法隐藏 script 的执行，但可以尝试隐藏它旁边可能由它生成的广告框
+                const parent = el.parentElement;
+                if (parent && (parent.id.includes('ad') || parent.className.includes('ad'))) {
+                    parent.style.setProperty('display', 'none', 'important');
+                }
+            }
+        });
+
+        // 隐藏所有指向该域名的 img (通常是无用的追踪像素或广告图片)
+        document.querySelectorAll('img').forEach(el => {
+            if (el.src && el.src.includes(domain)) {
+                el.style.setProperty('visibility', 'hidden', 'important');
+                el.style.setProperty('width', '0', 'important');
+                el.style.setProperty('height', '0', 'important');
+            }
+        });
     }
 });

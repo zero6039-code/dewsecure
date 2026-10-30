@@ -24,6 +24,8 @@
   "feat_phishing_desc": "Mengenal pasti halaman berniat jahat dan phishing",
   "feat_intel": "Perisikan Ancaman Awan",
   "feat_intel_desc": "Menyekat domain pancingan yang baru muncul secara dinamik (PRO)",
+  "intel_warning_title": "⛔ Disekat oleh Perisikan Ancaman Masa Nyata",
+  "intel_warning_desc": "Domain ini telah dikenal pasti sebagai sumber berniat jahat oleh rangkaian perisikan ancaman global. DewSecure PRO telah menyekatnya untuk melindungi aset anda.",
   "feat_ai": "Pengesanan Masa Nyata Pintar AI",
   "feat_ai_desc": "Mengenal pasti iklan dan ancaman yang tidak ditangkap",
   "feat_tracker": "Sekat Penjejak",

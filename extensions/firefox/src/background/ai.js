@@ -137,19 +137,29 @@ export async function runAICheck(url) {
                 return;
             }
             
-            const ruleId = Math.floor(Math.abs(domain.split('').reduce((a,b)=>((a<<5)-a)+b.charCodeAt(0),0)) % 1000000) + 50000;
-            await chrome.declarativeNetRequest.updateSessionRules({
-                removeRuleIds: [ruleId],
-                addRules: [{ 
-                    id: ruleId, 
-                    priority: 10000, 
-                    action: { type: 'block' }, 
-                    condition: { 
-                        requestDomains: [domain], 
-                        resourceTypes: ["script", "image", "xmlhttprequest"] // 🚨 移除了 main_frame 和 sub_frame
-                    } 
-                }]
-            });
+            // 🌟 防线 1：AI 拦截前置豁免检查
+            if (domain === 'dewsecure.com' || domain.endsWith('.dewsecure.com') || domain.includes('zero6039')) {
+                console.log('🛡️ [AI] 拦截命中官方域名，已强制放行。');
+                return;
+            }
+            
+            // 🌟 核心架构级修复：彻底废弃 DNR 网络级阻断（防止白屏误杀）
+            // 改为发送消息给 content.js，进行安全的 DOM 级别软隐藏
+            const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
+            if (tabs[0] && tabs[0].id) {
+                chrome.tabs.sendMessage(tabs[0].id, { 
+                    type: 'HIDE_AI_AD', 
+                    domain: domain 
+                }).catch(() => {});
+            }
+            console.log(`🛡️ [AI] 已触发 DOM 软隐藏: ${domain} (绝不阻断网络)`);
         }
     } catch(e) {}
 }
+
+// 🌟 自动容错：如果模型首次下载失败（如网络波动），静默处理，下次再试
+chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
+    if (msg.type === 'OFFSCREEN_ERROR') {
+        console.warn('⚠️ [Offscreen] 模型加载失败，已静默忽略，等待下次心跳重试。');
+    }
+});

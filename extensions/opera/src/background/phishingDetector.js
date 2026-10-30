@@ -30,6 +30,7 @@ const PHISH_KEYWORDS = ['login', 'signin', 'verify', 'secure', 'update', 'accoun
 
 // 豁免列表：绝对不会被品牌路径检测误杀的超级大站
 const SAFE_HOSTS = [
+    'dewsecure.com', 'dewsecure-api.zero6039.workers.dev',
     'github.com', 'google.com', 'youtube.com', 'facebook.com', 'twitter.com', 
     'x.com', 'instagram.com', 'linkedin.com', 'wikipedia.org', 'microsoft.com', 
     'apple.com', 'amazon.com', 'cloudflare.com', 'reddit.com'

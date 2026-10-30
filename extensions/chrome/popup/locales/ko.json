@@ -24,6 +24,8 @@
   "feat_phishing_desc": "악성 및 피싱 페이지 식별",
   "feat_intel": "클라우드 위협 인텔리전스",
   "feat_intel_desc": "최신 피싱 도메인을 동적으로 차단 (PRO)",
+  "intel_warning_title": "⛔ 실시간 위협 인텔리전스에 의해 차단됨",
+  "intel_warning_desc": "이 도메인은 글로벌 위협 인텔리전스 네트워크에 의해 악성 피싱 또는 악성코드로 확인되었습니다. DewSecure PRO가 강제로 차단했습니다.",
   "feat_ai": "AI 스마트 실시간 탐지",
   "feat_ai_desc": "포착되지 않은 광고 및 위협 식별",
   "feat_tracker": "추적기 차단",

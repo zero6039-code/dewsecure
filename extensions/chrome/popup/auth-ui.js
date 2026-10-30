@@ -123,9 +123,19 @@ export function initAuthUI() {
             const res = await verifyOTP(email, otp);
 
             if (res.ok) {
-                const user = await getCurrentUser();
-                showAuthStep('logged-in');
-                renderLoggedInView(user);
+                // 等待全局同步完成
+                if (typeof window.syncUserState === 'function') {
+                    await window.syncUserState();
+                }
+                
+                // 如果设备满了，syncUserState 会设置 _deviceLimitReached，此时绝不能渲染已登录界面
+                if (!window._deviceLimitReached) {
+                    const user = await getCurrentUser();
+                    if (user) {
+                        showAuthStep('logged-in');
+                        renderLoggedInView(user);
+                    }
+                }
             } else {
                 if (otpHint) { otpHint.textContent = res.error || '验证失败，请检查验证码'; otpHint.style.color = '#f85149'; otpHint.style.display = 'block'; }
                 btnVerify.disabled = false;
