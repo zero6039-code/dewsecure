@@ -22,6 +22,8 @@
   "feat_clickjack_desc": "悪意のある透明オーバーレイを防ぐ",
   "feat_phishing": "AIフィッシング検出",
   "feat_phishing_desc": "悪意のあるページやフィッシングページを識別",
+  "feat_intel": "クラウド脅威インテリジェンス",
+  "feat_intel_desc": "最新のフィッシングドメインを動的にブロック (PRO)",
   "feat_ai": "AIスマートリアルタイム検出",
   "feat_ai_desc": "未検出の広告や脅威を識別",
   "feat_tracker": "トラッカーをブロック",
@@ -108,5 +110,14 @@
   "feedback_submitting": "⏳ 送信中...",
   "feedback_failed": "❌ 送信に失敗しました",
   "feedback_thanks": "✅ フィードバックありがとうございます！",
-  "feedback_cooldown": "⏳ 通報済みです。24時間後にお試しください"
+  "feedback_cooldown": "⏳ 通報済みです。24時間後にお試しください",
+  "phish_title": "危険：フィッシングサイトを検出",
+  "phish_desc": "DewSecureは、このWebサイトが正規の組織を装ってパスワードやクレジットカード情報を盗もうとしていることを検出しました。ページはロックされました。",
+  "phish_close": "このページを閉じる",
+  "phish_continue": "専門家としてリスクを無視する",
+  "phish_pro_tip": "🔒 この機能はPRO限定です。アップグレードして新しいフィッシングサイトをブロックします。",
+  "footer_privacy": "プライバシーポリシー",
+  "footer_terms": "利用規約",
+  "footer_link": "GitHubでソースを見る",
+  "footer_text": "コアエンジンはオープンソース、データは絶対に外部に漏れません。"
 }

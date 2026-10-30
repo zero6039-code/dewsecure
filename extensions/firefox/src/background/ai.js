@@ -115,7 +115,7 @@ export async function runAICheck(url) {
         if (!response || !response.probs) return;
         const probs = response.probs;
         const maxIdx = probs.indexOf(Math.max(...probs));
-        const classes = ['Normal', 'Ad', 'Tracker', 'Phishing'];
+        const classes = ['Normal', 'Ad', 'Tracker']; // 🔒 P-01 修复：模型只有 3 类
         const classification = classes[maxIdx];
         
         // 🔒 安全网 1：如果网站在白名单里，直接放行
@@ -127,11 +127,8 @@ export async function runAICheck(url) {
             return;
         }
 
-        if (classification === 'Phishing') {
-            chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
-                if (tabs[0] && tabs[0].id) chrome.tabs.sendMessage(tabs[0].id, { type: 'PHISHING_DETECTED', url });
-            });
-        } else if (classification === 'Ad' || classification === 'Tracker') {
+        // 🔒 P-01: 暂时移除 Phishing 分支，等待未来加入钓鱼训练数据
+        if (classification === 'Ad' || classification === 'Tracker') {
             // 🔒 安全网 2：严禁拦截 main_frame (防止网页白屏死锁)
             // 只拦截高危子资源，且降低拦截概率，仅当置信度极高（>80%）时才拦截子资源
             const confidence = probs[maxIdx];

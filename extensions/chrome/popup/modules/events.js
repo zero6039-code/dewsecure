@@ -47,6 +47,7 @@ export function bindMiscEvents() {
         'dnrToggle': 'dnrEnabled',
         'antiHijackToggle': 'antiHijackEnabled',
         'phishingToggle': 'phishingEnabled',
+        'intelToggle': 'intelEnabled',
         'aiFourToggle': 'aiFourEnabled',
         'trackerToggle': 'blockTrackers',
         'antiBypassToggle': 'antiBypassEnabled',
@@ -56,7 +57,7 @@ export function bindMiscEvents() {
     };
     
     // 🔒 PRO 专属的高级防御开关
-    const PRO_ONLY_TOGGLES = ['phishingEnabled', 'aiFourEnabled', 'blockSocialTrackers', 'antiBypassEnabled'];
+    const PRO_ONLY_TOGGLES = ['phishingEnabled', 'intelEnabled', 'aiFourEnabled', 'blockSocialTrackers', 'antiBypassEnabled'];
 
     Object.keys(toggleIdMap).forEach(id => {
         document.getElementById(id)?.addEventListener('change', async (e) => {
@@ -119,7 +120,12 @@ export function bindMiscEvents() {
                     if (res && res.ok) {
                         switchEl.checked = false;
                         updateSiteSwitch(false, host);
-                        setTimeout(() => chrome.tabs.reload(), 500);
+                        // 强制绕过缓存刷新，确保新规则立刻生效
+                        setTimeout(() => {
+                            chrome.tabs.query({active: true, currentWindow: true}, (tabs) => {
+                                if (tabs[0]?.id) chrome.tabs.reload(tabs[0].id, { bypassCache: true });
+                            });
+                        }, 500);
                     }
                 });
             };

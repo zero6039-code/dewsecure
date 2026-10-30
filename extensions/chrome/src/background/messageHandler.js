@@ -24,7 +24,7 @@ async function updateDNRRulesets(isEnabled) {
 
 // 🔒 S-07: 允许通过 UPDATE_SETTING_KEY 修改的合法键
 const ALLOWED_SETTING_KEYS = new Set([
-    'dnrEnabled', 'antiHijackEnabled', 'phishingEnabled', 'aiFourEnabled', 
+    'dnrEnabled', 'antiHijackEnabled', 'phishingEnabled', 'intelEnabled', 'aiFourEnabled', 
     'aiEnabled', 'antiBypassEnabled', 'blockTrackers', 'hideCookieNotices', 
     'hideAdPlaceholders', 'blockSocialTrackers', 'whitelist', 'tempWhitelist',
     'dailyLimit', 'dailyUsed', 'lastResetDate'
@@ -66,8 +66,21 @@ export async function handleMessage(message, sender) {
                 const ruleId = Math.floor(Math.abs(message.domain.split('').reduce((a,b)=>((a<<5)-a)+b.charCodeAt(0),0)) % 1000000) + 10000;
                 await chrome.declarativeNetRequest.updateSessionRules({
                     removeRuleIds: [ruleId],
-                    // 🔒 修复：只要发起方是白名单域名，其所有第三方请求直接全局放行（去除 requestDomains 限制）
-                    addRules: [{ id: ruleId, priority: 1000000, action: { type: 'allowAllRequests' }, condition: { initiatorDomains: [message.domain], resourceTypes: ["main_frame"] } }]
+                    // 🔒 F-03 终极修复：摒弃容易失效的 allowAllRequests，改用最高优先级的全类型 allow
+                    addRules: [{ 
+                        id: ruleId, 
+                        priority: 2147483647, 
+                        action: { type: 'allow' }, 
+                        condition: { 
+                            initiatorDomains: [message.domain], 
+                            // 放行所有资源类型，彻底阻断静态规则的干扰
+                            resourceTypes: [
+                                "main_frame", "sub_frame", "stylesheet", "script", "image", 
+                                "font", "object", "xmlhttprequest", "ping", "csp_report", 
+                                "media", "websocket", "webtransport", "webbundle", "other"
+                            ] 
+                        } 
+                    }]
                 });
                 return { ok: true };
             } catch (e) { return { ok: false, error: e.message }; }

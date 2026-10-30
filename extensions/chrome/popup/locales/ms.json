@@ -22,6 +22,8 @@
   "feat_clickjack_desc": "Menghalang lapisan telus berniat jahat",
   "feat_phishing": "Pengesanan Phishing AI",
   "feat_phishing_desc": "Mengenal pasti halaman berniat jahat dan phishing",
+  "feat_intel": "Perisikan Ancaman Awan",
+  "feat_intel_desc": "Menyekat domain pancingan yang baru muncul secara dinamik (PRO)",
   "feat_ai": "Pengesanan Masa Nyata Pintar AI",
   "feat_ai_desc": "Mengenal pasti iklan dan ancaman yang tidak ditangkap",
   "feat_tracker": "Sekat Penjejak",
@@ -108,5 +110,14 @@
   "feedback_submitting": "⏳ Menghantar...",
   "feedback_failed": "❌ Gagal dihantar",
   "feedback_thanks": "✅ Terima kasih atas maklum balas anda!",
-  "feedback_cooldown": "⏳ Sudah dilaporkan, sila tunggu 24j"
+  "feedback_cooldown": "⏳ Sudah dilaporkan, sila tunggu 24j",
+  "phish_title": "Bahaya: Laman Phishing Dikesan",
+  "phish_desc": "DewSecure mengesan laman web ini cuba menyamar sebagai organisasi sah untuk mencuri kata laluan, kad kredit atau maklumat peribadi anda. Halaman ini telah dikunci.",
+  "phish_close": "Tutup halaman ini",
+  "phish_continue": "Saya pakar, abaikan risiko",
+  "phish_pro_tip": "🔒 Ciri ini eksklusif PRO. Naik taraf untuk menyekat laman phishing baharu.",
+  "footer_privacy": "Dasar Privasi",
+  "footer_terms": "Terma Perkhidmatan",
+  "footer_link": "Lihat sumber di GitHub",
+  "footer_text": "Enjin teras sumber terbuka, data tidak pernah meninggalkan rumah."
 }

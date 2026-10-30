@@ -37,7 +37,7 @@ def train_model():
     CHUNK_SIZE = 10000
 
     print("🔬 正在分块提取训练集特征...")
-    X_train = np.zeros((len(train_df), N_FEATURES), dtype=np.uint8)
+    X_train = np.zeros((len(train_df), N_FEATURES), dtype=np.float32)
     y_train = train_df["label"].values
     
     total_chunks = (len(train_df) + CHUNK_SIZE - 1) // CHUNK_SIZE
@@ -51,7 +51,7 @@ def train_model():
         print(f"✅ 特征提取进度: Chunk {i+1}/{total_chunks}")
 
     print("🔬 正在提取测试集特征...")
-    X_test = np.zeros((len(test_df), N_FEATURES), dtype=np.uint8)
+    X_test = np.zeros((len(test_df), N_FEATURES), dtype=np.float32)
     y_test = test_df["label"].values
     for i, domain in enumerate(tqdm(test_df["domain"], desc="Test")):
         X_test[i] = extract_features(domain)

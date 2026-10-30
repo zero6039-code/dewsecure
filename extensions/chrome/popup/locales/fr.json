@@ -22,6 +22,8 @@
   "feat_clickjack_desc": "Empêche les superpositions transparentes malveillantes",
   "feat_phishing": "Détection de phishing par IA",
   "feat_phishing_desc": "Identifie les pages malveillantes et de phishing",
+  "feat_intel": "Renseignement sur les menaces",
+  "feat_intel_desc": "Bloque dynamiquement les domaines d'hameçonnage émergents (PRO)",
   "feat_ai": "Détection intelligente en temps réel par IA",
   "feat_ai_desc": "Identifie les publicités et menaces non capturées",
   "feat_tracker": "Bloquer les traqueurs",
@@ -108,5 +110,14 @@
   "feedback_submitting": "⏳ Envoi en cours...",
   "feedback_failed": "❌ Échec de l'envoi",
   "feedback_thanks": "✅ Merci pour votre retour !",
-  "feedback_cooldown": "⏳ Déjà signalé, veuillez patienter 24h"
+  "feedback_cooldown": "⏳ Déjà signalé, veuillez patienter 24h",
+  "phish_title": "Danger : Site de phishing détecté",
+  "phish_desc": "DewSecure a détecté que ce site Web tente d'usurper l'identité d'une organisation légitime pour voler vos mots de passe ou informations personnelles. La page a été bloquée.",
+  "phish_close": "Fermer cette page",
+  "phish_continue": "Je suis un expert, ignorer le risque",
+  "phish_pro_tip": "🔒 Cette fonctionnalité est exclusive à PRO. Mettez à niveau pour bloquer les nouveaux sites de phishing.",
+  "footer_privacy": "Politique de confidentialité",
+  "footer_terms": "Conditions d'utilisation",
+  "footer_link": "Voir le code sur GitHub",
+  "footer_text": "Moteur principal open source, les données ne quittent jamais la maison."
 }

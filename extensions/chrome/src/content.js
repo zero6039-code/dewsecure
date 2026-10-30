@@ -22,7 +22,7 @@
     const warn = DEBUG ? console.warn.bind(console) : () => {};
     const log  = DEBUG ? console.log.bind(console, '[DewSecure]')  : () => {};
 
-    const AD_PATTERN      = /(^|[-_])(ad|ads|advert|banner|popup|sponsor|promo|overlay|modal|cookie|consent|push|tracking|tracker)([-_]|$)/i;
+    const AD_PATTERN      = /(^|[-_])(ad|ads|advert|banner|popup|sponsor|promo|cookie|consent|push|tracking|tracker|ad-slot|ad-box|ad-wrap|ad-frame|ad-banner)([-_]|$)/i;
     const CAPTCHA_PATTERN = /(verify|captcha|challenge|puzzle|recaptcha|hcaptcha|turnstile)/i;
 
     // ===== 统一封装安全的消息发送 =====
@@ -97,27 +97,9 @@
                 display: none !important;
                 pointer-events: none !important;
             }
-            html, body {
-                overflow: auto !important;
-                position: static !important;
-                touch-action: auto !important;
-            }
             .social-widget, .social-bar, .share-bar, .twitter-share-button,
             .fb-like, .fb-share-button, .social-share-overlay {
                 display: none !important;
-            }
-            html, body, #app, #root, .main-wrapper, #page-wrapper {
-                overflow-y: visible !important;
-                overflow-x: visible !important;
-                position: static !important;
-                height: auto !important;
-                max-height: none !important;
-            }
-            body.no-scroll, body.modal-open, body.overflow-hidden, body.stopped,
-            html.no-scroll, html.modal-open, html.overflow-hidden, html.stopped {
-                overflow-y: auto !important;
-                overflow-x: auto !important;
-                position: static !important;
             }
         `;
         appendStyleWhenReady(style, '__dewsecure_style_1');
@@ -224,13 +206,31 @@
 
     // ===== 初始化 =====
     function init() {
-        safeSendMessage({ type: 'GET_SETTINGS' });
-        
-        // 由于 sendMessage 没有回调（为了速度），这里用延迟加载或直接依赖 background 的白名单拦截
-        // 但我们仍在本地做一次兜底检查
+        // 🔒 F-01 终极豁免：不碰复杂的 SPA、地图与核心站点，防止白屏
+        const skipDomains = ['google.com', 'youtube.com', 'facebook.com', 'twitter.com', 'x.com', 'instagram.com', 'wired.com'];
+        if (skipDomains.some(d => window.location.hostname.endsWith(d))) {
+            console.log('🛡️ [DewSecure] 核心站点豁免 DOM 清理，防止 SPA 崩溃。');
+            return;
+        }
+
+        // 🔒 F-03: 初始化时拉取配置，如果是白名单，立刻彻底挂起
+        try {
+            chrome.runtime.sendMessage({ type: 'GET_SETTINGS' }, (settings) => {
+                if (chrome.runtime.lastError || !settings) return;
+                const host = window.location.hostname;
+                const m = d => host === d || host.endsWith('.' + d);
+                if ((settings.whitelist || []).some(m) || (settings.tempWhitelist || []).some(m)) {
+                    document.documentElement.setAttribute('data-dewsecure-paused', 'true');
+                    console.log('🛡️ [DewSecure] 命中白名单，已停止注入 CSS 与 Hook。');
+                }
+            });
+        } catch(e) {}
+
         setTimeout(() => {
-            const wl = []; // 依赖后台动态注入 TOGGLE_PROTECTION
-            // 这里直接开启清理，如果设置了白名单，后台会发送 TOGGLE_PROTECTION(false) 来挂起
+            // 🔒 再次检查暂停状态（防止异步回调慢于 setTimeout）
+            if (document.documentElement.getAttribute('data-dewsecure-paused') === 'true') {
+                return;
+            }
             injectBrutalCSS();
             injectExtraCSS();
 
@@ -252,8 +252,7 @@
                 childList: true, subtree: true,
                 attributes: true, attributeFilter: ['class', 'id'],
             });
-            if (document.body) { scheduleCheck(document.body); killOverlays(); }
-            setInterval(killOverlays, 1500);
+            if (document.body) { scheduleCheck(document.body); }
         }, 100);
     }
 
@@ -267,72 +266,9 @@
         }
     }
 
-    // ===== 清理顽固的多层遮罩 / CMP 遮罩 =====
-    function killOverlays() {
-        unlockScroll();
-        const nodes = document.querySelectorAll('div, section, iframe');
-        for (const el of nodes) {
-            if (el.dataset.dwKilled) continue;
-            try {
-                const style = window.getComputedStyle(el);
-                if (style.position === 'fixed' && (parseInt(style.zIndex) > 9999 || style.zIndex === 'auto')) {
-                    const rect = el.getBoundingClientRect();
-                    if (rect.width > window.innerWidth * 0.8 && rect.height > window.innerHeight * 0.8) {
-                        const text = (el.innerText || '').trim();
-                        const isCmp = /(cookie|consent|privacy|gdpr|ccpa|pipl|appi|rgpd|pdpa|popia|onetrust|didomi|cookiebot|usercentrics|quantcast|liveramp|borlabs|moove|klaro|termly)/i.test(text + ' ' + el.className + ' ' + el.id);
-                        if (text === '' || parseFloat(style.opacity) < 0.1 || isCmp) {
-                            if (!/(verify|captcha|challenge|puzzle|turnstile)/i.test(el.className + ' ' + el.id + ' ' + text)) {
-                                el.style.setProperty('display', 'none', 'important');
-                                el.dataset.dwKilled = 'true';
-                                reportDomHidden(el); // 🌟 上报统计
-                                warn('killed overlay/cmp mask');
-                            }
-                        }
-                    }
-                }
-            } catch (_) {}
-        }
-    }
-
-    // ===== 强力持久解锁 =====
-    function enforceScrollLock() {
-        const forceStyle = (el) => {
-            if (!el || !el.style) return;
-            el.style.setProperty('overflow-y', 'auto', 'important');
-            el.style.setProperty('overflow-x', 'auto', 'important');
-            el.style.setProperty('position', 'static', 'important');
-            el.style.setProperty('touch-action', 'auto', 'important');
-        };
-        
-        forceStyle(document.documentElement);
-        if (document.body) forceStyle(document.body);
-
-        if (!window.__dw_scroll_obs) {
-            window.__dw_scroll_obs = new MutationObserver(() => {
-                forceStyle(document.documentElement);
-                if (document.body) forceStyle(document.body);
-            });
-            window.__dw_scroll_obs.observe(document.documentElement, { attributes: true, attributeFilter: ['style', 'class'] });
-            if (document.body) {
-                window.__dw_scroll_obs.observe(document.body, { attributes: true, attributeFilter: ['style', 'class'] });
-            }
-        }
-
-        if (!window.__dw_event_blocked) {
-            const blockEvent = e => {
-                if (e.target === document || e.target === document.body) {
-                    e.stopImmediatePropagation();
-                }
-            };
-            document.addEventListener('touchmove', blockEvent, { capture: true, passive: false });
-            document.addEventListener('wheel', blockEvent, { capture: true, passive: false });
-            window.__dw_event_blocked = true;
-        }
-    }
     
-    enforceScrollLock();
-    setTimeout(enforceScrollLock, 500);
-    setTimeout(enforceScrollLock, 2000);
+
+    
 
     // ===== Forbes 专项处理 =====
     if (window.location.hostname.includes('forbes.com')) {
@@ -441,7 +377,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
                 document.body.style.setProperty('overflow', 'auto', 'important');
                 document.documentElement.style.setProperty('overflow', 'auto', 'important');
             }
-            window.postMessage({ type: 'DEWSECURE_PAUSE' }, '*');
+            // 🔒 S-05: 主世界已不接收暂停信号，改为刷新页面
             console.warn('🛡️ [DewSecure] 已动态挂起，还原网页状态。');
         } else {
             location.reload();

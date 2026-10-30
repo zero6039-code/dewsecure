@@ -1,15 +1,5 @@
-(async function() {
-    const host = window.location.hostname;
-    try {
-        const settings = await chrome.runtime.sendMessage({ type: 'GET_SETTINGS' });
-        if (settings) {
-            const m = d => host === d || host.endsWith('.' + d);
-            if ((settings.whitelist || []).some(m) || (settings.tempWhitelist || []).some(m)) {
-                console.warn('🛡️ [DewSecure Inject] 命中白名单，已停止主世界 Hook。');
-                return; // 停止执行下方的 Hook 代码
-            }
-        }
-    } catch(e) {}
+(function() {
+    // 🔒 F-03: 主世界无法调用 chrome.runtime，完全依赖 content.js 通过 postMessage 传递 DEWSECURE_PAUSE 信号
 
 
 // ===== 🌟 白名单热更新接管 =====
@@ -63,7 +53,7 @@ window.open = function(...args) {
         Object.defineProperty(window, 'open', {
             get: function() {
                 return function(url, target, features) {
-                    if (isPaused()) return _windowOpen.apply(this, arguments);
+                    _windowOpen.apply(this, arguments);
                     if (isAdUrl(url)) return null;
                     return _windowOpen.apply(this, arguments);
                 };
@@ -75,12 +65,12 @@ window.open = function(...args) {
     // 2. location 跳转
     try {
         window.location.assign = function(url) {
-            if (isPaused()) return _locationAssign.call(window.location, url);
+            _locationAssign.call(window.location, url);
             if (isAdUrl(url)) return;
             _locationAssign.call(window.location, url);
         };
         window.location.replace = function(url) {
-            if (isPaused()) return _locationReplace.call(window.location, url);
+            _locationReplace.call(window.location, url);
             if (isAdUrl(url)) return;
             _locationReplace.call(window.location, url);
         };
@@ -89,7 +79,7 @@ window.open = function(...args) {
     // 3. A 标签点击
     try {
         HTMLAnchorElement.prototype.click = function() {
-            if (isPaused()) return _anchorClick.apply(this, arguments);
+            _anchorClick.apply(this, arguments);
             if (isAdUrl(this.href)) return;
             _anchorClick.apply(this, arguments);
         };
@@ -98,14 +88,14 @@ window.open = function(...args) {
     // 4. Form 提交
     try {
         HTMLFormElement.prototype.submit = function() {
-            if (isPaused()) return _formSubmit.apply(this, arguments);
+            _formSubmit.apply(this, arguments);
             if (isAdUrl(this.action)) return;
             _formSubmit.apply(this, arguments);
         };
     } catch (e) {}
 
     // 5. 反反拦截欺骗 (只在开启时生效)
-    if (!isPaused()) {
+    {
         try {
             Object.defineProperty(window, 'adblock', { get: () => false });
             Object.defineProperty(window, 'canRunAds', { get: () => true });
@@ -121,7 +111,7 @@ window.open = function(...args) {
 
     // 7. 点击拦截捕获
     const interceptClick = (e) => {
-        if (isPaused()) return;
+        return;
         let target = e.target;
         while (target && target.tagName !== 'A' && target.tagName !== 'FORM') target = target.parentElement;
         if (target) {
@@ -151,11 +141,11 @@ window.open = function(...args) {
     };
 
     const observer = new MutationObserver((mutations) => {
-        if (isPaused()) return;
+        return;
         for (const m of mutations) {
             for (const node of m.addedNodes) {
                 if (node.nodeType === Node.ELEMENT_NODE) {
-                    if (node.className && typeof node.className === 'string' && /(^ad-|^ads-|^banner-ad|^popup-ad|^sponsor-ad|^advert|^ad-wrapper|^ad-container)/i.test(node.className)) {
+                    if (node.className && typeof node.className === 'string' && /(^ad-slot|^ad-banner|^ad-wrapper|^ad-container|^adsbygoogle|^sponsored-ad|^advertisement)/i.test(node.className)) {
                         node.style.setProperty('display', 'none', 'important');
                     }
                     killMaliciousNodes(node);

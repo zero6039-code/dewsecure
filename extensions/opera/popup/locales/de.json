@@ -22,6 +22,8 @@
   "feat_clickjack_desc": "Verhindert bösartige transparente Overlays",
   "feat_phishing": "KI-Phishing-Erkennung",
   "feat_phishing_desc": "Identifiziert bösartige Seiten und Phishing-Seiten",
+  "feat_intel": "Cloud-Threat-Intelligence",
+  "feat_intel_desc": "Blockiert dynamisch neu aufgetauchte Phishing-Domains (PRO)",
   "feat_ai": "Intelligente KI-Echtzeiterkennung",
   "feat_ai_desc": "Identifiziert unentdeckte Werbung und Bedrohungen",
   "feat_tracker": "Tracker blockieren",
@@ -108,5 +110,14 @@
   "feedback_submitting": "⏳ Wird gesendet...",
   "feedback_failed": "❌ Senden fehlgeschlagen",
   "feedback_thanks": "✅ Vielen Dank für Ihr Feedback!",
-  "feedback_cooldown": "⏳ Bereits gemeldet, bitte warte 24h"
+  "feedback_cooldown": "⏳ Bereits gemeldet, bitte warte 24h",
+  "phish_title": "Gefahr: Phishing-Website erkannt",
+  "phish_desc": "DewSecure hat festgestellt, dass diese Website versucht, sich als legitime Organisation auszugeben, um Ihre Passwörter oder persönlichen Daten zu stehlen. Die Seite wurde gesperrt.",
+  "phish_close": "Diese Seite schließen",
+  "phish_continue": "Ich bin Experte, Risiko ignorieren",
+  "phish_pro_tip": "🔒 Diese Funktion ist PRO-exklusiv. Upgraden Sie, um neue Phishing-Websites zu blockieren.",
+  "footer_privacy": "Datenschutzrichtlinie",
+  "footer_terms": "Nutzungsbedingungen",
+  "footer_link": "Quellcode auf GitHub ansehen",
+  "footer_text": "Kern-Engine Open Source, Daten verlassen niemals das Haus."
 }

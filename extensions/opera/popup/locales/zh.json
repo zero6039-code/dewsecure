@@ -22,6 +22,8 @@
   "feat_clickjack_desc": "阻断恶意网站透明遮罩与点击重定向",
   "feat_phishing": "钓鱼网站 AI 检测",
   "feat_phishing_desc": "智能识别恶意与钓鱼网页",
+  "feat_intel": "云端威胁情报拦截",
+  "feat_intel_desc": "动态拉取最新黑名单，精准封杀刚爆发的钓鱼域名",
   "feat_ai": "AI 智能实时检测",
   "feat_ai_desc": "识别规则库未收录的广告与威胁",
   "feat_tracker": "阻止追踪器",
@@ -108,5 +110,14 @@
   "feedback_submitting": "⏳ 上报中...",
   "feedback_failed": "❌ 上报失败",
   "feedback_thanks": "✅ 感谢您的反馈！",
-  "feedback_cooldown": "⏳ 已上报过，24小时内请勿重复提交"
+  "feedback_cooldown": "⏳ 已上报过，24小时内请勿重复提交",
+  "phish_title": "极度危险：检测到钓鱼网站",
+  "phish_desc": "DewSecure 引擎检测到该网站试图伪装成合法机构，以窃取您的密码、信用卡或个人信息。为了保护您的财产安全，页面已被强制锁定。",
+  "phish_close": "关闭此页面",
+  "phish_continue": "我是专家，忽略风险",
+  "phish_pro_tip": "🔒 此功能为 PRO 专属，请升级以拦截新型钓鱼网站。",
+  "footer_privacy": "隐私政策",
+  "footer_terms": "服务条款",
+  "footer_link": "在 GitHub 上查看开源代码",
+  "footer_text": "核心引擎开源，数据绝不出户。"
 }

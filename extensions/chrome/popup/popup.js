@@ -111,7 +111,7 @@ chrome.storage.onChanged.addListener((changes, namespace) => {
             const settings = changes['dewsecure_settings'].newValue || {};
             const toggleMap = {
                 'dnrToggle': 'dnrEnabled', 'antiHijackToggle': 'antiHijackEnabled',
-                'phishingToggle': 'phishingEnabled', 'aiFourToggle': 'aiFourEnabled',
+                'phishingToggle': 'phishingEnabled', 'intelToggle': 'intelEnabled', 'aiFourToggle': 'aiFourEnabled',
                 'trackerToggle': 'blockTrackers', 'antiBypassToggle': 'antiBypassEnabled',
                 'cookieToggle': 'hideCookieNotices', 'placeholderToggle': 'hideAdPlaceholders',
                 'socialToggle': 'blockSocialTrackers'

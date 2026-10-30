@@ -22,6 +22,8 @@
   "feat_clickjack_desc": "악성 투명 오버레이 방지",
   "feat_phishing": "AI 피싱 탐지",
   "feat_phishing_desc": "악성 및 피싱 페이지 식별",
+  "feat_intel": "클라우드 위협 인텔리전스",
+  "feat_intel_desc": "최신 피싱 도메인을 동적으로 차단 (PRO)",
   "feat_ai": "AI 스마트 실시간 탐지",
   "feat_ai_desc": "포착되지 않은 광고 및 위협 식별",
   "feat_tracker": "추적기 차단",
@@ -108,5 +110,14 @@
   "feedback_submitting": "⏳ 제출 중...",
   "feedback_failed": "❌ 제출 실패",
   "feedback_thanks": "✅ 피드백 감사합니다!",
-  "feedback_cooldown": "⏳ 이미 신고되었습니다. 24시간 후에 시도하세요"
+  "feedback_cooldown": "⏳ 이미 신고되었습니다. 24시간 후에 시도하세요",
+  "phish_title": "위험: 피싱 사이트 감지됨",
+  "phish_desc": "DewSecure가 이 웹사이트가 합법적인 기관을 사칭하여 비밀번호나 신용 카드 정보를 훔치려 한다는 것을 감지했습니다. 페이지가 잠겼습니다.",
+  "phish_close": "이 페이지 닫기",
+  "phish_continue": "전문가로서 위험을 무시합니다",
+  "phish_pro_tip": "🔒 이 기능은 PRO 전용입니다. 업그레이드하여 새로운 피싱 사이트를 차단하세요.",
+  "footer_privacy": "개인정보 처리방침",
+  "footer_terms": "서비스 약관",
+  "footer_link": "GitHub에서 소스 보기",
+  "footer_text": "핵심 엔진은 오픈소스이며 데이터는 절대 외부로 유출되지 않습니다."
 }

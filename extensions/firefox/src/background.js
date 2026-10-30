@@ -12,7 +12,22 @@ import { initSecurityListeners } from './background/security.js';
 import { initStatsListener } from './background/stats.js';
 import { restoreSessionRules } from './background/dnr.js';
 import { runAICheck } from './background/ai.js';
+import { detectBrandPhishing } from './background/phishingDetector.js';
 import { handleMessage } from './background/messageHandler.js';
+import { updateThreatIntel } from './background/threatIntel.js';
+
+// 初始化 Offscreen (用于运行 ONNX 模型)
+if (chrome.offscreen) {
+    chrome.offscreen.hasDocument().then(has => {
+        if (!has) {
+            chrome.offscreen.createDocument({
+                url: 'src/offscreen.html',
+                reasons: ['WORKERS'],
+                justification: 'AI Model Inference'
+            }).catch(console.warn);
+        }
+    });
+}
 
 // 初始化
 initSettings();
@@ -34,6 +49,13 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
         sendResponse({ ok: true });
         return true;
     }
+});
+
+// 威胁情报同步 (URLhaus等)
+setTimeout(updateThreatIntel, 3000);
+chrome.alarms.create('dewsecure_threat_intel', { periodInMinutes: 1440 });
+chrome.alarms.onAlarm.addListener((alarm) => {
+    if (alarm.name === 'dewsecure_threat_intel') updateThreatIntel();
 });
 
 // 模型同步
@@ -120,6 +142,58 @@ if (typeof chrome !== 'undefined' && chrome.sidebarAction && chrome.action && ch
     chrome.action.onClicked.addListener(() => {
         if (chrome.sidebarAction.open) {
             chrome.sidebarAction.open();
+        }
+    });
+}
+
+// 🌟 P-01 修复：页面加载完成时触发 AI 检测
+chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
+    if (changeInfo.status === 'complete' && tab.url && tab.url.startsWith('http')) {
+        runAICheck(tab.url);
+    }
+});
+
+// 🌟 P-01 硬核钓鱼拦截：在页面加载前抢占并重定向
+if (chrome.webNavigation && chrome.webNavigation.onBeforeNavigate) {
+    // 记录已拦截的标签页，防止重定向循环
+    const blockedTabs = new Set();
+
+    chrome.webNavigation.onBeforeNavigate.addListener(async (details) => {
+        if (details.frameId !== 0 || !details.url.startsWith('http')) return;
+        
+        // 🔒 防循环：如果该标签页已被拦截过，放行一次，避免无限重定向
+        if (blockedTabs.has(details.tabId)) {
+            console.log('[DEBUG] 标签页已拦截过，本次放行:', details.tabId);
+            blockedTabs.delete(details.tabId);
+            return;
+        }
+        // 🚨 调试日志：看看这个监听器到底有没有被触发
+        if (details.url.includes('paypal') || details.url.includes('apple') || details.url.includes('maybank')) {
+            console.log('[DEBUG] onBeforeNavigate 捕获到敏感 URL:', details.url);
+            console.log('[DEBUG] detectBrandPhishing 结果:', detectBrandPhishing(details.url));
+        }
+
+        if (detectBrandPhishing(details.url)) {
+            // 🔒 只要触发了规则，就立刻阻断页面加载，防止 301 逃逸到真官网
+            const warningUrl = chrome.runtime.getURL(`warning.html?url=${encodeURIComponent(details.url)}&isPro=false`);
+            blockedTabs.add(details.tabId);
+            chrome.tabs.update(details.tabId, { url: warningUrl });
+
+            // 🔒 异步去检查权限和开关，这不会影响已经发生的安全阻断
+            (async () => {
+                const { dewsecure_settings: settings } = await chrome.storage.local.get('dewsecure_settings');
+                const { dewsecure_user: user } = await chrome.storage.local.get('dewsecure_user');
+                const isPro = user && user.tier !== 'free';
+                
+                if (settings && settings.phishingEnabled === false) {
+                    // 如果用户关了开关，我们再悄悄放行回去
+                    blockedTabs.delete(details.tabId);
+                    chrome.tabs.update(details.tabId, { url: details.url });
+                } else if (isPro) {
+                    // 如果是 PRO 用户，更新一下警告页的 PRO 状态显示
+                    chrome.tabs.update(details.tabId, { url: chrome.runtime.getURL(`warning.html?url=${encodeURIComponent(details.url)}&isPro=true`) });
+                }
+            })();
         }
     });
 }
