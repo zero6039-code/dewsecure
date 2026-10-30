@@ -1,0 +1,75 @@
+name: Update Threat Intel
+
+on:
+  schedule:
+    - cron: '0 3 * * *' # 每天凌晨 3 点运行
+  workflow_dispatch: # 允许手动触发
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: 安装签名依赖
+        run: pip install pynacl
+
+      - name: 下载最新威胁情报
+        env:
+          URLHAUS_AUTH_KEY: ${{ secrets.URLHAUS_AUTH_KEY }}
+          ED25519_PRIVATE_KEY: ${{ secrets.ED25519_PRIVATE_KEY }}
+        run: python scripts/download_threat_intel.py
+
+      - name: 校验产物
+        run: |
+          [ -f threat-rules.json ] || (echo "❌ threat-rules.json 未生成" && exit 1)
+          [ -f threat-rules.json.sig ] || (echo "❌ threat-rules.json.sig 未生成（签名失败）" && exit 1)
+          echo "✅ 产物完整：threat-rules.json + threat-rules.json.sig"
+
+      - name: 安装 rclone
+        run: |
+          wget https://downloads.rclone.org/v1.68.1/rclone-v1.68.1-linux-amd64.deb
+          sudo dpkg -i rclone-v1.68.1-linux-amd64.deb
+
+      - name: 配置 rclone
+        run: |
+          mkdir -p ~/.config/rclone
+          cat > ~/.config/rclone/rclone.conf << RCLONE_EOF
+          [r2]
+          type = s3
+          provider = Cloudflare
+          access_key_id = ${{ secrets.R2_ACCESS_KEY_ID }}
+          secret_access_key = ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          endpoint = ${{ secrets.R2_ENDPOINT }}
+          no_check_bucket = true
+          RCLONE_EOF
+
+      - name: 对比 R2 已有指纹（去重核心）
+        id: diff
+        run: |
+          NEW_HASH=$(python3 -c "import json; print(json.load(open('threat-rules.json.sig'))['sha256'])")
+          echo "本地指纹: $NEW_HASH"
+          OLD_HASH=$(rclone cat r2:${{ secrets.R2_BUCKET }}/intel/threat-rules.json.sig 2>/dev/null \
+            | python3 -c "import json,sys; print(json.load(sys.stdin).get('sha256',''))" 2>/dev/null \
+            || echo "")
+          echo "R2 已有指纹: ${OLD_HASH:-<无>}"
+          if [ -n "$OLD_HASH" ] && [ "$OLD_HASH" = "$NEW_HASH" ]; then
+            echo "skip=true" >> $GITHUB_OUTPUT
+            echo "✅ 指纹一致，跳过上传（节省流量）"
+          else
+            echo "skip=false" >> $GITHUB_OUTPUT
+            echo "📤 指纹不同或 R2 尚无文件，执行上传"
+          fi
+
+      - name: 上传到 R2
+        if: steps.diff.outputs.skip != 'true'
+        run: |
+          rclone copy threat-rules.json r2:${{ secrets.R2_BUCKET }}/intel/ \
+            --s3-no-check-bucket --s3-no-head --s3-chunk-size 5M
+          rclone copy threat-rules.json.sig r2:${{ secrets.R2_BUCKET }}/intel/ \
+            --s3-no-check-bucket --s3-no-head --s3-chunk-size 5M
+          echo "✅ 已上传 threat-rules.json + threat-rules.json.sig"
