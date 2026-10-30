@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "DewSecure - Content Optimizer",
-  "version": "1.2.5",
+  "version": "1.2.6",
   "description": "On-device AI + 110,000+ rules. Stop phishing redirects, trackers, and intrusive popups. Privacy-first.",
   "permissions": [
     "declarativeNetRequest",
@@ -123,9 +123,7 @@
   },
   "externally_connectable": {
     "matches": [
-      "http://localhost:8888/*",
-    "http://127.0.0.1:8888/*",
-    "https://dewsecure.com/*",
+      "https://dewsecure.com/*",
       "https://www.dewsecure.com/*"
     ]
   },

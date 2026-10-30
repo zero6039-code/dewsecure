@@ -103,5 +103,10 @@
   "limit_title": "Had Peranti Dicapai",
   "limit_desc": "Anda telah mencapai had peranti (3/3). Sila nyahikat peranti lain di Papan Pemuka.",
   "limit_btn_go": "Pergi ke Papan Pemuka",
-  "limit_btn_close": "Tutup"
+  "limit_btn_close": "Tutup",
+  "tier_trial_plan": "⭐ Pro Percubaan",
+  "feedback_submitting": "⏳ Menghantar...",
+  "feedback_failed": "❌ Gagal dihantar",
+  "feedback_thanks": "✅ Terima kasih atas maklum balas anda!",
+  "feedback_cooldown": "⏳ Sudah dilaporkan, sila tunggu 24j"
 }

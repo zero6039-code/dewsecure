@@ -27,7 +27,6 @@ window.syncUserState = async function syncUserState() {
     
     if (reportRes && reportRes.status === 'LIMIT_EXCEEDED') {
         console.warn("🚫 [Popup] 数据库明确反馈：设备数已满，确实无法插入当前设备。");
-        updateUserUI(null); // 锁定 UI
         
         // 强行关闭登录弹窗，防遮挡
         const authModal = document.getElementById('authModal');
@@ -42,18 +41,14 @@ window.syncUserState = async function syncUserState() {
     console.log("✅ [Popup] 设备已就绪，解除超限锁定");
     await chrome.storage.local.remove('dewsecure_device_limit_reached');
 
+    // 🌟 核心修复：如果存在超限弹窗，强制将其移除
+    const limitModal = document.getElementById('deviceLimitModal');
+    if (limitModal) limitModal.remove();
+
+    // 🌟 强制先去云端拉取最新状态，再渲染，杜绝使用本地旧缓存造成的闪烁
     user = await fetchUserProfile();
     
-    // 如果是 Pro 用户，强制恢复被锁定的开关
-    if (user && user.tier !== 'free') {
-        let { dewsecure_settings: s } = await chrome.storage.local.get('dewsecure_settings');
-        s = s || {};
-        let changed = false;
-        if (s.phishingEnabled === false) { s.phishingEnabled = true; changed = true; }
-        if (s.aiFourEnabled === false) { s.aiFourEnabled = true; changed = true; }
-        if (s.blockSocialTrackers === false) { s.blockSocialTrackers = true; changed = true; }
-        if (changed) await chrome.storage.local.set({ dewsecure_settings: s });
-    }
+    // 🔒 修复：移除强制开启用户设置的逻辑，尊重用户意愿
     
     updateUserUI(user);
 
@@ -110,6 +105,25 @@ chrome.storage.onChanged.addListener((changes, namespace) => {
         if (changes['dewsecure_user']) {
             window.syncUserState();
         }
+
+        // 🔒 当后台保存设置后，实时同步给 UI，且不触发 change 事件
+        if (changes['dewsecure_settings']) {
+            const settings = changes['dewsecure_settings'].newValue || {};
+            const toggleMap = {
+                'dnrToggle': 'dnrEnabled', 'antiHijackToggle': 'antiHijackEnabled',
+                'phishingToggle': 'phishingEnabled', 'aiFourToggle': 'aiFourEnabled',
+                'trackerToggle': 'blockTrackers', 'antiBypassToggle': 'antiBypassEnabled',
+                'cookieToggle': 'hideCookieNotices', 'placeholderToggle': 'hideAdPlaceholders',
+                'socialToggle': 'blockSocialTrackers'
+            };
+            for (const [id, key] of Object.entries(toggleMap)) {
+                const el = document.getElementById(id);
+                if (el && !el.disabled) {
+                    const val = settings[key] !== false;
+                    if (el.checked !== val) el.checked = val;
+                }
+            }
+        }
     }
 });
 
@@ -122,7 +136,7 @@ chrome.tabs.onUpdated.addListener((tabId, changeInfo) => {
 chrome.windows.onFocusChanged.addListener((windowId) => {
     if (windowId !== chrome.windows.WINDOW_ID_NONE) {
         updateSiteInfo();
-        window.syncUserState(); // 切回窗口立刻向服务器核实
+        // 🔒 移除 syncUserState()，防止高频网络请求导致 UI 覆盖
     }
 });
 

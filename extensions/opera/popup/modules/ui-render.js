@@ -135,7 +135,7 @@ export async function updateUserUI(user) {
 
     const upgradeBtn = document.getElementById('upgradeBtn');
     const upgradeText = document.querySelector('.btn-upgrade-text');
-    const isPremium = user?.tier === 'pro' || user?.tier === 'family' || user?.tier === 'premium';
+    const isPremium = user?.tier === 'pro' || user?.tier === 'family' || user?.tier === 'premium' || user?.tier === 'trial';
 
     if (upgradeBtn && upgradeText) {
         if (isPremium) {
@@ -161,6 +161,9 @@ export async function updateUserUI(user) {
         }
     }
 
+    // 🔒 提前同步获取设置，彻底消灭异步回调导致的状态覆盖！
+    const { dewsecure_settings: settings } = await chrome.storage.local.get('dewsecure_settings');
+    const s = settings || {};
     const proSwitchIds = ['phishingToggle', 'aiFourToggle', 'socialToggle']; 
     
     proSwitchIds.forEach(id => {
@@ -176,15 +179,14 @@ export async function updateUserUI(user) {
                     input.checked = false;
                     input.removeAttribute('checked');
                     input.disabled = true;
-                    input.dispatchEvent(new Event('change')); 
-                });
+                    });
                 container.style.opacity = '0.4';
                 container.style.pointerEvents = 'none';
             } else {
                 switchEl.checked = false;
                 switchEl.removeAttribute('checked');
                 switchEl.disabled = true;
-                switchEl.dispatchEvent(new Event('change'));
+                // 🔒 修复：移除 dispatchEvent，防止无限触发/状态覆盖
             }
             // 🌟 关键修复：不再强制写入 Storage false，保护用户的设置
         } else {
@@ -199,8 +201,7 @@ export async function updateUserUI(user) {
                         if (id === 'phishingToggle') input.checked = s.phishingEnabled !== false;
                         if (id === 'aiFourToggle') input.checked = s.aiFourEnabled !== false;
                         if (id === 'socialToggle') input.checked = s.blockSocialTrackers !== false;
-                        input.dispatchEvent(new Event('change'));
-                    });
+                        });
                 });
                 container.style.opacity = '1';
                 container.style.pointerEvents = 'auto';

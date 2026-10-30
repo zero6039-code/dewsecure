@@ -9,14 +9,19 @@ let profileFetchSeq = 0;
 // 渲染已登录状态的视图
 export function renderLoggedInView(user) {
     if (!user) return;
-    const isPremium = user.tier === 'premium' || user.tier === 'family' || user.tier === 'pro';
+    const isPremium = user.tier === 'premium' || user.tier === 'family' || user.tier === 'pro' || user.tier === 'trial';
     
     document.getElementById('loggedInEmail').textContent = user.email;
     
     // 等级名称翻译
     let tierText = window.t('tier_free');
-    if (user.tier === 'family') tierText = window.t('tier_family_plan');
-    else if (user.tier === 'pro' || user.tier === 'premium') tierText = window.t('tier_pro_plan');
+    if (user.tier === 'family') {
+        tierText = window.t('tier_family_plan');
+    } else if (user.tier === 'trial') {
+        tierText = window.t('tier_trial_plan') || 'Pro Trial';
+    } else if (user.tier === 'pro' || user.tier === 'premium') {
+        tierText = window.t('tier_pro_plan');
+    }
     
     document.getElementById('accountTier').textContent = tierText;
     document.getElementById('accountTier').classList.toggle('free', !isPremium);
@@ -44,7 +49,7 @@ export function renderLoggedInView(user) {
     } else {
         if (deviceLabel) deviceLabel.textContent = window.t('auth_devices');
         devicesEl.style.color = ""; 
-        const limit = user.tier === 'pro' || user.tier === 'premium' ? 3 : 0;
+        const limit = (user.tier === 'pro' || user.tier === 'premium' || user.tier === 'trial') ? 3 : 0;
         const current = user.deviceCount !== undefined ? user.deviceCount : (isPremium ? 1 : 0);
         
         if (limit > 0) devicesEl.textContent = `${current} / ${limit}`;
@@ -65,30 +70,39 @@ export function renderLoggedInView(user) {
 }
 
 export function initAccountUI() {
+    // 🌟 提取公共的跳转逻辑
+    const openDashboardWithToken = async (e) => {
+        if (e) e.preventDefault();
+        try {
+            const user = await getCurrentUser();
+            const baseUrl = 'https://dewsecure.com/dashboard.html';
+            if (user && user.token) {
+                const url = new URL(baseUrl);
+                url.searchParams.set('token', user.token);
+                if (user.refreshToken) url.searchParams.set('refresh', user.refreshToken);
+                chrome.tabs.create({ url: url.toString() });
+            } else {
+                chrome.tabs.create({ url: baseUrl });
+            }
+        } catch (err) {
+            chrome.tabs.create({ url: 'https://dewsecure.com/dashboard.html' });
+        }
+    };
+
     const btnManage = document.getElementById('manageAccountBtn');
+    const btnTrial = document.getElementById('activateTrialBtn');
     const btnLogout = document.getElementById('logoutBtn');
     const btnConfirmLogout = document.getElementById('confirmLogoutBtn');
     const btnCancelLogout = document.getElementById('cancelLogoutBtn');
     const confirmModal = document.getElementById('confirmModal');
 
     if (btnManage) {
-        btnManage.onclick = async (e) => {
-            e.preventDefault();
-            try {
-                const user = await getCurrentUser();
-                const baseUrl = 'https://dewsecure.com/dashboard.html';
-                if (user && user.token) {
-                    const url = new URL(baseUrl);
-                    url.searchParams.set('token', user.token);
-                    if (user.refreshToken) url.searchParams.set('refresh', user.refreshToken);
-                    chrome.tabs.create({ url: url.toString() });
-                } else {
-                    chrome.tabs.create({ url: baseUrl });
-                }
-            } catch (err) {
-                chrome.tabs.create({ url: 'https://dewsecure.com/dashboard.html' });
-            }
-        };
+        btnManage.onclick = openDashboardWithToken;
+    }
+
+    // 🌟 新增：试用按钮也跳转到 Dashboard
+    if (btnTrial) {
+        btnTrial.onclick = openDashboardWithToken;
     }
 
     if (btnLogout && confirmModal) {

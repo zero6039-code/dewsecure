@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "DewSecure",
-  "version": "0.1.0",
+  "version": "1.2.5",
   "description": "用户端内容优化引擎 - 你的设备，你的规则。",
   "browser_specific_settings": {
     "gecko": {

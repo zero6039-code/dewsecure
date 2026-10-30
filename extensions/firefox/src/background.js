@@ -47,17 +47,42 @@ chrome.alarms.onAlarm.addListener((alarm) => {
 chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     if (msg.type === 'AUTH_STATE_CHANGED') {
         checkAndUpdateModel().catch(console.warn);
-        import('./authManager.js').then(async ({ getCurrentUser }) => {
+        (async () => {
             const user = await getCurrentUser();
             if (user && user.token) reportDeviceSilently(user.token);
-        }).catch(e => console.warn(e));
+        })().catch(e => console.warn(e));
         sendResponse({ ok: true });
         return true;
     }
 });
 
+// 🔒 S-01: 外部消息来源白名单（生产域名）
+const ALLOWED_EXTERNAL_ORIGINS = new Set([
+    'https://dewsecure.com',
+    'https://www.dewsecure.com',
+    'http://localhost:8888',
+    'http://127.0.0.1:8888'
+]);
+
+function isTrustedExternalSender(sender) {
+    if (!sender) return false;
+    if (typeof sender.origin === 'string' && sender.origin) {
+        return ALLOWED_EXTERNAL_ORIGINS.has(sender.origin);
+    }
+    if (typeof sender.url === 'string' && sender.url) {
+        try { return ALLOWED_EXTERNAL_ORIGINS.has(new URL(sender.url).origin); }
+        catch { return false; }
+    }
+    return false;
+}
+
 // 外部通信
 chrome.runtime.onMessageExternal.addListener((message, sender, sendResponse) => {
+    console.log('🚨 [外部请求] 收到:', message.type, '来源:', sender?.origin || sender?.url);
+    if (!isTrustedExternalSender(sender)) {
+        console.warn('❌ [拦截] 来源不合法，已阻断！');
+        return false;
+    }
     if (message.type === 'SYNC_AUTH') {
         saveExternalAuth(message.payload).then(res => sendResponse({ ok: res.ok }));
         return true;
@@ -70,27 +95,25 @@ chrome.runtime.onMessageExternal.addListener((message, sender, sendResponse) => 
     if (message.type === 'REFRESH_DEVICES') {
         chrome.runtime.sendMessage({ type: 'AUTH_STATE_CHANGED' }).catch(() => {});
         // 强制再次上报当前设备（此时如果网页端腾出了空位，这里就能插进去了）
-        import('./authManager.js').then(async ({ getCurrentUser }) => {
+        (async () => {
             const user = await getCurrentUser();
             if (user && user.token) {
-                import('./deviceManager.js').then(({ reportDeviceSilently }) => {
-                    reportDeviceSilently(user.token, true);
-                });
+                reportDeviceSilently(user.token, true);
             }
-        }).catch(() => {});
+        })().catch(() => {});
         sendResponse({ ok: true });
         return true;
     }
 });
 
 // 启动强制设备上报
-import('./authManager.js').then(async ({ getCurrentUser }) => {
+(async () => {
     const user = await getCurrentUser();
     if (user && user.token) {
         await chrome.storage.local.remove('dewsecure_last_device_report');
         reportDeviceSilently(user.token).catch(console.warn);
     }
-});
+})();
 
 // 🌟 Firefox 侧边栏自动打开逻辑（加了严格判断）
 if (typeof chrome !== 'undefined' && chrome.sidebarAction && chrome.action && chrome.action.onClicked) {

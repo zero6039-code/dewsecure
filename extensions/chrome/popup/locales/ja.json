@@ -103,5 +103,10 @@
   "limit_title": "デバイス数の上限に達しました",
   "limit_desc": "デバイスの上限（3/3）に達しました。ダッシュボードで他のデバイスを解除してください。",
   "limit_btn_go": "ダッシュボードへ",
-  "limit_btn_close": "閉じる"
+  "limit_btn_close": "閉じる",
+  "tier_trial_plan": "⭐ Pro 試用版",
+  "feedback_submitting": "⏳ 送信中...",
+  "feedback_failed": "❌ 送信に失敗しました",
+  "feedback_thanks": "✅ フィードバックありがとうございます！",
+  "feedback_cooldown": "⏳ 通報済みです。24時間後にお試しください"
 }

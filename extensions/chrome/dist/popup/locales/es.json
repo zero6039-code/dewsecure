@@ -103,5 +103,10 @@
   "limit_title": "Límite de Dispositivos",
   "limit_desc": "Ha alcanzado el límite (3/3). Desvincule otros dispositivos en el Panel.",
   "limit_btn_go": "Ir al Panel",
-  "limit_btn_close": "Cerrar"
+  "limit_btn_close": "Cerrar",
+  "tier_trial_plan": "⭐ Prueba Pro",
+  "feedback_submitting": "⏳ Enviando...",
+  "feedback_failed": "❌ Error al enviar",
+  "feedback_thanks": "✅ ¡Gracias por tu opinión!",
+  "feedback_cooldown": "⏳ Ya reportado, espera 24h"
 }

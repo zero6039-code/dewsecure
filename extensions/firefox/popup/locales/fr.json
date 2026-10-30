@@ -103,5 +103,10 @@
   "limit_title": "Limite d'Appareils Atteinte",
   "limit_desc": "Vous avez atteint la limite (3/3). Veuillez dissocier d'autres appareils sur le Tableau de bord.",
   "limit_btn_go": "Aller au Tableau de bord",
-  "limit_btn_close": "Fermer"
+  "limit_btn_close": "Fermer",
+  "tier_trial_plan": "⭐ Essai Pro",
+  "feedback_submitting": "⏳ Envoi en cours...",
+  "feedback_failed": "❌ Échec de l'envoi",
+  "feedback_thanks": "✅ Merci pour votre retour !",
+  "feedback_cooldown": "⏳ Déjà signalé, veuillez patienter 24h"
 }

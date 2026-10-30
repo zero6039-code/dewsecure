@@ -17,6 +17,7 @@
   },
   "dependencies": {
     "@adguard/dnr-converter": "^2.0.0",
+    "@noble/ed25519": "^3.2.0",
     "aws4fetch": "^1.0.20",
     "onnxruntime-web": "^1.19.0"
   }

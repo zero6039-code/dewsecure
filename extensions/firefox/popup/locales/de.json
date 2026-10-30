@@ -103,5 +103,10 @@
   "limit_title": "Gerätelimit Erreicht",
   "limit_desc": "Sie haben das Limit (3/3) erreicht. Bitte entkoppeln Sie andere Geräte im Dashboard.",
   "limit_btn_go": "Zum Dashboard",
-  "limit_btn_close": "Schließen"
+  "limit_btn_close": "Schließen",
+  "tier_trial_plan": "⭐ Pro Testversion",
+  "feedback_submitting": "⏳ Wird gesendet...",
+  "feedback_failed": "❌ Senden fehlgeschlagen",
+  "feedback_thanks": "✅ Vielen Dank für Ihr Feedback!",
+  "feedback_cooldown": "⏳ Bereits gemeldet, bitte warte 24h"
 }

@@ -103,5 +103,10 @@
   "limit_title": "기기 수 제한 도달",
   "limit_desc": "기기 제한(3/3)에 도달했습니다. 대시보드에서 다른 기기의 연결을 해제하세요.",
   "limit_btn_go": "대시보드로 이동",
-  "limit_btn_close": "닫기"
+  "limit_btn_close": "닫기",
+  "tier_trial_plan": "⭐ Pro 체험판",
+  "feedback_submitting": "⏳ 제출 중...",
+  "feedback_failed": "❌ 제출 실패",
+  "feedback_thanks": "✅ 피드백 감사합니다!",
+  "feedback_cooldown": "⏳ 이미 신고되었습니다. 24시간 후에 시도하세요"
 }
