@@ -19,6 +19,10 @@ def main():
         raise ValueError("缺少 ED25519_PRIVATE_KEY 环境变量")
 
     sk = SigningKey(bytes.fromhex(private_key_hex))
+    
+    # 🔍 打印公钥，方便核对！
+    print(f"🔑 [CI DEBUG] 使用的公钥 (请对比插件代码): {sk.verify_key.encode().hex()}")
+
     version = os.environ.get('VERSION', 'unknown')
     message = f"{version}:{sha256}".encode()
     sig_b64 = base64.b64encode(sk.sign(message).signature).decode()
@@ -28,6 +32,7 @@ def main():
         meta = json.load(f)
     meta['signature'] = sig_b64
     meta['sha256'] = sha256
+    meta['trainedAt'] = version  # 🔥 核心修复：必须把版本号写入 JSON！
 
     with open(meta_path, 'w') as f:
         json.dump(meta, f)

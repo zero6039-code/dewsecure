@@ -1,4 +1,9 @@
 import * as ed from '@noble/ed25519';
+import { sha512 } from '@noble/hashes/sha512';
+
+// 🔒 核心修复：在 Service Worker 中必须显式注入 SHA-512 引擎，否则验签永远返回 false
+ed.etc.sha512Sync = (...m) => sha512(ed.etc.concatBytes(...m));
+
 
 // 🔒 S-03: Ed25519 公钥（32字节 hex 字符串，无 0x）
 // ⚠️ 请替换为你自己后端生成的正式公钥
@@ -124,7 +129,8 @@ export async function checkAndUpdateModel() {
 
         // 🔒 S-03 修复 A：强制要求哈希和签名存在
         if (remoteVersion === 'unknown' || !remoteSha256 || !signatureB64) {
-            console.error('[ModelManager] ❌ 拒绝更新：缺少版本号、哈希或签名头！');
+            console.error('[ModelManager] ❌ 拒绝更新：缺少版本号、哈希或签名头！(回退包内默认模型)');
+            await clearModelCache(); // 🔒 清理本地缓存
             return { updated: false, meta: null, error: 'Missing security headers' };
         }
 
@@ -142,7 +148,8 @@ export async function checkAndUpdateModel() {
         const modelBuffer = await modelResp.arrayBuffer();
         const actualHash = await computeSHA256(modelBuffer);
         if (actualHash !== remoteSha256) {
-            console.error('[ModelManager] ❌ SHA-256 校验失败！文件损坏或被篡改。');
+            console.error('[ModelManager] ❌ SHA-256 校验失败！文件损坏或被篡改。(回退包内默认模型)');
+            await clearModelCache();
             return { updated: false, meta: null, error: 'SHA-256 mismatch' };
         }
 
@@ -153,15 +160,21 @@ export async function checkAndUpdateModel() {
             const msgBytes = new TextEncoder().encode(msgStr);
             
             // 解析 Base64 签名
-            const sigBytes = Uint8Array.from(atob(signatureB64), c => c.charCodeAt(0));
+            const sigBytes = Uint8Array.from(atob(signatureB64.trim()), c => c.charCodeAt(0));
             
             // 解析 Hex 公钥
             const pubKeyBytes = new Uint8Array(ED25519_PUBLIC_KEY_HEX.match(/.{1,2}/g).map(byte => parseInt(byte, 16)));
 
+            // 🔍 打印前端到底拿到了什么
+            console.log('🔍 [DEBUG] 待验原文:', msgStr);
+            console.log('🔍 [DEBUG] 签名长度:', sigBytes.length, '(应为 64)');
+            console.log('🔍 [DEBUG] 公钥长度:', pubKeyBytes.length, '(应为 32)');
+
             // 执行校验
             const isValid = await ed.verifyAsync(sigBytes, msgBytes, pubKeyBytes);
             if (!isValid) {
-                console.error('[ModelManager] ❌ 签名校验失败！模型来源不可信。');
+                console.error('[ModelManager] ❌ 签名校验失败！模型来源不可信。(回退包内默认模型)');
+                await clearModelCache(); // 🔒 签名不对，直接扬了旧缓存
                 return { updated: false, meta: null, error: 'Signature verification failed' };
             }
             console.log('[ModelManager] ✅ 签名校验通过！');

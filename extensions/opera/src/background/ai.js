@@ -117,15 +117,41 @@ export async function runAICheck(url) {
         const maxIdx = probs.indexOf(Math.max(...probs));
         const classes = ['Normal', 'Ad', 'Tracker', 'Phishing'];
         const classification = classes[maxIdx];
+        
+        // 🔒 安全网 1：如果网站在白名单里，直接放行
+        const settings = await chrome.storage.local.get('dewsecure_settings').then(r => r.dewsecure_settings || {});
+        const isWhitelisted = (settings.whitelist || []).some(d => domain === d || domain.endsWith('.' + d)) ||
+                              (settings.tempWhitelist || []).some(d => domain === d || domain.endsWith('.' + d));
+        if (isWhitelisted) {
+            console.log(`🛡️ [AI安全网] ${domain} 在白名单中，跳过拦截。`);
+            return;
+        }
+
         if (classification === 'Phishing') {
             chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
                 if (tabs[0] && tabs[0].id) chrome.tabs.sendMessage(tabs[0].id, { type: 'PHISHING_DETECTED', url });
             });
         } else if (classification === 'Ad' || classification === 'Tracker') {
+            // 🔒 安全网 2：严禁拦截 main_frame (防止网页白屏死锁)
+            // 只拦截高危子资源，且降低拦截概率，仅当置信度极高（>80%）时才拦截子资源
+            const confidence = probs[maxIdx];
+            if (confidence < 0.8) {
+                console.log(`[AI] 置信度不足 (${confidence.toFixed(2)})，放弃拦截: ${domain}`);
+                return;
+            }
+            
             const ruleId = Math.floor(Math.abs(domain.split('').reduce((a,b)=>((a<<5)-a)+b.charCodeAt(0),0)) % 1000000) + 50000;
             await chrome.declarativeNetRequest.updateSessionRules({
                 removeRuleIds: [ruleId],
-                addRules: [{ id: ruleId, priority: 10000, action: { type: 'block' }, condition: { requestDomains: [domain], resourceTypes: ["main_frame", "sub_frame", "script", "image", "xmlhttprequest"] } }]
+                addRules: [{ 
+                    id: ruleId, 
+                    priority: 10000, 
+                    action: { type: 'block' }, 
+                    condition: { 
+                        requestDomains: [domain], 
+                        resourceTypes: ["script", "image", "xmlhttprequest"] // 🚨 移除了 main_frame 和 sub_frame
+                    } 
+                }]
             });
         }
     } catch(e) {}

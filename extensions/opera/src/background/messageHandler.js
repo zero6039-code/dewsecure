@@ -113,6 +113,7 @@ export async function handleMessage(message, sender) {
                         user_id: userId, // 恢复真实 ID（如果没登录则为 null）
                         report_type: message.feedbackType === 'missed' ? 'false_negative' : 'false_positive', 
                         url: `https://${domainOnly}`, // 🔒 仅上报注册域（已脱敏）
+                        domain: domainOnly, 
                         description: domainOnly, 
                         category: 'ai_feedback' 
                     })

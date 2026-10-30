@@ -49,7 +49,7 @@ window.open = function(...args) {
         return document.documentElement.getAttribute('data-dewsecure-paused') === 'true';
     }
 
-    const adPatterns = /(mmp_pid=|Allianceid=|from_affiliate=|url_from=affiliate|affiliate_id=|click_id=|sub_id=|campaign_id=|uls_trackid=|utm_campaign=|utm_source=an_|utm_source=InvolveAsia|utm_source=adcash|aid=api%7C|ud1=|cid=|1xlite|1xbet|tag=d_|omguk|tiktok\.com\/view|doubleclick|omgt3|popads|googlesyndication|clk\.|adsterra|propellerads|trip\.com|shopee\.com\.my|lazada\.com\.my|shein\.com\/ark|kkday\.com|klook\.com|opera\.com\/partner|a_aid=|a_bid=|gsid=|gsc=)/i;
+    const adPatterns = /(mmp_pid=|Allianceid=|from_affiliate=|affiliate_id=|uls_trackid=|utm_source=InvolveAsia|utm_source=adcash|aid=api%7C|1xlite|1xbet|omguk|tiktok\.com\/view|doubleclick|googlesyndication|propellerads|adsterra|a_aid=|a_bid=|gsid=|gsc=)/i;
     const isAdUrl = (url) => url && typeof url === 'string' && adPatterns.test(url);
 
     const _windowOpen = window.open;
@@ -155,7 +155,7 @@ window.open = function(...args) {
         for (const m of mutations) {
             for (const node of m.addedNodes) {
                 if (node.nodeType === Node.ELEMENT_NODE) {
-                    if (node.className && typeof node.className === 'string' && /(ad-|ads-|banner|popup|sponsor|promo|overlay|modal)/i.test(node.className)) {
+                    if (node.className && typeof node.className === 'string' && /(^ad-|^ads-|^banner-ad|^popup-ad|^sponsor-ad|^advert|^ad-wrapper|^ad-container)/i.test(node.className)) {
                         node.style.setProperty('display', 'none', 'important');
                     }
                     killMaliciousNodes(node);

@@ -177,14 +177,19 @@ def build_dataset():
     # 🌟 融合用户真实反馈
     missed_feedbacks, false_feedbacks = fetch_supabase_feedbacks()
     
-    # 把误拦的从黑名单踢出，加入白名单
+    # 🔒 安全网 3：误拦的绝对保护，黑名单里绝对不能有
     for d in false_feedbacks:
         if d in ad_domains:
             ad_domains.remove(d)
         legit.add(d)
         
-    # 把漏拦的加入黑名单
+    # 🔒 安全网 4：漏拦逻辑
     for d in missed_feedbacks:
+        # 如果这个域名同时出现在误拦里，说明有严重争议，直接放弃训练（宁可不拦，不可错杀）
+        if d in false_feedbacks:
+            print(f"⚠️ 争议域名，跳过训练: {d}")
+            continue
+            
         if d in legit:
             legit.remove(d)
         ad_domains.add(d)
