@@ -201,29 +201,31 @@ def build_dataset():
 
     rows = []
     tracker_count = 0
-    trackers_to_oversample = []
     
     for d in ad_list:
         label = classify_label(d)
         if label == 2:
             tracker_count += 1
-            trackers_to_oversample.append({"domain": d, "label": label})
         rows.append({"domain": d, "label": label})
         
     for d in legit_list:
         rows.append({"domain": d, "label": 0})
-        
-    # 🔒 核心修复：数据过采样，把偏少的 Tracker 数据复制 5 倍，强行拉高占比
-    if trackers_to_oversample:
-        print(f"⚖️ 对 {len(trackers_to_oversample)} 个 Tracker 样本进行 5 倍过采样，提升模型召回率...")
-        for _ in range(4): # 已经有一份了，再加 4 份
-            rows.extend(trackers_to_oversample)
 
     print(f"\n  Tracker 识别数: {tracker_count}")
 
-    df = pd.DataFrame(rows).drop_duplicates(subset="domain").sample(
-        frac=1, random_state=42
-    ).reset_index(drop=True)
+    # 🔒 核心修复：先转 DataFrame 并去重，然后再进行过采样
+    df = pd.DataFrame(rows).drop_duplicates(subset="domain").reset_index(drop=True)
+    
+    # 找出所有的 Tracker 样本
+    trackers_df = df[df['label'] == 2]
+    if not trackers_df.empty:
+        print(f"⚖️ 对 {len(trackers_df)} 个 Tracker 样本进行 5 倍过采样...")
+        # 直接复制 4 份并拼接到原数据上
+        for _ in range(4):
+            df = pd.concat([df, trackers_df], ignore_index=True)
+    
+    # 打乱顺序
+    df = df.sample(frac=1, random_state=42).reset_index(drop=True)
 
     split = int(len(df) * 0.8)
     df[:split].to_csv(os.path.join(DATA_DIR, "train.csv"), index=False)
