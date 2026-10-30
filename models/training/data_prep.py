@@ -116,7 +116,7 @@ def mark_feedbacks_as_processed():
             timeout=30
         )
         res.raise_for_status()
-        print("✅ 状态标记完成，下周不会重复训练这批数据！")
+        print("✅ 状态标记完成，下次不会重复训练这批数据！")
     except Exception as e:
         print(f"❌ 标记状态失败: {e}")
 
