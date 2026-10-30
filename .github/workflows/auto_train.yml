@@ -57,12 +57,12 @@ jobs:
           echo "✅ 模型 Macro F1: $MACRO_F1"
           echo "✅ 版本: $VERSION"
 
-        - name: 🔐 计算哈希并使用 Ed25519 签名
-          working-directory: models
-          env:
-            ED25519_PRIVATE_KEY: ${{ secrets.ED25519_PRIVATE_KEY }}
-            VERSION: ${{ steps.meta.outputs.version }}
-          run: python training/sign_model.py
+      - name: 🔐 计算哈希并使用 Ed25519 签名
+        working-directory: models
+        env:
+          ED25519_PRIVATE_KEY: ${{ secrets.ED25519_PRIVATE_KEY }}
+          VERSION: ${{ steps.meta.outputs.version }}
+        run: python training/sign_model.py
 
       - name: 安装 rclone
         run: |
