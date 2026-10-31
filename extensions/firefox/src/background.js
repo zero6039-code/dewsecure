@@ -1,3 +1,10 @@
+// 🔒 S-06 修复：限制 content script 读取 storage.local，保护 Token 安全
+if (chrome.storage && chrome.storage.local && chrome.storage.local.setAccessLevel) {
+    chrome.storage.local.setAccessLevel({ accessLevel: 'TRUSTED_CONTEXTS' }).catch(e => {
+        console.warn('⚠️ 设置 storage 访问级别失败:', e);
+    });
+}
+
 // 🌟 动态适配 Chrome 与 Edge 的 Side Panel
 if (typeof chrome !== 'undefined' && chrome.sidePanel && chrome.sidePanel.setPanelBehavior) {
     chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: true }).catch(console.warn);

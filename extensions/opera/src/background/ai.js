@@ -109,8 +109,12 @@ export async function runAICheck(url) {
     try {
         const domain = new URL(url).hostname;
         if (AI_CHECKED_DOMAINS.has(domain)) return;
+        // 🔧 防御性微调：防止 Set 无限膨胀导致内存泄漏
+        if (AI_CHECKED_DOMAINS.size > 5000) {
+            AI_CHECKED_DOMAINS.clear();
+        }
         AI_CHECKED_DOMAINS.add(domain);
-        const features = extractFeaturesFromUrl(url);
+        const features = extractFeaturesFromUrl(domain); // 🔧 P1-B Step1: 归一化为 hostname，对齐训练分布
         const response = await chrome.runtime.sendMessage({ target: 'offscreen', type: 'CLASSIFY', features });
         if (!response || !response.probs) return;
         const probs = response.probs;

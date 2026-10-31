@@ -225,14 +225,19 @@ chrome.declarativeNetRequest.getDynamicRules().then(rules => {
 });
 
 // 🌟 防线 3：全局最高优先级豁免 (防止未来任何新模块误伤官方)
+// 先安全移除旧规则（如果不存在也不会报错），再添加新规则，彻底杜绝 ID 冲突报错
 chrome.declarativeNetRequest.updateSessionRules({
-    addRules: [{
-        "id": 999999,
-        "priority": 1000000, // 一百万级碾压，高于任何 AI (10000) 或暂停 (100000) 规则
-        "action": { "type": "allow" },
-        "condition": {
-            "requestDomains": ["dewsecure.com", "dewsecure-api.zero6039.workers.dev"],
-            "resourceTypes": ["main_frame", "sub_frame", "stylesheet", "script", "image", "font", "object", "xmlhttprequest", "ping", "csp_report", "media", "websocket", "other"]
-        }
-    }]
+    removeRuleIds: [999999]
+}).then(() => {
+    return chrome.declarativeNetRequest.updateSessionRules({
+        addRules: [{
+            "id": 999999,
+            "priority": 1000000, // 一百万级碾压，高于任何 AI 或暂停规则
+            "action": { "type": "allow" },
+            "condition": {
+                "requestDomains": ["dewsecure.com", "dewsecure-api.zero6039.workers.dev"],
+                "resourceTypes": ["main_frame", "sub_frame", "stylesheet", "script", "image", "font", "object", "xmlhttprequest", "ping", "csp_report", "media", "websocket", "other"]
+            }
+        }]
+    });
 }).catch(e => console.warn('设置官方豁免失败:', e));
