@@ -92,6 +92,19 @@ export async function saveExternalAuth(payload) {
 }
 
 export async function logoutUser() {
+    // 🔒 S-06 修复：先向 Supabase 发送服务端注销，吊销 Token
+    try {
+        const { [USER_KEY]: user } = await chrome.storage.local.get(USER_KEY);
+        if (user && user.token) {
+            await fetch(`${SUPABASE_URL}/auth/v1/logout`, {
+                method: 'POST',
+                headers: { 'apikey': SUPABASE_ANON_KEY, 'Authorization': `Bearer ${user.token}` }
+            });
+        }
+    } catch (e) {
+        console.warn('服务端登出失败（可能已离线），继续执行本地清理:', e);
+    }
+
     await chrome.storage.local.remove(USER_KEY);
     chrome.runtime.sendMessage({ type: 'AUTH_STATE_CHANGED' }).catch(() => {});
 
