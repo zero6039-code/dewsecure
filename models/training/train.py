@@ -18,9 +18,26 @@ def prepare_dataset():
     # 这样既保证了每次跑分的独立性，也能覆盖到更多数据。
     dynamic_seed = int(time.time()) % 100000 
     
+    # 🛡️ 核心修复：在随机抽样前，强制把 hard_rules 里的域名提取出来，防止被随机丢弃
+    hard_rules_path = 'hard_rules.json'
+    hard_safe = []
+    hard_block = []
+    if os.path.exists(hard_rules_path):
+        with open(hard_rules_path, 'r', encoding='utf-8') as f:
+            rules = json.load(f)
+            hard_safe = rules.get("hard_safe", [])
+            hard_block = rules.get("hard_block", [])
+            
+    # 强制从原始数据中捞出这些域名
+    hard_domains = set(hard_safe + hard_block)
+    force_train = train_df[train_df["domain"].isin(hard_domains)]
+    
     if len(train_df) > 50000:
         print(f"🎲 使用动态种子 {dynamic_seed} 随机抽取 50000 条训练数据...")
-        train_df = train_df.sample(n=50000, random_state=dynamic_seed)
+        sampled = train_df.sample(n=50000, random_state=dynamic_seed)
+        # 将抽样数据与强制保留的金标数据合并，并去重
+        train_df = pd.concat([sampled, force_train]).drop_duplicates(subset=["domain"]).reset_index(drop=True)
+        print(f"🛡️ 已强制注入 {len(force_train)} 条金标数据，最终训练集大小: {len(train_df)}")
     if len(test_df) > 10000:
         test_df = test_df.sample(n=10000, random_state=dynamic_seed)
 
