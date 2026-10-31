@@ -30,10 +30,12 @@ def prepare_dataset():
     # 🛡️ 核心修复 2：改用分层抽样 (Stratified Sampling)，保证类别比例绝对平衡
     if len(train_df) > 50000:
         print(f"🎲 使用动态种子 {dynamic_seed} 进行分层抽样 50000 条...")
-        # 按照 label 分组，每组抽取相应比例，保证 0/1/2 类别的分布和原数据完全一致
-        sampled = train_df.groupby("label", group_keys=False).apply(
-            lambda x: x.sample(n=int(len(x) / len(train_df) * 50000), random_state=dynamic_seed)
-        )
+        # 按照 label 分组抽取，使用循环拼接防止 Pandas 新版机制导致 NaN
+        sampled_list = []
+        for label, group in train_df.groupby("label"):
+            n_samples = int(len(group) / len(train_df) * 50000)
+            sampled_list.append(group.sample(n=n_samples, random_state=dynamic_seed))
+        sampled = pd.concat(sampled_list).reset_index(drop=True)
         # 将抽样数据与强制保留的金标数据合并
         train_df = pd.concat([sampled, force_train]).drop_duplicates(subset=["domain"]).reset_index(drop=True)
         print(f"🛡️ 已强制保留 {len(force_train)} 条金标数据，最终训练集大小: {len(train_df)}")
@@ -44,6 +46,14 @@ def prepare_dataset():
     test_df = test_df.sample(frac=1, random_state=dynamic_seed).reset_index(drop=True)
     
     print(f"📊 最终训练集: {len(train_df)}, 测试集: {len(test_df)}")
+    
+    # 🛡️ 核心修复：强力清洗 NA 和浮点数，防患于未然
+    train_df = train_df.dropna(subset=["domain", "label"]).copy()
+    train_df["label"] = pd.to_numeric(train_df["label"], errors='coerce').fillna(0).astype(int)
+    
+    test_df = test_df.dropna(subset=["domain", "label"]).copy()
+    test_df["label"] = pd.to_numeric(test_df["label"], errors='coerce').fillna(0).astype(int)
+    
     return train_df, test_df
 
 def train_model():
