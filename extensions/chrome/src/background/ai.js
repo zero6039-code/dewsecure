@@ -105,10 +105,14 @@ export function extractFeaturesFromUrl(url) {
 }
 
 const AI_CHECKED_DOMAINS = new Set();
-export async function runAICheck(url) {
+export async function runAICheck(url, tabId = null) {
     try {
         const domain = new URL(url).hostname;
         if (AI_CHECKED_DOMAINS.has(domain)) return;
+        // 🔧 防御性微调：防止 Set 无限膨胀导致内存泄漏
+        if (AI_CHECKED_DOMAINS.size > 5000) {
+            AI_CHECKED_DOMAINS.clear();
+        }
         AI_CHECKED_DOMAINS.add(domain);
         const features = extractFeaturesFromUrl(domain); // 🔧 P1-B Step1: 归一化为 hostname，对齐训练分布
         const response = await chrome.runtime.sendMessage({ target: 'offscreen', type: 'CLASSIFY', features });
@@ -143,11 +147,16 @@ export async function runAICheck(url) {
                 return;
             }
             
-            // 🌟 核心架构级修复：彻底废弃 DNR 网络级阻断（防止白屏误杀）
-            // 改为发送消息给 content.js，进行安全的 DOM 级别软隐藏
-            const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
-            if (tabs[0] && tabs[0].id) {
-                chrome.tabs.sendMessage(tabs[0].id, { 
+            // 🌟 修复 S-08：通过传入的 tabId 精确投递，防止多标签并发时误杀
+            let targetTabId = tabId;
+            if (!targetTabId) {
+                // 兜底：如果没有传 tabId，才去查 active tab
+                const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
+                if (tabs[0] && tabs[0].id) targetTabId = tabs[0].id;
+            }
+            
+            if (targetTabId) {
+                chrome.tabs.sendMessage(targetTabId, { 
                     type: 'HIDE_AI_AD', 
                     domain: domain 
                 }).catch(() => {});

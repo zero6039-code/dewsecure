@@ -52,7 +52,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 // AI 通信
 chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     if (msg.type === 'CHECK_URL_AI') {
-        runAICheck(msg.url);
+        runAICheck(msg.url, sender?.tab?.id);
         sendResponse({ ok: true });
         return true;
     }
@@ -158,7 +158,7 @@ if (typeof chrome !== 'undefined' && chrome.sidebarAction && chrome.action && ch
 // 🌟 P-01 修复：页面加载完成时触发 AI 检测
 chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
     if (changeInfo.status === 'complete' && tab.url && tab.url.startsWith('http')) {
-        runAICheck(tab.url);
+        runAICheck(tab.url, tabId);
     }
 });
 
