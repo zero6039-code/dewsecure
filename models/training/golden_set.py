@@ -44,12 +44,7 @@ def validate():
             print(f"  ❌ 高危误杀: {domain} 被判定为 {pred} (置信度: {conf:.2f})")
             failed = True
 
-    print("  -> 检查恶意域名是否被【高危漏拦】(置信度 >= 0.8)...")
-    for domain in MALICIOUS_DOMAINS:
-        pred, conf = predict(domain)
-        # 如果黑名单域名被判定为 Normal(0) 且置信度极高，说明模型丧失了识别能力
-        if pred == 0 and conf >= 0.8:
-            print(f"  ⚠️ 漏拦警告: {domain} 被判定为 Normal (置信度: {conf:.2f})，将由规则层兜底")
+    # 🛑 删除了黑名单漏拦校验（交由前端硬拦截和 DNR 规则层兜底）
             # 注意：漏拦不阻断发布，因为我们有 11 万条 DNR 规则兜底
 
     if failed:

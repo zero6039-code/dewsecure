@@ -114,6 +114,26 @@ export async function runAICheck(url, tabId = null) {
             AI_CHECKED_DOMAINS.clear();
         }
         AI_CHECKED_DOMAINS.add(domain);
+
+        // 🛑 防线 0：前端硬拦截 (与规则层对齐，命中直接拦截，不消耗 AI 算力)
+        const HARD_BLOCK_DOMAINS = [
+            'doubleclick.net', 'google-analytics.com', 'googlesyndication.com',
+            'adservice.google.com', 'scorecardresearch.com', 'criteo.com',
+            'taboola.com', 'outbrain.com', 'facebook.net', 'adnxs.com'
+        ];
+        if (HARD_BLOCK_DOMAINS.some(d => domain === d || domain.endsWith('.' + d))) {
+            console.log(`🛑 [AI] 命中绝对黑名单，强制软隐藏: ${domain}`);
+            let targetTabId = tabId;
+            if (!targetTabId) {
+                const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
+                if (tabs[0] && tabs[0].id) targetTabId = tabs[0].id;
+            }
+            if (targetTabId) {
+                chrome.tabs.sendMessage(targetTabId, { type: 'HIDE_AI_AD', domain: domain }).catch(() => {});
+            }
+            return;
+        }
+
         const features = extractFeaturesFromUrl(domain); // 🔧 P1-B Step1: 归一化为 hostname，对齐训练分布
         const response = await chrome.runtime.sendMessage({ target: 'offscreen', type: 'CLASSIFY', features });
         if (!response || !response.probs) return;
