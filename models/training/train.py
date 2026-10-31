@@ -54,7 +54,8 @@ def train_model():
 
     print("🔬 正在分块提取训练集特征...")
     X_train = np.zeros((len(train_df), N_FEATURES), dtype=np.float32)
-    y_train = train_df["label"].values
+    # 🛡️ 核心修复：强制转为整数，防止 pandas 把 label 推断为浮点数导致 sklearn 报错
+    y_train = train_df["label"].astype(int).values
     
     total_chunks = (len(train_df) + CHUNK_SIZE - 1) // CHUNK_SIZE
     for i in range(total_chunks):
@@ -74,6 +75,15 @@ def train_model():
 
     print("🚀 正在初始化 SGD 增量学习模型...")
     classes = np.array([0, 1, 2])
+    
+    # 🛡️ 核心修复：防止因抽样导致某个类别完全缺失，强行注入一根假数据补齐
+    missing_classes = set(classes) - set(np.unique(y_train))
+    if missing_classes:
+        print(f"⚠️ 警告：训练集中缺少类别 {missing_classes}，强制补齐防崩溃")
+        for c_miss in missing_classes:
+            y_train = np.append(y_train, c_miss)
+            X_train = np.vstack([X_train, np.zeros(N_FEATURES, dtype=np.float32)])
+            
     class_weights_arr = compute_class_weight('balanced', classes=classes, y=y_train)
     class_weight_dict = {cls: weight for cls, weight in zip(classes, class_weights_arr)}
     
