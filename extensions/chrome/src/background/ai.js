@@ -1,3 +1,5 @@
+import { getCachedModel } from '../modelManager.js';
+
 // 辅助函数：FNV-1a 哈希
 function fnv1a(str) {
     let hash = 0xcbf29ce484222325n;
@@ -135,9 +137,32 @@ export async function runAICheck(url, tabId = null) {
         }
 
         const features = extractFeaturesFromUrl(domain); // 🔧 P1-B Step1: 归一化为 hostname，对齐训练分布
-        const response = await chrome.runtime.sendMessage({ target: 'offscreen', type: 'CLASSIFY', features });
-        if (!response || !response.probs) return;
-        const probs = response.probs;
+        
+        // 🚀 纯 JS 推理：零延迟，跨端兼容
+        const cached = await getCachedModel();
+        if (!cached || !cached.weights) return; // 模型没加载成功就放弃
+        
+        const { coef, intercept } = cached.weights;
+        const logits = [0, 0, 0];
+        
+        // 稀疏优化：只计算非零特征的权重
+        for (let i = 0; i < features.length; i++) {
+            const val = features[i];
+            if (val !== 0) {
+                logits[0] += coef[0][i] * val;
+                logits[1] += coef[1][i] * val;
+                logits[2] += coef[2][i] * val;
+            }
+        }
+        logits[0] += intercept[0];
+        logits[1] += intercept[1];
+        logits[2] += intercept[2];
+        
+        // Softmax 转为概率
+        const maxLogit = Math.max(...logits);
+        const exps = logits.map(l => Math.exp(l - maxLogit));
+        const sumExps = exps.reduce((a, b) => a + b, 0);
+        const probs = exps.map(e => e / sumExps);
         const maxIdx = probs.indexOf(Math.max(...probs));
         const classes = ['Normal', 'Ad', 'Tracker']; // 🔒 P-01 修复：模型只有 3 类
         const classification = classes[maxIdx];
@@ -191,9 +216,4 @@ export async function runAICheck(url, tabId = null) {
     } catch(e) {}
 }
 
-// 🌟 自动容错：如果模型首次下载失败（如网络波动），静默处理，下次再试
-chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
-    if (msg.type === 'OFFSCREEN_ERROR') {
-        console.warn('⚠️ [Offscreen] 模型加载失败，已静默忽略，等待下次心跳重试。');
-    }
-});
+

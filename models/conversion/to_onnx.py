@@ -69,6 +69,15 @@ def export_onnx():
 
     output_path = os.path.join(WEIGHTS_DIR, "classifier.onnx")
     onnx.save(model, output_path)
+    
+    # 🚀 增加纯 JS 可用的 JSON 权重导出
+    json_path = os.path.join(WEIGHTS_DIR, "weights.json")
+    with open(json_path, "w") as f:
+        json.dump({
+            "coef": coef.tolist(),
+            "intercept": intercept.tolist()
+        }, f)
+    print(f"✅ JSON 权重已保存: {json_path}")
     print(f"✅ ONNX 已保存: {output_path} ({os.path.getsize(output_path)/1024:.1f} KB)")
 
     # INT8 量化

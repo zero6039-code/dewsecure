@@ -66,3 +66,5 @@ extensions/chrome/src/r2-config.js
 
 # S-11: Ignore built artifacts
 releases/
+extensions/*/dist/
+*.bak*

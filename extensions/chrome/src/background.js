@@ -23,18 +23,7 @@ import { detectBrandPhishing } from './background/phishingDetector.js';
 import { handleMessage } from './background/messageHandler.js';
 import { updateThreatIntel } from './background/threatIntel.js';
 
-// 初始化 Offscreen (用于运行 ONNX 模型)
-if (chrome.offscreen) {
-    chrome.offscreen.hasDocument().then(has => {
-        if (!has) {
-            chrome.offscreen.createDocument({
-                url: 'src/offscreen.html',
-                reasons: ['WORKERS'],
-                justification: 'AI Model Inference'
-            }).catch(console.warn);
-        }
-    });
-}
+// 🚀 AI 已改为纯 JS 推理，无需创建 Offscreen 页面
 
 // 初始化
 initSettings();

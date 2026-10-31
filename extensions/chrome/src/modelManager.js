@@ -66,7 +66,7 @@ export async function getCachedModel() {
     try {
         const cached = await dbGet('current_model');
         const meta = await dbGet(CACHE_META_KEY);
-        if (cached && meta) return { buffer: cached, meta };
+        if (cached && meta) return { weights: cached, meta };
     } catch (e) {}
     return null;
 }
@@ -106,7 +106,7 @@ export async function checkAndUpdateModel() {
 
         // 2. 携带 Token 请求 Worker（由云端决定权限）
         console.log('[ModelManager] 📥 请求云端验证授权并下载模型...');
-        const modelResp = await fetch(`${WORKER_API_URL}/download-model`, { 
+        const modelResp = await fetch(`${WORKER_API_URL}/download-model?format=json`, {
             headers,
             cache: 'no-store'
         });
@@ -152,6 +152,10 @@ export async function checkAndUpdateModel() {
             await clearModelCache();
             return { updated: false, meta: null, error: 'SHA-256 mismatch' };
         }
+        
+        // 🔧 解析 JSON 权重
+        const modelText = new TextDecoder().decode(modelBuffer);
+        const modelJson = JSON.parse(modelText);
 
         // 🔒 S-03 修复 C：Ed25519 签名校验
         try {
@@ -185,7 +189,7 @@ export async function checkAndUpdateModel() {
 
         // 6. 缓存
         const newMeta = { trainedAt: remoteVersion, sha256: actualHash };
-        await dbPut('current_model', modelBuffer);
+        await dbPut('current_model', modelJson);
         await dbPut(CACHE_META_KEY, newMeta);
 
         console.log('[ModelManager] ✅ 模型已更新:', remoteVersion);
