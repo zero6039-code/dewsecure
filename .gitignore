@@ -72,3 +72,4 @@ extensions/*/dist/
 # Playwright
 /test-results/
 /playwright-report/
+releases/
