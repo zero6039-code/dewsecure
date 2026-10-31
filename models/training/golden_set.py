@@ -3,12 +3,16 @@ import numpy as np
 import onnxruntime as ort
 from features import extract_features
 
-SAFE_DOMAINS = [
-    "google.com", "youtube.com", "facebook.com", "baidu.com", 
-    "github.com", "wikipedia.org", "amazon.com", "twitter.com",
-    "apple.com", "microsoft.com", "qq.com", "taobao.com",
-    "jd.com", "bing.com", "office.com", "cloudflare.com"
-]
+import os
+import json
+
+# 🛡️ 单一真相源：直接从 hard_rules.json 动态读取，绝不让两边列表不一致
+hard_rules_path = os.path.join(os.path.dirname(__file__), 'hard_rules.json')
+SAFE_DOMAINS = []
+if os.path.exists(hard_rules_path):
+    with open(hard_rules_path, 'r', encoding='utf-8') as f:
+        rules = json.load(f)
+        SAFE_DOMAINS = rules.get("hard_safe", [])
 
 MALICIOUS_DOMAINS = [
     "doubleclick.net", "google-analytics.com", "googlesyndication.com",
