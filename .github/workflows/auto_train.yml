@@ -30,9 +30,6 @@ jobs:
           restore-keys: |
             intel-cache-
 
-            with:
-              restore-keys: |
-
       - name: 安装 Python 依赖
         run: |
           pip install -r models/training/requirements.txt
@@ -43,14 +40,14 @@ jobs:
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
-          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }} # 🌟 新增：用于修改数据状态
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
         run: python training/data_prep.py
 
       - name: 训练模型
         working-directory: models
         run: python training/train.py
 
-      - name: 导出 ONNX
+      - name: 导出 ONNX 与 JSON
         working-directory: models
         run: python conversion/to_onnx.py
 
@@ -99,13 +96,22 @@ jobs:
           no_check_bucket = true
           RCLONE_EOF
 
-      - name: 上传模型到 R2 (跳过 HEAD 请求防 501)
+      - name: 上传模型到 R2 (双轨: ONNX + JSON)
         run: |
+          # 上传 ONNX
           rclone copy models/weights/classifier_int8.onnx \
             r2:${{ secrets.R2_BUCKET }}/latest/ --s3-no-check-bucket --s3-no-head --s3-chunk-size 5M --s3-upload-concurrency 2
+          # 上传 Meta (含双端签名)
           rclone copy models/weights/model_meta.json \
             r2:${{ secrets.R2_BUCKET }}/latest/ --s3-no-check-bucket --s3-no-head --s3-chunk-size 5M --s3-upload-concurrency 2
+          # 上传纯 JS 权重
+          rclone copy models/weights/weights.json \
+            r2:${{ secrets.R2_BUCKET }}/latest/ --s3-no-check-bucket --s3-no-head --s3-chunk-size 5M --s3-upload-concurrency 2
+          
+          # 上传至版本目录备份
           rclone copy models/weights/classifier_int8.onnx \
+            r2:${{ secrets.R2_BUCKET }}/${{ steps.meta.outputs.version }}/ --s3-no-check-bucket --s3-no-head --s3-chunk-size 5M --s3-upload-concurrency 2
+          rclone copy models/weights/weights.json \
             r2:${{ secrets.R2_BUCKET }}/${{ steps.meta.outputs.version }}/ --s3-no-check-bucket --s3-no-head --s3-chunk-size 5M --s3-upload-concurrency 2
 
           echo "=== latest 目录内容 ==="
@@ -121,7 +127,7 @@ jobs:
 
             - Macro F1: ${{ steps.meta.outputs.macro_f1 }}
             - Trained at: ${{ github.event.repository.updated_at }}
-            - Model file size: 49 KB (INT8)
+            - Model file size: 49 KB (INT8) / < 1 MB (JSON)
             - Delivery: Cloudflare R2 (private, presigned URL only)
 
             ⚠️ Model files are NOT attached to this release.
