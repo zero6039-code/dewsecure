@@ -94,7 +94,7 @@ jobs:
           echo "endpoint = ${{ secrets.R2_ENDPOINT }}" >> ~/.config/rclone/rclone.conf
           echo "no_check_bucket = true" >> ~/.config/rclone/rclone.conf
 
-      - name: 上传模型到 R2 (双轨: ONNX + JSON)
+      - name: 上传模型到 R2 - 双轨 ONNX 与 JSON
         run: |
           # 上传 ONNX
           rclone copy models/weights/classifier_int8.onnx \
