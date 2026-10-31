@@ -367,6 +367,13 @@ def build_dataset():
     ad_list = list(ad_domains)[:n]
     legit_list = list(legit)[:n]
 
+    # 🛡️ S-09 终极修复：强制把金标域名追加进 rows，防止被列表截断砍掉
+    hard_rows = []
+    for d in HARD_SAFE:
+        hard_rows.append({"domain": d, "label": 0})
+    for d in HARD_BLOCK:
+        hard_rows.append({"domain": d, "label": 1})
+
     # 🔧 P1-A: 混合标签来源（Disconnect 主判据 + 关键词兜底）
     disconnect_map = download_disconnect_services()
     easyprivacy_set = download_easyprivacy()
@@ -386,6 +393,9 @@ def build_dataset():
 
     for d in legit_list:
         rows.append({"domain": d, "label": 0})
+
+    # 把刚才单独捏好的金标数据塞进去
+    rows.extend(hard_rows)
 
     print(f"\n  Tracker 识别数: {tracker_count}")
     print(f"  全量标签来源: {source_stats}")
