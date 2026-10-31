@@ -52,7 +52,7 @@ function generateFirefoxManifest() {
     };
     chrome.browser_specific_settings = {
         "gecko": {
-            "id": "contact@dewsecure.com",
+            "id": "dewsecure@dewsecure.com",
             "strict_min_version": "115.0",
             "data_collection_permissions": {
                 "required": ["none"]
