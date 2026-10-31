@@ -86,15 +86,13 @@ jobs:
       - name: 配置 rclone
         run: |
           mkdir -p ~/.config/rclone
-          cat > ~/.config/rclone/rclone.conf << RCLONE_EOF
-          [r2]
-          type = s3
-          provider = Cloudflare
-          access_key_id = ${{ secrets.R2_ACCESS_KEY_ID }}
-          secret_access_key = ${{ secrets.R2_SECRET_ACCESS_KEY }}
-          endpoint = ${{ secrets.R2_ENDPOINT }}
-          no_check_bucket = true
-          RCLONE_EOF
+          echo "[r2]" > ~/.config/rclone/rclone.conf
+          echo "type = s3" >> ~/.config/rclone/rclone.conf
+          echo "provider = Cloudflare" >> ~/.config/rclone/rclone.conf
+          echo "access_key_id = ${{ secrets.R2_ACCESS_KEY_ID }}" >> ~/.config/rclone/rclone.conf
+          echo "secret_access_key = ${{ secrets.R2_SECRET_ACCESS_KEY }}" >> ~/.config/rclone/rclone.conf
+          echo "endpoint = ${{ secrets.R2_ENDPOINT }}" >> ~/.config/rclone/rclone.conf
+          echo "no_check_bucket = true" >> ~/.config/rclone/rclone.conf
 
       - name: 上传模型到 R2 (双轨: ONNX + JSON)
         run: |
