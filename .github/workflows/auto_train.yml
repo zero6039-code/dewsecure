@@ -98,13 +98,13 @@ jobs:
         run: |
           # 上传 ONNX
           rclone copy models/weights/classifier_int8.onnx \
-            r2:${{ secrets.R2_BUCKET }}/latest/ --s3-no-check-bucket --s3-no-head --s3-chunk-size 5M --s3-upload-concurrency 2
+            r2:${{ secrets.R2_BUCKET }}/canary/ --s3-no-check-bucket --s3-no-head --s3-chunk-size 5M --s3-upload-concurrency 2
           # 上传 Meta (含双端签名)
           rclone copy models/weights/model_meta.json \
-            r2:${{ secrets.R2_BUCKET }}/latest/ --s3-no-check-bucket --s3-no-head --s3-chunk-size 5M --s3-upload-concurrency 2
+            r2:${{ secrets.R2_BUCKET }}/canary/ --s3-no-check-bucket --s3-no-head --s3-chunk-size 5M --s3-upload-concurrency 2
           # 上传纯 JS 权重
           rclone copy models/weights/weights.json \
-            r2:${{ secrets.R2_BUCKET }}/latest/ --s3-no-check-bucket --s3-no-head --s3-chunk-size 5M --s3-upload-concurrency 2
+            r2:${{ secrets.R2_BUCKET }}/canary/ --s3-no-check-bucket --s3-no-head --s3-chunk-size 5M --s3-upload-concurrency 2
           
           # 上传至版本目录备份
           rclone copy models/weights/classifier_int8.onnx \
@@ -112,8 +112,8 @@ jobs:
           rclone copy models/weights/weights.json \
             r2:${{ secrets.R2_BUCKET }}/${{ steps.meta.outputs.version }}/ --s3-no-check-bucket --s3-no-head --s3-chunk-size 5M --s3-upload-concurrency 2
 
-          echo "=== latest 目录内容 ==="
-          rclone ls r2:${{ secrets.R2_BUCKET }}/latest/ --s3-no-check-bucket
+          echo "=== canary 目录内容 ==="
+          rclone ls r2:${{ secrets.R2_BUCKET }}/canary/ --s3-no-check-bucket
 
       - name: 记录训练历史（不包含模型文件）
         uses: softprops/action-gh-release@v2
