@@ -63,3 +63,6 @@ extensions/chrome/src/r2-config.js
 
 # 忽略所有打包产物
 *.zip
+
+# S-11: Ignore built artifacts
+releases/
