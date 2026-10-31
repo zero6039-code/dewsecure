@@ -36,10 +36,12 @@ async fn main() {
 
     let app = Router::new()
         .route("/health", get(health))
-        .route("/api/federation/submit", post(submit_gradients))
-        .route("/api/federation/global", get(get_global_model))
-        .route("/api/license/verify", post(verify_license))
-        .route("/api/model/version", get(model_version))
+        // 🛑 S-10 物理熔断：生产环境下线所有无鉴权的实验性接口 (federation/license)
+        // 未来完成 TLS、身份认证、鲁棒聚合后，再通过环境变量开启
+        // .route("/api/federation/submit", post(submit_gradients))
+        // .route("/api/federation/global", get(get_global_model))
+        // .route("/api/license/verify", post(verify_license))
+        // .route("/api/model/version", get(model_version))
         .with_state(state);
 
     let addr = "0.0.0.0:8080";
