@@ -110,7 +110,7 @@ export async function runAICheck(url) {
         const domain = new URL(url).hostname;
         if (AI_CHECKED_DOMAINS.has(domain)) return;
         AI_CHECKED_DOMAINS.add(domain);
-        const features = extractFeaturesFromUrl(url);
+        const features = extractFeaturesFromUrl(domain); // 🔧 P1-B Step1: 归一化为 hostname，对齐训练分布
         const response = await chrome.runtime.sendMessage({ target: 'offscreen', type: 'CLASSIFY', features });
         if (!response || !response.probs) return;
         const probs = response.probs;

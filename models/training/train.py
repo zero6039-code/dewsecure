@@ -109,6 +109,8 @@ def train_model():
     os.makedirs("weights", exist_ok=True)
     np.savez("weights/classifier_weights.npz", coef=model.coef_, intercept=model.intercept_)
     
+    # 🔧 P2-C: 记录真实标签分布，README 不再宣称 98.75%
+    label_dist = train_df["label"].value_counts().sort_index().to_dict()
     with open("weights/model_meta.json", "w") as f:
         json.dump({
             "macroF1": float(macro_f1), 
@@ -116,7 +118,9 @@ def train_model():
             "nClasses": len(model.classes_),
             "nFeatures": N_FEATURES,
             "trainSize": len(train_df),
-            "testSize": len(test_df)
+            "testSize": len(test_df),
+            "labelDist": {str(k): int(v) for k, v in label_dist.items()},
+            "featureSpecVersion": "v1.2.6-step1",
         }, f)
         
     print(f"✅ 训练完成！Macro F1: {macro_f1:.4f}")

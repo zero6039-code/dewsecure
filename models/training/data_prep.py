@@ -37,13 +37,127 @@ TRACKER_KEYWORDS = [
 
 
 def classify_label(domain: str) -> int:
-    """把广告域名细分为 Ad(1) 或 Tracker(2)，正常为 0。"""
+    """【保留·向后兼容】旧版纯关键词分类。新代码请用 classify_label_with_source。"""
     d = domain.lower()
-    # Tracker 优先匹配（比 Ad 更具体）
     for kw in TRACKER_KEYWORDS:
         if kw in d:
             return 2
     return 1
+
+
+# 🔧 P1-A: 混合标签来源（Disconnect 主判据 + 关键词兜底，兜底占比 ≤20% 为硬约束）
+DISCONNECT_URL = "https://raw.githubusercontent.com/disconnectme/disconnect-tracking-protection/master/services.json"
+DISCONNECT_TRACKER_CATS = {"Analytics", "Social", "FingerprintingInvasive", "Content"}
+DISCONNECT_AD_CATS = {"Advertising", "Cryptomining"}
+
+
+def _walk_disconnect_domains(val, cat_name, out, depth=0):
+    """递归遍历 Disconnect services.json（结构可能是 dict/list/str 任意嵌套），提取域名。"""
+    if depth > 6:
+        return
+    if isinstance(val, str):
+        v = val.strip().lower()
+        if not v:
+            return
+        if v.startswith(("http://", "https://")) or "/" in v:
+            return  # 跳过 URL 和路径
+        if "." in v and len(v) < 100 and not v.endswith("."):
+            out[v] = cat_name
+    elif isinstance(val, list):
+        for item in val:
+            _walk_disconnect_domains(item, cat_name, out, depth + 1)
+    elif isinstance(val, dict):
+        for k, v in val.items():
+            _walk_disconnect_domains(k, cat_name, out, depth + 1)
+            _walk_disconnect_domains(v, cat_name, out, depth + 1)
+
+
+def download_disconnect_services():
+    """下载 Disconnect.me 追踪服务列表，返回 {domain: category}。失败返回空 dict（回退纯关键词）。"""
+    result = {}
+    try:
+        print("下载 Disconnect.me 追踪服务列表...")
+        r = requests.get(DISCONNECT_URL, timeout=60)
+        r.raise_for_status()
+        data = r.json()
+        categories = data.get("categories", {})
+        for cat_name, val in categories.items():
+            before = len(result)
+            _walk_disconnect_domains(val, cat_name, result)
+            print(f"    [{cat_name}] +{len(result) - before} 个域名")
+        print(f"  → Disconnect 域名: {len(result)} 个")
+    except Exception as e:
+        print(f"⚠️ Disconnect 下载失败，回退到纯关键词: {e}")
+    return result
+
+
+def download_easyprivacy():
+    """下载 EasyPrivacy 追踪域名列表（ABP 格式 ||domain^），返回 set。失败返回空 set。"""
+    EASYPRIVACY_URL = "https://easylist.to/easylist/easyprivacy.txt"
+    result = set()
+    try:
+        print("下载 EasyPrivacy 追踪列表...")
+        r = requests.get(EASYPRIVACY_URL, timeout=120)
+        r.raise_for_status()
+        for line in r.text.split("\n"):
+            line = line.strip()
+            if not line or line.startswith("!") or line.startswith("["):
+                continue
+            if line.startswith("||"):
+                body = line[2:]
+                for sep in ("^", "$"):
+                    idx = body.find(sep)
+                    if idx != -1:
+                        body = body[:idx]
+                body = body.strip().rstrip(".")
+                if body and "." in body and "/" not in body and len(body) < 100:
+                    result.add(body.lower())
+        print(f"  → EasyPrivacy 域名: {len(result)} 个")
+    except Exception as e:
+        print(f"⚠️ EasyPrivacy 下载失败，回退到 Disconnect+关键词: {e}")
+    return result
+
+
+def _match_domain_set(d, domain_set):
+    """检查 d 或其任意父域是否在 domain_set 中。"""
+    if d in domain_set:
+        return True
+    parts = d.split('.')
+    for i in range(1, len(parts) - 1):
+        parent = '.'.join(parts[i:])
+        if parent in domain_set:
+            return True
+    return False
+
+
+def classify_label_with_source(domain, disconnect_map, easyprivacy_set):
+    """返回 (label, source)。source: disconnect / keyword / ad_default"""
+    d = domain.lower()
+    # 主判据 1: Disconnect 精确匹配
+    if d in disconnect_map:
+        cat = disconnect_map[d]
+        if cat in DISCONNECT_TRACKER_CATS:
+            return 2, 'disconnect'
+        if cat in DISCONNECT_AD_CATS:
+            return 1, 'disconnect'
+    # 主判据 2: Disconnect 根域名匹配（处理子域名）
+    parts = d.split('.')
+    if len(parts) > 2:
+        root = '.'.join(parts[-2:])
+        if root in disconnect_map:
+            cat = disconnect_map[root]
+            if cat in DISCONNECT_TRACKER_CATS:
+                return 2, 'disconnect'
+            if cat in DISCONNECT_AD_CATS:
+                return 1, 'disconnect'
+    # 主判据 3: EasyPrivacy（追踪专用，命中即 Tracker）
+    if _match_domain_set(d, easyprivacy_set):
+        return 2, 'easyprivacy'
+    # 兜底: 关键词（统计占比，>20% 警告）
+    for kw in TRACKER_KEYWORDS:
+        if kw in d:
+            return 2, 'keyword'
+    return 1, 'ad_default'
 
 
 def download_ad_domains():
@@ -174,6 +288,19 @@ def build_dataset():
     print("收集合法域名...")
     legit = download_legit_domains(limit=len(ad_domains) * 2)
     print(f"  → 基础合法域名: {len(legit)} 个")
+
+    # 🔧 P2-D: 从正常类剔除已知大追踪方（Majestic Million 含 google/facebook 等）
+    KNOWN_TRACKERS = {
+        'google.com', 'googleapis.com', 'gstatic.com', 'googletagmanager.com',
+        'google-analytics.com', 'doubleclick.net', 'googlesyndication.com',
+        'googleadservices.com', 'facebook.com', 'fbcdn.net',
+        'amazon-adsystem.com', 'adsrvr.org', 'adnxs.com', 'rubiconproject.com',
+        'criteo.com', 'criteo.net', 'taboola.com', 'outbrain.com',
+        'twitter.com', 'x.com', 'linkedin.com', 'tiktok.com',
+        'yandex.ru', 'mc.yandex.ru', 'hotjar.com', 'mixpanel.com',
+    }
+    legit -= KNOWN_TRACKERS
+    print(f"  → 剔除已知追踪方后: {len(legit)} 个")
     
     # 🌟 融合用户真实反馈
     missed_feedbacks, false_feedbacks = fetch_supabase_feedbacks()
@@ -195,23 +322,43 @@ def build_dataset():
             legit.remove(d)
         ad_domains.add(d)
 
+    # 🔧 P2-E: 消除标签冲突（同一域名同时出现在 ad 和 legit，保留 ad 标签）
+    overlap = ad_domains & legit
+    if overlap:
+        print(f"  → 消除 {len(overlap)} 个重叠域名（保留 ad 标签）")
+        legit -= overlap
+
     n = min(len(ad_domains), len(legit))
     ad_list = list(ad_domains)[:n]
     legit_list = list(legit)[:n]
 
+    # 🔧 P1-A: 混合标签来源（Disconnect 主判据 + 关键词兜底）
+    disconnect_map = download_disconnect_services()
+    easyprivacy_set = download_easyprivacy()
+
     rows = []
     tracker_count = 0
-    
+    source_stats = {'disconnect': 0, 'easyprivacy': 0, 'keyword': 0, 'ad_default': 0}
+    tracker_sources = {'disconnect': 0, 'easyprivacy': 0, 'keyword': 0}
+
     for d in ad_list:
-        label = classify_label(d)
+        label, source = classify_label_with_source(d, disconnect_map, easyprivacy_set)
+        source_stats[source] += 1
         if label == 2:
             tracker_count += 1
+            tracker_sources[source] += 1
         rows.append({"domain": d, "label": label})
-        
+
     for d in legit_list:
         rows.append({"domain": d, "label": 0})
 
     print(f"\n  Tracker 识别数: {tracker_count}")
+    print(f"  全量标签来源: {source_stats}")
+    print(f"  Tracker 来源分布: {tracker_sources}")
+    kw_ratio = (tracker_sources['keyword'] / tracker_count) if tracker_count > 0 else 0.0
+    print(f"  Tracker 关键词兜底占比: {kw_ratio:.1%}（目标 ≤ 20%）")
+    if kw_ratio > 0.2:
+        print(f"  ⚠️ 警告：Tracker 关键词兜底占比仍 > 20%，建议补充数据源（如 pgl.yoyo.org）")
 
     # 🔒 核心修复：先转 DataFrame 并去重，然后再进行过采样
     df = pd.DataFrame(rows).drop_duplicates(subset="domain").reset_index(drop=True)
