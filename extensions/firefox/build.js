@@ -31,8 +31,43 @@ function syncFromChrome() {
     console.log('✅ 同步完成！');
 }
 
+function generateFirefoxManifest() {
+    const chromeManifestPath = path.join('..', 'chrome', 'manifest.json');
+    if (!fs.existsSync(chromeManifestPath)) return;
+    
+    const chrome = JSON.parse(fs.readFileSync(chromeManifestPath, 'utf8'));
+    
+    // 移除 Chrome 专属配置
+    delete chrome.offscreen; 
+    delete chrome.side_panel;
+    delete chrome.externally_connectable;
+    if (chrome.permissions) {
+        chrome.permissions = chrome.permissions.filter(p => p !== 'offscreen' && p !== 'sidePanel');
+    }
+    
+    // 添加 Firefox 专属配置
+    chrome.sidebar_action = {
+        "default_panel": "popup/index.html",
+        "default_icon": chrome.icons
+    };
+    chrome.browser_specific_settings = {
+        "gecko": {
+            "id": "contact@dewsecure.com",
+            "strict_min_version": "115.0"
+        }
+    };
+    // Firefox 对 MV3 的 background 写法要求
+    if (chrome.background && chrome.background.service_worker) {
+        delete chrome.background.type;
+    }
+
+    fs.writeFileSync('manifest.json', JSON.stringify(chrome, null, 2));
+    console.log('✅ 已从 Chrome 自动生成 Firefox manifest.json');
+}
+
 async function build() {
     syncFromChrome();
+    generateFirefoxManifest();
     const ctx = await esbuild.context(buildOptions);
     if (watch) {
         await ctx.watch();

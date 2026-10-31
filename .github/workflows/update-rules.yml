@@ -10,11 +10,9 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
+      pull-requests: write # 需要写 PR 的权限
     steps:
       - uses: actions/checkout@v4
-        with:
-          token: ${{ secrets.GITHUB_TOKEN }}
-
       - uses: actions/setup-node@v4
         with:
           node-version: '20'
@@ -39,11 +37,16 @@ jobs:
             git diff --stat extensions/chrome/rules/
           fi
 
-      - name: 提交并推送
+      # 🛡️ S-11 修复：不再直推 main，而是创建 PR 供人工审查
+      - name: 创建 Pull Request
         if: steps.check.outputs.changed == 'true'
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add extensions/chrome/rules/
-          git commit -m "chore(rules): auto-update ad rules $(date -u +%Y-%m-%d)"
-          git push
+        uses: peter-evans/create-pull-request@v6
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          commit-message: "chore(rules): auto-update ad rules"
+          title: "🤖 Rules Update: Auto-generated"
+          body: |
+            这是一个自动生成的规则更新 PR。
+            **请人工检查 `git diff` 确认没有误杀正常网站，且规则数量变化在合理范围内再合并！**
+          branch: auto-update-rules
+          delete-branch: true

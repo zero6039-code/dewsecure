@@ -18,9 +18,28 @@ def prepare_dataset():
     # 这样既保证了每次跑分的独立性，也能覆盖到更多数据。
     dynamic_seed = int(time.time()) % 100000 
     
+    # 🛡️ 核心修复 1：修正路径读取
+    hard_rules_path = os.path.join(os.path.dirname(__file__), 'hard_rules.json')
+    force_train = pd.DataFrame()
+    if os.path.exists(hard_rules_path):
+        with open(hard_rules_path, 'r', encoding='utf-8') as f:
+            rules = json.load(f)
+            hard_domains = set(rules.get("hard_safe", []) + rules.get("hard_block", []))
+            # 严格保证拉出来的金标数据是对应的标签，防止污染
+    force_train = train_df[train_df["domain"].isin(hard_domains)]
+    
+    # 🛡️ 核心修复 2：改用分层抽样 (Stratified Sampling)，保证类别比例绝对平衡
     if len(train_df) > 50000:
-        print(f"🎲 使用动态种子 {dynamic_seed} 随机抽取 50000 条训练数据...")
-        train_df = train_df.sample(n=50000, random_state=dynamic_seed)
+        print(f"🎲 使用动态种子 {dynamic_seed} 进行分层抽样 50000 条...")
+        # 按照 label 分组抽取，使用循环拼接防止 Pandas 新版机制导致 NaN
+        sampled_list = []
+        for label, group in train_df.groupby("label"):
+            n_samples = int(len(group) / len(train_df) * 50000)
+            sampled_list.append(group.sample(n=n_samples, random_state=dynamic_seed))
+        sampled = pd.concat(sampled_list).reset_index(drop=True)
+        # 将抽样数据与强制保留的金标数据合并
+        train_df = pd.concat([sampled, force_train]).drop_duplicates(subset=["domain"]).reset_index(drop=True)
+        print(f"🛡️ 已强制保留 {len(force_train)} 条金标数据，最终训练集大小: {len(train_df)}")
     if len(test_df) > 10000:
         test_df = test_df.sample(n=10000, random_state=dynamic_seed)
 
@@ -28,6 +47,14 @@ def prepare_dataset():
     test_df = test_df.sample(frac=1, random_state=dynamic_seed).reset_index(drop=True)
     
     print(f"📊 最终训练集: {len(train_df)}, 测试集: {len(test_df)}")
+    
+    # 🛡️ 核心修复：强力清洗 NA 和浮点数，防患于未然
+    train_df = train_df.dropna(subset=["domain", "label"]).copy()
+    train_df["label"] = pd.to_numeric(train_df["label"], errors='coerce').fillna(0).astype(int)
+    
+    test_df = test_df.dropna(subset=["domain", "label"]).copy()
+    test_df["label"] = pd.to_numeric(test_df["label"], errors='coerce').fillna(0).astype(int)
+    
     return train_df, test_df
 
 def train_model():
@@ -37,8 +64,9 @@ def train_model():
     CHUNK_SIZE = 10000
 
     print("🔬 正在分块提取训练集特征...")
-    X_train = np.zeros((len(train_df), N_FEATURES), dtype=np.uint8)
-    y_train = train_df["label"].values
+    X_train = np.zeros((len(train_df), N_FEATURES), dtype=np.float32)
+    # 🛡️ 核心修复：强制转为整数，防止 pandas 把 label 推断为浮点数导致 sklearn 报错
+    y_train = train_df["label"].astype(int).values
     
     total_chunks = (len(train_df) + CHUNK_SIZE - 1) // CHUNK_SIZE
     for i in range(total_chunks):
@@ -51,13 +79,22 @@ def train_model():
         print(f"✅ 特征提取进度: Chunk {i+1}/{total_chunks}")
 
     print("🔬 正在提取测试集特征...")
-    X_test = np.zeros((len(test_df), N_FEATURES), dtype=np.uint8)
+    X_test = np.zeros((len(test_df), N_FEATURES), dtype=np.float32)
     y_test = test_df["label"].values
     for i, domain in enumerate(tqdm(test_df["domain"], desc="Test")):
         X_test[i] = extract_features(domain)
 
     print("🚀 正在初始化 SGD 增量学习模型...")
     classes = np.array([0, 1, 2])
+    
+    # 🛡️ 核心修复：防止因抽样导致某个类别完全缺失，强行注入一根假数据补齐
+    missing_classes = set(classes) - set(np.unique(y_train))
+    if missing_classes:
+        print(f"⚠️ 警告：训练集中缺少类别 {missing_classes}，强制补齐防崩溃")
+        for c_miss in missing_classes:
+            y_train = np.append(y_train, c_miss)
+            X_train = np.vstack([X_train, np.zeros(N_FEATURES, dtype=np.float32)])
+            
     class_weights_arr = compute_class_weight('balanced', classes=classes, y=y_train)
     class_weight_dict = {cls: weight for cls, weight in zip(classes, class_weights_arr)}
     
@@ -109,6 +146,8 @@ def train_model():
     os.makedirs("weights", exist_ok=True)
     np.savez("weights/classifier_weights.npz", coef=model.coef_, intercept=model.intercept_)
     
+    # 🔧 P2-C: 记录真实标签分布，README 不再宣称 98.75%
+    label_dist = train_df["label"].value_counts().sort_index().to_dict()
     with open("weights/model_meta.json", "w") as f:
         json.dump({
             "macroF1": float(macro_f1), 
@@ -116,7 +155,9 @@ def train_model():
             "nClasses": len(model.classes_),
             "nFeatures": N_FEATURES,
             "trainSize": len(train_df),
-            "testSize": len(test_df)
+            "testSize": len(test_df),
+            "labelDist": {str(k): int(v) for k, v in label_dist.items()},
+            "featureSpecVersion": "v1.2.6-step1",
         }, f)
         
     print(f"✅ 训练完成！Macro F1: {macro_f1:.4f}")

@@ -47,6 +47,7 @@ export function bindMiscEvents() {
         'dnrToggle': 'dnrEnabled',
         'antiHijackToggle': 'antiHijackEnabled',
         'phishingToggle': 'phishingEnabled',
+        'intelToggle': 'intelEnabled',
         'aiFourToggle': 'aiFourEnabled',
         'trackerToggle': 'blockTrackers',
         'antiBypassToggle': 'antiBypassEnabled',
@@ -55,12 +56,45 @@ export function bindMiscEvents() {
         'socialToggle': 'blockSocialTrackers'
     };
     
+    // 🔒 PRO 专属的高级防御开关
+    const PRO_ONLY_TOGGLES = ['phishingEnabled', 'intelEnabled', 'aiFourEnabled', 'blockSocialTrackers'];
+
     Object.keys(toggleIdMap).forEach(id => {
-        document.getElementById(id)?.addEventListener('change', (e) => {
+        document.getElementById(id)?.addEventListener('change', async (e) => {
+            const settingKey = toggleIdMap[id];
+            const isChecked = e.target.checked;
+
+            // 如果是 PRO 专属开关，检查用户权限
+            if (PRO_ONLY_TOGGLES.includes(settingKey)) {
+                const user = await getCurrentUser();
+                // 🌟 统一判定标准：包含 pro, trial, family, premium
+                const isPro = user && ['pro', 'trial', 'family', 'premium'].includes(user.tier);
+
+                if (!isPro && isChecked) {
+                    // 阻止切换，回退 UI 状态
+                    e.target.checked = false;
+                    // 🚀 直接调用原生升级提示，不再用 alert
+                    if (window.showUpgradeModal) {
+                        window.showUpgradeModal();
+                    } else {
+                        // 如果没有弹窗，强制触发跳到升级页的逻辑
+                        document.getElementById('upgradeBtn')?.click();
+                    }
+                    return;
+                }
+            }
+
+            // 🔒 核心修复：点击瞬间立刻写入本地缓存，防止被异步的 updateUserUI 强行覆盖
+            const { dewsecure_settings: s } = await chrome.storage.local.get('dewsecure_settings');
+            const newSettings = s || {};
+            newSettings[settingKey] = isChecked;
+            await chrome.storage.local.set({ dewsecure_settings: newSettings });
+
+            // 然后再发送给后台去执行 DNR 等操作
             chrome.runtime.sendMessage({ 
                 type: 'UPDATE_SETTING_KEY', 
-                key: toggleIdMap[id], 
-                value: e.target.checked 
+                key: settingKey, 
+                value: isChecked 
             });
         });
     });
@@ -92,7 +126,12 @@ export function bindMiscEvents() {
                     if (res && res.ok) {
                         switchEl.checked = false;
                         updateSiteSwitch(false, host);
-                        setTimeout(() => chrome.tabs.reload(), 500);
+                        // 强制绕过缓存刷新，确保新规则立刻生效
+                        setTimeout(() => {
+                            chrome.tabs.query({active: true, currentWindow: true}, (tabs) => {
+                                if (tabs[0]?.id) chrome.tabs.reload(tabs[0].id, { bypassCache: true });
+                            });
+                        }, 500);
                     }
                 });
             };
@@ -138,31 +177,49 @@ export function bindMiscEvents() {
 
     // 防刷上报
     async function handleFeedback(btn, type) {
+        const t = window.t || ((k) => k);
         const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
         if (!tab || !tab.url) return;
         const host = new URL(tab.url).hostname;
         
         const cacheKey = `last_report_${host}_${type}`;
         const { [cacheKey]: lastTime } = await chrome.storage.local.get(cacheKey);
+        
+        // 🔒 核心修复：动态从语言包获取原始文字，不再依赖 dataset
+        const originalText = type === 'missed' 
+            ? (t('feedback_missed') || '😤 Missed Ad') 
+            : (t('feedback_false') || '😡 False Block');
+
+        // 处于 24 小时冷却期
         if (lastTime && Date.now() - lastTime < 24 * 60 * 60 * 1000) {
-            btn.innerText = '⏳ 已上报过，24小时内请勿重复提交';
-            setTimeout(() => { btn.innerText = btn.dataset.originalText || btn.innerText; btn.disabled = false; }, 3000);
+            btn.innerText = t('feedback_cooldown') || '⏳ 24h cooldown';
+            // 3秒后恢复为对应的语言包文字
+            setTimeout(() => { 
+                btn.innerText = originalText; 
+                btn.disabled = false; 
+            }, 3000);
             return;
         }
 
+        // 正常提交
         btn.disabled = true;
-        btn.dataset.originalText = btn.innerText;
-        btn.innerText = '⏳ 上报中...';
+        btn.innerText = t('feedback_submitting') || '⏳ Submitting...';
         
         chrome.runtime.sendMessage({ type: 'REPORT_FEEDBACK', feedbackType: type }, (res) => {
-            if (res && res.ok) {
+            const success = res && res.ok;
+            if (success) {
                 chrome.storage.local.set({ [cacheKey]: Date.now() });
-                btn.innerText = '✅ 已收到，感谢！';
-                setTimeout(() => { btn.innerText = btn.dataset.originalText; btn.disabled = false; }, 3000);
-            } else {
-                btn.innerText = '❌ 上报失败';
-                setTimeout(() => { btn.innerText = btn.dataset.originalText; btn.disabled = false; }, 3000);
             }
+            
+            btn.innerText = success 
+                ? (t('feedback_thanks') || '✅ Thanks!') 
+                : (t('feedback_failed') || '❌ Failed');
+                
+            // 统一在 3 秒后还原并解除禁用
+            setTimeout(() => { 
+                btn.innerText = originalText; 
+                btn.disabled = false; 
+            }, 3000);
         });
     }
 

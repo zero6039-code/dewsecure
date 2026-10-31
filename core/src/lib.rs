@@ -110,10 +110,10 @@ impl DewEngine {
 
     /// 分类 URL
     pub fn classify(&self, url: String, _headers: Vec<String>) -> Classification {
-        let mut stats = self.stats.lock().unwrap();
+        let mut stats = self.stats.lock().unwrap_or_else(|e| e.into_inner());
         stats.total_requests += 1;
 
-        let matcher = self.rule_matcher.lock().unwrap();
+        let matcher = self.rule_matcher.lock().unwrap_or_else(|e| e.into_inner());
         if matcher.is_exception(&url) {
             stats.allowed += 1;
             return Classification::Normal;
@@ -131,7 +131,7 @@ impl DewEngine {
         }
 
         if let Some(classifier) = &self.classifier {
-            let classifier = classifier.lock().unwrap();
+            let classifier = classifier.lock().unwrap_or_else(|e| e.into_inner());
             let features = classifier::extract_features(&url);
             let result = classifier.predict(&features);
 
@@ -161,7 +161,7 @@ impl DewEngine {
             Classification::Ad | Classification::Tracker => Decision::Block,
             Classification::Normal => Decision::Allow,
             Classification::Unknown => {
-                if url.contains("ad") || url.contains("banner") {
+                if url.contains("/ad/") || url.contains("/ads/") || url.contains("banner=") {
                     Decision::Block
                 } else {
                     Decision::Allow
@@ -172,7 +172,7 @@ impl DewEngine {
 
     /// 添加自定义规则
     pub fn add_custom_rule(&self, rule: String) {
-        let mut matcher = self.rule_matcher.lock().unwrap();
+        let mut matcher = self.rule_matcher.lock().unwrap_or_else(|e| e.into_inner());
         if let Some(parsed) = rule_matcher::parse_rule(&rule) {
             matcher.add_rule(parsed);
         }
@@ -180,13 +180,13 @@ impl DewEngine {
 
     /// 获取所有规则
     pub fn get_rules(&self) -> Vec<FilterRule> {
-        let matcher = self.rule_matcher.lock().unwrap();
+        let matcher = self.rule_matcher.lock().unwrap_or_else(|e| e.into_inner());
         matcher.get_rules()
     }
 
     /// 获取统计信息
     pub fn get_stats(&self) -> String {
-        let stats = self.stats.lock().unwrap();
+        let stats = self.stats.lock().unwrap_or_else(|e| e.into_inner());
         serde_json::to_string(&*stats).unwrap_or_default()
     }
 }

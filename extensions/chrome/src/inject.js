@@ -1,15 +1,5 @@
-(async function() {
-    const host = window.location.hostname;
-    try {
-        const settings = await chrome.runtime.sendMessage({ type: 'GET_SETTINGS' });
-        if (settings) {
-            const m = d => host === d || host.endsWith('.' + d);
-            if ((settings.whitelist || []).some(m) || (settings.tempWhitelist || []).some(m)) {
-                console.warn('🛡️ [DewSecure Inject] 命中白名单，已停止主世界 Hook。');
-                return; // 停止执行下方的 Hook 代码
-            }
-        }
-    } catch(e) {}
+(function() {
+    // 🔒 F-03: 主世界无法调用 chrome.runtime，完全依赖 content.js 通过 postMessage 传递 DEWSECURE_PAUSE 信号
 
 
 // ===== 🌟 白名单热更新接管 =====
@@ -28,11 +18,7 @@ window.addEventListener('message', (e) => {
 });
 
 // 包装原本的拦截逻辑
-const originalOpen = window.open;
-window.open = function(...args) {
-    if (isPaused) return nativeWindowOpen.apply(this, args);
-    return originalOpen.apply(this, args);
-};
+// 移除早期冗余且会导致双倍弹窗的 window.open 包装，统一在下方处理
 
 (function() {
     'use strict';
@@ -49,7 +35,7 @@ window.open = function(...args) {
         return document.documentElement.getAttribute('data-dewsecure-paused') === 'true';
     }
 
-    const adPatterns = /(mmp_pid=|Allianceid=|from_affiliate=|url_from=affiliate|affiliate_id=|click_id=|sub_id=|campaign_id=|uls_trackid=|utm_campaign=|utm_source=an_|utm_source=InvolveAsia|utm_source=adcash|aid=api%7C|ud1=|cid=|1xlite|1xbet|tag=d_|omguk|tiktok\.com\/view|doubleclick|omgt3|popads|googlesyndication|clk\.|adsterra|propellerads|trip\.com|shopee\.com\.my|lazada\.com\.my|shein\.com\/ark|kkday\.com|klook\.com|opera\.com\/partner|a_aid=|a_bid=|gsid=|gsc=)/i;
+    const adPatterns = /(mmp_pid=|Allianceid=|from_affiliate=|affiliate_id=|uls_trackid=|utm_source=InvolveAsia|utm_source=adcash|aid=api%7C|1xlite|1xbet|omguk|tiktok\.com\/view|doubleclick|googlesyndication|propellerads|adsterra|a_aid=|a_bid=|gsid=|gsc=)/i;
     const isAdUrl = (url) => url && typeof url === 'string' && adPatterns.test(url);
 
     const _windowOpen = window.open;
@@ -58,39 +44,26 @@ window.open = function(...args) {
     const _anchorClick = HTMLAnchorElement.prototype.click;
     const _formSubmit = HTMLFormElement.prototype.submit;
 
-    // 1. window.open
+    // 1. window.open (修复双倍弹窗与不可配置问题)
     try {
         Object.defineProperty(window, 'open', {
             get: function() {
                 return function(url, target, features) {
-                    if (isPaused()) return _windowOpen.apply(this, arguments);
-                    if (isAdUrl(url)) return null;
+                    // 🛡️ F-07 修复：先判断，拦截了就直接返回，绝不执行原生弹窗
+                    if (!isPaused() && isAdUrl(url)) return null;
                     return _windowOpen.apply(this, arguments);
                 };
             },
-            set: function() {}, configurable: false
+            set: function() {}, configurable: true // 允许其他扩展再次包装
         });
     } catch (e) {}
 
-    // 2. location 跳转
-    try {
-        window.location.assign = function(url) {
-            if (isPaused()) return _locationAssign.call(window.location, url);
-            if (isAdUrl(url)) return;
-            _locationAssign.call(window.location, url);
-        };
-        window.location.replace = function(url) {
-            if (isPaused()) return _locationReplace.call(window.location, url);
-            if (isAdUrl(url)) return;
-            _locationReplace.call(window.location, url);
-        };
-    } catch (e) {}
+    // 2. location 跳转 (🛡️ F-07 修复：Chrome 禁止覆盖 location.assign/replace，直接移除)
 
     // 3. A 标签点击
     try {
         HTMLAnchorElement.prototype.click = function() {
-            if (isPaused()) return _anchorClick.apply(this, arguments);
-            if (isAdUrl(this.href)) return;
+            if (!isPaused() && isAdUrl(this.href)) return;
             _anchorClick.apply(this, arguments);
         };
     } catch (e) {}
@@ -98,14 +71,13 @@ window.open = function(...args) {
     // 4. Form 提交
     try {
         HTMLFormElement.prototype.submit = function() {
-            if (isPaused()) return _formSubmit.apply(this, arguments);
-            if (isAdUrl(this.action)) return;
+            if (!isPaused() && isAdUrl(this.action)) return;
             _formSubmit.apply(this, arguments);
         };
     } catch (e) {}
 
     // 5. 反反拦截欺骗 (只在开启时生效)
-    if (!isPaused()) {
+    {
         try {
             Object.defineProperty(window, 'adblock', { get: () => false });
             Object.defineProperty(window, 'canRunAds', { get: () => true });
@@ -155,7 +127,7 @@ window.open = function(...args) {
         for (const m of mutations) {
             for (const node of m.addedNodes) {
                 if (node.nodeType === Node.ELEMENT_NODE) {
-                    if (node.className && typeof node.className === 'string' && /(ad-|ads-|banner|popup|sponsor|promo|overlay|modal)/i.test(node.className)) {
+                    if (node.className && typeof node.className === 'string' && /(^ad-slot|^ad-banner|^ad-wrapper|^ad-container|^adsbygoogle|^sponsored-ad|^advertisement)/i.test(node.className)) {
                         node.style.setProperty('display', 'none', 'important');
                     }
                     killMaliciousNodes(node);

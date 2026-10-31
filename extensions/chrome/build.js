@@ -1,12 +1,10 @@
 import esbuild from 'esbuild';
-import JavaScriptObfuscator from 'javascript-obfuscator';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const watch = process.argv.includes('--watch');
-const skipObfuscate = process.argv.includes('--no-obfuscate');
 
 const buildOptions = {
     entryPoints: [
@@ -34,7 +32,6 @@ async function build() {
         await ctx.rebuild();
         await ctx.dispose();
         copyStatic();
-        if (!skipObfuscate) { obfuscateCode(); }
     }
 }
 
@@ -46,6 +43,8 @@ function copyStatic() {
         ['popup/popup.css', 'dist/popup/popup.css'],
         ['popup/i18n.js', 'dist/popup/i18n.js'],
         ['src/offscreen.html', 'dist/src/offscreen.html'],
+        ['warning.html', 'dist/warning.html'],
+        ['warning.js', 'dist/warning.js'],
     ];
     for (const [src, dest] of files) {
         if (fs.existsSync(src)) {
@@ -106,41 +105,6 @@ function copyStatic() {
     }
 
     console.log('Build complete!');
-}
-
-function obfuscateCode() {
-    const filesToObfuscate = [
-        'dist/src/content.js',
-        'dist/src/inject.js',
-        'dist/src/background.js',
-        'dist/src/offscreen.js',
-        'dist/popup/popup.js'
-    ];
-    
-    console.log('🛡️  正在进行高强度代码混淆...');
-    for (const file of filesToObfuscate) {
-        if (fs.existsSync(file)) {
-            const code = fs.readFileSync(file, 'utf8');
-            const obfuscationResult = JavaScriptObfuscator.obfuscate(code, {
-                compact: true,
-                controlFlowFlattening: true,
-                controlFlowFlatteningThreshold: 0.75,
-                deadCodeInjection: true,
-                deadCodeInjectionThreshold: 0.4,
-                debugProtection: false,
-                disableConsoleOutput: false,
-                identifierNamesGenerator: 'hexadecimal',
-                renameGlobals: false,
-                selfDefending: true,
-                stringArray: true,
-                stringArrayEncoding: ['rc4'],
-                stringArrayThreshold: 0.75
-            });
-            fs.writeFileSync(file, obfuscationResult.getObfuscatedCode());
-            console.log(`   ✅ 已混淆: ${file}`);
-        }
-    }
-    console.log('🛡️  混淆完成！');
 }
 
 build().catch((e) => {

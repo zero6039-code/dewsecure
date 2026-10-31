@@ -3,54 +3,47 @@ name: Build & Release Extension
 on:
   push:
     tags:
-      - 'v*' # 打 tag 时触发
-  workflow_dispatch: # 允许手动触发
+      - 'v*'
+  workflow_dispatch:
 
-# 赋予 Actions 推送代码的权限
+# 🛡️ S-11 修复：默认只读，发布步骤才给写权限
 permissions:
-  contents: write
+  contents: read
 
 jobs:
   build-and-release:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write # 仅在这个 Job 赋予 Release 的写权限
     steps:
       - uses: actions/checkout@v4
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
+      - uses: actions/setup-node@v4
         with:
           node-version: '22'
 
       - name: Install Dependencies & Build
         run: |
           cd extensions/chrome
-          npm install
+          npm ci # 🛡️ 使用 npm ci 保证依赖可复现
           npm run build
 
-      - name: Get Version & Prepare Release Directory
+      - name: Get Version
         id: get_version
         run: |
-          # 从 manifest.json 提取版本号，例如 "1.2.0"
           VERSION=$(node -p "require('./extensions/chrome/manifest.json').version")
           echo "VERSION=$VERSION" >> $GITHUB_ENV
-          # 创建归档目录
-          mkdir -p releases/chrome
 
       - name: Create Zip Archive
         run: |
           cd extensions/chrome/dist
-          # 打包为 chrome-v1.2.0.zip 并存放到根目录的 releases/chrome/ 中
-          zip -r ../../../releases/chrome/chrome-v${{ env.VERSION }}.zip .
+          # 在临时目录打包，绝对不放进仓库目录
+          zip -r /tmp/chrome-v${{ env.VERSION }}.zip .
 
-      - name: Commit and Push Artifacts
-        run: |
-          git config --local user.email "github-actions[bot]@users.noreply.github.com"
-          git config --local user.name "github-actions[bot]"
-          git add releases/
-          # 检查是否有变更，如果有才 commit
-          if ! git diff --staged --quiet; then
-            git commit -m "chore: auto-build chrome extension v${{ env.VERSION }}"
-            git push
-          else
-            echo "No changes to commit"
-          fi
+      # 🛡️ S-11 修复：直接发布到 GitHub Release，不污染代码库
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: /tmp/chrome-v${{ env.VERSION }}.zip
+          generate_release_notes: true
+          draft: false
+          prerelease: false

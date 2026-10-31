@@ -1,6 +1,14 @@
 import { getCurrentUser } from '../../src/authManager.js';
 import { updateSiteSwitch, disableSiteSwitch } from '../views.js';
 
+// 🛡️ S-13 修复：HTML 实体转义，防止恶意 URL 注入 XSS
+function escapeHTML(str) {
+    if (!str) return '';
+    return String(str).replace(/[&<>'"]/g, 
+        tag => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[tag])
+    );
+}
+
 export function getTypeText(type) { 
     const t = window.t || (window.i18n && window.i18n.t) || ((k) => k); 
     const map = { dnr: "type_dnr", tracker: "type_tracker", ad: "type_ad", "dom-hidden": "type_dom_hidden" }; 
@@ -72,7 +80,7 @@ export async function renderTodayLogs() {
         const innerHTML = item.records.map(r => {
             const rTime = new Date(r.ts).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
             return `<div style="display: flex; justify-content: space-between; padding: 6px 10px; font-size: 11px; color: #6b7280; border-bottom: 1px solid rgba(0,0,0,0.05);">
-                <span>${r.url || '未知路径'}</span>
+                <span>${escapeHTML(r.url || '未知路径')}</span>
                 <span>${rTime}</span>
             </div>`;
         }).join('');
@@ -81,7 +89,7 @@ export async function renderTodayLogs() {
         <details class="hover-card" style="background: rgba(255,255,255,0.6); border-radius: 8px; margin-bottom: 8px; overflow: hidden;">
             <summary style="display: flex; justify-content: space-between; align-items: center; padding: 10px; outline: none; list-style: none;">
                 <div style="flex: 1; overflow: hidden;">
-                    <div style="font-weight: 600; font-size: 13px; color: #1c1c1e; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${item.domain}</div>
+                    <div style="font-weight: 600; font-size: 13px; color: #1c1c1e; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${escapeHTML(item.domain)}</div>
                     <div style="font-size: 11px; color: #6b7280;">${getTypeText(firstRecord.type)}</div>
                 </div>
                 <div style="display: flex; align-items: center; gap: 8px;">
@@ -122,7 +130,7 @@ export async function renderTotalStats() {
     list.innerHTML = topDomains.map((item, index) => {
         return `<div class="hover-card" style="display: flex; justify-content: space-between; align-items: center; padding: 10px; background: rgba(255,255,255,0.6); border-radius: 8px;">
             <div style="font-size: 13px; font-weight: 500; color: #1c1c1e;">
-                <span style="color: #6b7280; margin-right: 5px;">${index + 1}</span> ${item[0]}
+                <span style="color: #6b7280; margin-right: 5px;">${index + 1}</span> ${escapeHTML(item[0])}
             </div>
             <div style="font-size: 13px; font-weight: bold; color: #58a6ff;">${item[1]}</div>
         </div>`;
@@ -133,9 +141,65 @@ export async function updateUserUI(user) {
     const loginText = document.getElementById('loginBtnText');
     if (loginText) loginText.textContent = user ? window.t('btn_status') : window.t('btn_login');
 
+    // 🌟 关键修复：页面加载时，先强制把 storage 里的状态同步到 UI，消灭数据脱节
+    const allToggleMap = {
+        'dnrToggle': 'dnrEnabled', 'antiHijackToggle': 'antiHijackEnabled',
+        'trackerToggle': 'blockTrackers', 'antiBypassToggle': 'antiBypassEnabled',
+        'cookieToggle': 'hideCookieNotices', 'placeholderToggle': 'hideAdPlaceholders'
+    };
+    const { dewsecure_settings: initSettings } = await chrome.storage.local.get('dewsecure_settings');
+    const iSet = initSettings || {};
+    for (const [id, key] of Object.entries(allToggleMap)) {
+        const el = document.getElementById(id);
+        if (el && iSet[key] !== undefined) {
+            el.checked = iSet[key] !== false;
+        }
+    }
+
     const upgradeBtn = document.getElementById('upgradeBtn');
     const upgradeText = document.querySelector('.btn-upgrade-text');
-    const isPremium = user?.tier === 'pro' || user?.tier === 'family' || user?.tier === 'premium';
+    const isPremium = user?.tier === 'pro' || user?.tier === 'family' || user?.tier === 'premium' || user?.tier === 'trial';
+
+    // 🌟 核心修复：统一处理所有 PRO 开关的状态（Free 禁用/变灰，PRO 启用/恢复状态）
+    const proSwitchConfig = {
+        'phishingToggle': { key: 'phishingEnabled', default: true },
+        'intelToggle': { key: 'intelEnabled', default: true },
+        'aiFourToggle': { key: 'aiFourEnabled', default: true },
+        'socialToggle': { key: 'blockSocialTrackers', default: true }
+    };
+
+    const { dewsecure_settings: settings } = await chrome.storage.local.get('dewsecure_settings');
+    const s = settings || {};
+
+    Object.entries(proSwitchConfig).forEach(([id, config]) => {
+        const switchEl = document.getElementById(id);
+        if (!switchEl) return;
+        
+        const container = switchEl.closest('.feature-row') || switchEl.closest('label') || switchEl.parentElement;
+        
+        if (!isPremium) {
+            switchEl.checked = false;
+            switchEl.disabled = true;
+            if (container) {
+                container.style.opacity = '0.4';
+                container.style.pointerEvents = 'none';
+            }
+        } else {
+            switchEl.disabled = false;
+            if (container) {
+                container.style.opacity = '1';
+                container.style.pointerEvents = 'auto';
+            }
+            // 🌟 移除所有强制覆盖逻辑。尊重用户本地存储的状态
+            const savedVal = s[config.key];
+            switchEl.checked = savedVal !== false;
+        }
+    });
+
+    // 🌟 如果用户是 PRO，通知后台立刻拉取情报
+    if (isPremium) {
+        chrome.runtime.sendMessage({ type: 'FORCE_SYNC_PRO_DATA' });
+    }
 
     if (upgradeBtn && upgradeText) {
         if (isPremium) {
@@ -161,53 +225,4 @@ export async function updateUserUI(user) {
         }
     }
 
-    const proSwitchIds = ['phishingToggle', 'aiFourToggle', 'socialToggle']; 
-    
-    proSwitchIds.forEach(id => {
-        const switchEl = document.getElementById(id);
-        if (!switchEl) return;
-        
-        const container = switchEl.closest('label') || switchEl.closest('.setting-item') || switchEl.parentElement;
-
-        if (!isPremium) {
-            if (container) {
-                const allInputs = container.querySelectorAll('input[type="checkbox"]');
-                allInputs.forEach(input => {
-                    input.checked = false;
-                    input.removeAttribute('checked');
-                    input.disabled = true;
-                    input.dispatchEvent(new Event('change')); 
-                });
-                container.style.opacity = '0.4';
-                container.style.pointerEvents = 'none';
-            } else {
-                switchEl.checked = false;
-                switchEl.removeAttribute('checked');
-                switchEl.disabled = true;
-                switchEl.dispatchEvent(new Event('change'));
-            }
-            // 🌟 关键修复：不再强制写入 Storage false，保护用户的设置
-        } else {
-            if (container) {
-                const allInputs = container.querySelectorAll('input[type="checkbox"]');
-                allInputs.forEach(input => {
-                    input.disabled = false;
-                    input.removeAttribute('disabled');
-                    chrome.storage.local.get('dewsecure_settings').then(res => {
-                        const s = res.dewsecure_settings || {};
-                        // 如果没设置过，默认开启
-                        if (id === 'phishingToggle') input.checked = s.phishingEnabled !== false;
-                        if (id === 'aiFourToggle') input.checked = s.aiFourEnabled !== false;
-                        if (id === 'socialToggle') input.checked = s.blockSocialTrackers !== false;
-                        input.dispatchEvent(new Event('change'));
-                    });
-                });
-                container.style.opacity = '1';
-                container.style.pointerEvents = 'auto';
-            } else {
-                switchEl.disabled = false;
-                switchEl.removeAttribute('disabled');
-            }
-        }
-    });
 }

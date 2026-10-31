@@ -1,3 +1,10 @@
+// 🔒 S-06 修复：限制 content script 读取 storage.local，保护 Token 安全
+if (chrome.storage && chrome.storage.local && chrome.storage.local.setAccessLevel) {
+    chrome.storage.local.setAccessLevel({ accessLevel: 'TRUSTED_CONTEXTS' }).catch(e => {
+        console.warn('⚠️ 设置 storage 访问级别失败:', e);
+    });
+}
+
 // 🌟 动态适配 Chrome 与 Edge 的 Side Panel
 if (typeof chrome !== 'undefined' && chrome.sidePanel && chrome.sidePanel.setPanelBehavior) {
     chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: true }).catch(console.warn);
@@ -12,7 +19,11 @@ import { initSecurityListeners } from './background/security.js';
 import { initStatsListener } from './background/stats.js';
 import { restoreSessionRules } from './background/dnr.js';
 import { runAICheck } from './background/ai.js';
+import { detectBrandPhishing } from './background/phishingDetector.js';
 import { handleMessage } from './background/messageHandler.js';
+import { updateThreatIntel } from './background/threatIntel.js';
+
+// 🚀 AI 已改为纯 JS 推理，无需创建 Offscreen 页面
 
 // 初始化
 initSettings();
@@ -30,10 +41,17 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 // AI 通信
 chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     if (msg.type === 'CHECK_URL_AI') {
-        runAICheck(msg.url);
+        runAICheck(msg.url, sender?.tab?.id);
         sendResponse({ ok: true });
         return true;
     }
+});
+
+// 威胁情报同步 (URLhaus等)
+setTimeout(updateThreatIntel, 3000);
+chrome.alarms.create('dewsecure_threat_intel', { periodInMinutes: 1440 });
+chrome.alarms.onAlarm.addListener((alarm) => {
+    if (alarm.name === 'dewsecure_threat_intel') updateThreatIntel();
 });
 
 // 模型同步
@@ -46,18 +64,45 @@ chrome.alarms.onAlarm.addListener((alarm) => {
 // 登录/登出监听
 chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     if (msg.type === 'AUTH_STATE_CHANGED') {
+        // 🌟 核心修复：用户登录或状态改变时，立刻尝试拉取一次威胁情报
+        setTimeout(updateThreatIntel, 1000);
         checkAndUpdateModel().catch(console.warn);
-        import('./authManager.js').then(async ({ getCurrentUser }) => {
+        (async () => {
             const user = await getCurrentUser();
             if (user && user.token) reportDeviceSilently(user.token);
-        }).catch(e => console.warn(e));
+        })().catch(e => console.warn(e));
         sendResponse({ ok: true });
         return true;
     }
 });
 
+// 🔒 S-01: 外部消息来源白名单（生产域名）
+const ALLOWED_EXTERNAL_ORIGINS = new Set([
+    'https://dewsecure.com',
+    'https://www.dewsecure.com',
+    'http://localhost:8888',
+    'http://127.0.0.1:8888'
+]);
+
+function isTrustedExternalSender(sender) {
+    if (!sender) return false;
+    if (typeof sender.origin === 'string' && sender.origin) {
+        return ALLOWED_EXTERNAL_ORIGINS.has(sender.origin);
+    }
+    if (typeof sender.url === 'string' && sender.url) {
+        try { return ALLOWED_EXTERNAL_ORIGINS.has(new URL(sender.url).origin); }
+        catch { return false; }
+    }
+    return false;
+}
+
 // 外部通信
 chrome.runtime.onMessageExternal.addListener((message, sender, sendResponse) => {
+    console.log('🚨 [外部请求] 收到:', message.type, '来源:', sender?.origin || sender?.url);
+    if (!isTrustedExternalSender(sender)) {
+        console.warn('❌ [拦截] 来源不合法，已阻断！');
+        return false;
+    }
     if (message.type === 'SYNC_AUTH') {
         saveExternalAuth(message.payload).then(res => sendResponse({ ok: res.ok }));
         return true;
@@ -70,27 +115,25 @@ chrome.runtime.onMessageExternal.addListener((message, sender, sendResponse) => 
     if (message.type === 'REFRESH_DEVICES') {
         chrome.runtime.sendMessage({ type: 'AUTH_STATE_CHANGED' }).catch(() => {});
         // 强制再次上报当前设备（此时如果网页端腾出了空位，这里就能插进去了）
-        import('./authManager.js').then(async ({ getCurrentUser }) => {
+        (async () => {
             const user = await getCurrentUser();
             if (user && user.token) {
-                import('./deviceManager.js').then(({ reportDeviceSilently }) => {
-                    reportDeviceSilently(user.token, true);
-                });
+                reportDeviceSilently(user.token, true);
             }
-        }).catch(() => {});
+        })().catch(() => {});
         sendResponse({ ok: true });
         return true;
     }
 });
 
 // 启动强制设备上报
-import('./authManager.js').then(async ({ getCurrentUser }) => {
+(async () => {
     const user = await getCurrentUser();
     if (user && user.token) {
         await chrome.storage.local.remove('dewsecure_last_device_report');
         reportDeviceSilently(user.token).catch(console.warn);
     }
-});
+})();
 
 // 🌟 Firefox 侧边栏自动打开逻辑（加了严格判断）
 if (typeof chrome !== 'undefined' && chrome.sidebarAction && chrome.action && chrome.action.onClicked) {
@@ -100,3 +143,123 @@ if (typeof chrome !== 'undefined' && chrome.sidebarAction && chrome.action && ch
         }
     });
 }
+
+// 🌟 P-01 修复：页面加载完成时触发 AI 检测
+chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
+    if (changeInfo.status === 'complete' && tab.url && tab.url.startsWith('http')) {
+        runAICheck(tab.url, tabId);
+    }
+});
+
+// 🌟 P-01 硬核钓鱼拦截：在页面加载前抢占并重定向
+if (chrome.webNavigation && chrome.webNavigation.onBeforeNavigate) {
+    const blockedTabs = new Set();
+
+    chrome.webNavigation.onBeforeNavigate.addListener(async (details) => {
+        // 如果是警告页，记录一下真实被拦截的 URL，供 warning.js 使用
+        if (details.url.includes('warning.html') && details.frameId === 0) {
+            // 🛡️ 核弹级防线：强行拦截对核心大厂的误跳转
+            try {
+                const urlParams = new URL(details.url).searchParams;
+                const domain = urlParams.get('domain') || urlParams.get('url') || '';
+                const HARD_SAFE = ['github.com', 'githubusercontent.com', 'gitlab.com', 'dewsecure.com', 'npmjs.com', 'cloudflare.com', 'microsoft.com', 'apple.com'];
+                
+                if (domain && HARD_SAFE.some(d => domain === d || domain.endsWith('.' + d))) {
+                    console.warn('🛡️ [Security] 强行拦下对核心大厂的警告页跳转，放行！', domain);
+                    chrome.tabs.update(details.tabId, { url: `https://${domain}` });
+                    return;
+                }
+            } catch (e) {
+                console.warn('警告页参数解析失败', e);
+            }
+
+            chrome.tabs.get(details.tabId, (tab) => {
+                if (tab && tab.url && !tab.url.includes('warning.html')) {
+                    chrome.storage.local.set({ last_blocked_url: tab.url });
+                }
+            });
+            return;
+        }
+
+        // 只拦截主框架的真实网页
+        if (details.frameId !== 0 || !details.url.startsWith('http')) return;
+
+        // 🔒 防循环
+        if (blockedTabs.has(details.tabId)) {
+            console.log('[DEBUG] 标签页已拦截过，本次放行:', details.tabId);
+            blockedTabs.delete(details.tabId);
+            return;
+        }
+
+        try {
+            // 🛡️ 拦截前置检查 1：绝对放行官方与核心开发者域名（防情报误杀）
+            const urlObj = new URL(details.url);
+            const host = urlObj.hostname;
+            
+            const HARD_SAFE_DOMAINS = [
+                'dewsecure.com', 'github.com', 'githubusercontent.com', 'github.io', 
+                'gitlab.com', 'npmjs.com', 'cloudflare.com', 'microsoft.com', 'apple.com'
+            ];
+            
+            if (HARD_SAFE_DOMAINS.some(d => host === d || host.endsWith('.' + d)) || host.includes('zero6039')) {
+                // 豁免核心站点，直接放行，绝不拦截
+                return;
+            }
+
+            // 🛡️ 拦截前置检查 2：解析域名并检查用户白名单与临时暂停
+            const { dewsecure_settings: settings } = await chrome.storage.local.get('dewsecure_settings');
+            const s = settings || {};
+            const matchDomain = (d) => host === d || host.endsWith('.' + d);
+
+            if ((s.whitelist || []).some(matchDomain) || (s.tempWhitelist || []).some(matchDomain)) {
+                return; // 命中白名单，绝不拦截
+            }
+
+            // 🛡️ 拦截前置检查 3：彻底修复开关失效问题！
+            // 因为 UI 里的 phishingEnabled 可能没写进 storage（undefined），导致一直拦截。
+            // 只要不是明确的 true（比如是 false 或者 undefined），就默认不拦截！
+            if (s.phishingEnabled !== true && s.aiEnabled !== true) {
+                console.log('🛡️ [Security] 检测开关未开启，放行该网页:', host);
+                return; 
+            }
+
+            // 🚨 执行钓鱼检测
+            if (detectBrandPhishing(details.url)) {
+                console.log('🚨 [Security] 检测到品牌钓鱼，执行强制拦截:', details.url);
+                const warningUrl = chrome.runtime.getURL(`warning.html?url=${encodeURIComponent(details.url)}&isPro=false`);
+                blockedTabs.add(details.tabId);
+                chrome.tabs.update(details.tabId, { url: warningUrl });
+            }
+        } catch (e) {
+            console.warn('[Security] 拦截逻辑异常:', e);
+        }
+    });
+} // 🌟 这里补上了缺失的大括号！
+
+// 强制清理可能误伤的 DNR 规则
+chrome.declarativeNetRequest.getDynamicRules().then(rules => {
+    const badRules = rules.filter(r => JSON.stringify(r).includes('dewsecure'));
+    if (badRules.length > 0) {
+        chrome.declarativeNetRequest.updateDynamicRules({
+            removeRuleIds: badRules.map(r => r.id)
+        });
+    }
+});
+
+// 🌟 防线 3：全局最高优先级豁免 (防止未来任何新模块误伤官方)
+// 先安全移除旧规则（如果不存在也不会报错），再添加新规则，彻底杜绝 ID 冲突报错
+chrome.declarativeNetRequest.updateSessionRules({
+    removeRuleIds: [999999]
+}).then(() => {
+    return chrome.declarativeNetRequest.updateSessionRules({
+        addRules: [{
+            "id": 999999,
+            "priority": 1000000, // 一百万级碾压，高于任何 AI 或暂停规则
+            "action": { "type": "allow" },
+            "condition": {
+                "requestDomains": ["dewsecure.com", "dewsecure-api.zero6039.workers.dev"],
+                "resourceTypes": ["main_frame", "sub_frame", "stylesheet", "script", "image", "font", "object", "xmlhttprequest", "ping", "csp_report", "media", "websocket", "other"]
+            }
+        }]
+    });
+}).catch(e => console.warn('设置官方豁免失败:', e));

@@ -7,6 +7,40 @@ const SUPABASE_ANON_KEY = 'sb_publishable_xiiA-yt_jRKkzRdkYkoWJA_CVZjNjq8';
 const INSTALLATION_KEY = 'dewsecure_installation_id';
 const LAST_REPORT_KEY = 'dewsecure_last_device_report';
 
+// 🌟 辅助函数：当设备超限时，给用户发送通知（带 1 小时防刷拦截）
+async function sendDeviceLimitNotification(token) {
+    try {
+        // 从本地存储读取当前用户状态，判断是 Pro 还是 Family
+        const { dewsecure_user: user } = await chrome.storage.local.get('dewsecure_user');
+        let isFamily = user && (user.tier === 'family' || user.tier === 'sub-family');
+        let limitKey = isFamily ? 'notif_device_limit_9' : 'notif_device_limit_3';
+
+        const payloadBase64 = token.split('.')[1];
+        const payload = JSON.parse(atob(payloadBase64));
+        const userId = payload.sub;
+
+        await fetch(`${SUPABASE_URL}/rest/v1/notifications`, {
+            method: 'POST',
+            headers: {
+                'apikey': SUPABASE_ANON_KEY,
+                'Authorization': `Bearer ${token}`,
+                'Content-Type': 'application/json',
+                'Prefer': 'return=minimal'
+            },
+            body: JSON.stringify({
+                user_id: userId,
+                type: 'security',
+                title_key: limitKey,
+                message_key: limitKey,
+                params: {}
+            })
+        });
+        console.log('✅ [DeviceManager] 超限通知已成功发送至通知中心');
+    } catch (e) {
+        console.warn('发送超限通知失败:', e);
+    }
+}
+
 export async function getInstallationId() {
     let { [INSTALLATION_KEY]: id } = await chrome.storage.local.get(INSTALLATION_KEY);
     if (!id) {
@@ -76,6 +110,12 @@ export async function reportDeviceSilently(token, force = false) {
         } else {
             const errorText = await res.text();
             if (errorText.includes('DEVICE_LIMIT_EXCEEDED')) {
+                // 🌟 核心修复：触发超限时发送通知（通过本地缓存防止1小时内重复发送骚扰用户）
+                const { last_limit_notif: lastNotif } = await chrome.storage.local.get('last_limit_notif');
+                if (!lastNotif || Date.now() - lastNotif > 60 * 60 * 1000) {
+                    await sendDeviceLimitNotification(token);
+                    await chrome.storage.local.set({ last_limit_notif: Date.now() });
+                }
                 return { status: 'LIMIT_EXCEEDED' };
             } else if (res.status === 401) {
                 return { status: 'AUTH_ERROR' };

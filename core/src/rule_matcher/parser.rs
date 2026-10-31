@@ -32,7 +32,7 @@ pub fn parse_rules(text: &str) -> Result<Vec<FilterRule>, ParseError> {
 /// 解析单条规则
 pub fn parse_rule(line: &str) -> Option<FilterRule> {
     let line = line.trim();
-    if line.is_empty() || line.starts_with('!') {
+    if line.is_empty() || line.starts_with('!') || line.contains("##") || line.contains("#@#") {
         return None;
     }
 

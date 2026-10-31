@@ -8,10 +8,20 @@ import { showDeviceLimitModal } from './modules/limit-modal.js';
 import { reportDeviceSilently } from '../src/deviceManager.js';
 
 let renderTimeout = null;
+let isSyncing = false;
+window._deviceLimitReached = false;
 const updateStats = (stats) => { if (typeof _updateStats === 'function') _updateStats(stats); };
 window.updateStats = updateStats;
 
 window.syncUserState = async function syncUserState() {
+    if (isSyncing) return; // 阻止并发
+    isSyncing = true;
+    
+    try {
+    if (window._skipNextDeviceSync) {
+        window._skipNextDeviceSync = false;
+        return;
+    }
     let user = await getCurrentUser();
     
     if (!user) {
@@ -26,34 +36,34 @@ window.syncUserState = async function syncUserState() {
     const reportRes = await reportDeviceSilently(user.token, true);
     
     if (reportRes && reportRes.status === 'LIMIT_EXCEEDED') {
-        console.warn("🚫 [Popup] 数据库明确反馈：设备数已满，确实无法插入当前设备。");
-        updateUserUI(null); // 锁定 UI
+        console.warn("🚫 [Popup] 设备数已满，强制回退 Free 并弹窗。");
         
-        // 强行关闭登录弹窗，防遮挡
+        // 🌟 回归原始逻辑：刷新UI，隐藏登录框，弹窗，然后立即返回
+        updateUserUI(null); 
+
         const authModal = document.getElementById('authModal');
         if (authModal) authModal.classList.add('hidden');
 
         const transFn = window.t || ((k) => k);
         showDeviceLimitModal(transFn);
-        return;
+        return; // 🛑 关键：立即终止，防止任何后续操作覆盖弹窗
     }
 
     // 🌟 只要不是明确超额（无论是成功、网络错误、或者是同设备心跳更新），彻底解除封印！
     console.log("✅ [Popup] 设备已就绪，解除超限锁定");
     await chrome.storage.local.remove('dewsecure_device_limit_reached');
 
+    // 🌟 解除超限时，隐藏静态弹窗
+    const glassModal = document.getElementById('glassLimitModal');
+    if (glassModal) {
+        glassModal.classList.add('hidden');
+        glassModal.style.display = 'none';
+    }
+
+    // 🌟 强制先去云端拉取最新状态，再渲染，杜绝使用本地旧缓存造成的闪烁
     user = await fetchUserProfile();
     
-    // 如果是 Pro 用户，强制恢复被锁定的开关
-    if (user && user.tier !== 'free') {
-        let { dewsecure_settings: s } = await chrome.storage.local.get('dewsecure_settings');
-        s = s || {};
-        let changed = false;
-        if (s.phishingEnabled === false) { s.phishingEnabled = true; changed = true; }
-        if (s.aiFourEnabled === false) { s.aiFourEnabled = true; changed = true; }
-        if (s.blockSocialTrackers === false) { s.blockSocialTrackers = true; changed = true; }
-        if (changed) await chrome.storage.local.set({ dewsecure_settings: s });
-    }
+    // 🔒 修复：移除强制开启用户设置的逻辑，尊重用户意愿
     
     updateUserUI(user);
 
@@ -65,6 +75,9 @@ window.syncUserState = async function syncUserState() {
         } else {
             authModal.querySelectorAll('.auth-step').forEach(el => el.classList.toggle('hidden', el.dataset.step !== 'email'));
         }
+    }
+    } finally {
+        isSyncing = false;
     }
 }
 
@@ -108,7 +121,31 @@ chrome.storage.onChanged.addListener((changes, namespace) => {
         }
 
         if (changes['dewsecure_user']) {
-            window.syncUserState();
+            if (!window._deviceLimitReached) {
+                window.syncUserState();
+            }
+        }
+
+        // 🔒 当后台保存设置后，实时同步给 UI，且不触发 change 事件
+        if (changes['dewsecure_settings']) {
+            const newSettings = changes['dewsecure_settings'].newValue || {};
+            const oldSettings = changes['dewsecure_settings'].oldValue || {};
+            const toggleMap = {
+                'dnrToggle': 'dnrEnabled', 'antiHijackToggle': 'antiHijackEnabled',
+                'phishingToggle': 'phishingEnabled', 'intelToggle': 'intelEnabled', 'aiFourToggle': 'aiFourEnabled',
+                'trackerToggle': 'blockTrackers', 'antiBypassToggle': 'antiBypassEnabled',
+                'cookieToggle': 'hideCookieNotices', 'placeholderToggle': 'hideAdPlaceholders',
+                'socialToggle': 'blockSocialTrackers'
+            };
+            // 🌟 绝对解耦：只有值真正发生改变的 key，才去更新 UI。绝不误伤其他开关！
+            for (const [id, key] of Object.entries(toggleMap)) {
+                if (newSettings[key] !== oldSettings[key]) {
+                    const el = document.getElementById(id);
+                    if (el && !el.disabled) {
+                        el.checked = newSettings[key] !== false;
+                    }
+                }
+            }
         }
     }
 });
@@ -122,7 +159,7 @@ chrome.tabs.onUpdated.addListener((tabId, changeInfo) => {
 chrome.windows.onFocusChanged.addListener((windowId) => {
     if (windowId !== chrome.windows.WINDOW_ID_NONE) {
         updateSiteInfo();
-        window.syncUserState(); // 切回窗口立刻向服务器核实
+        // 🔒 移除 syncUserState()，防止高频网络请求导致 UI 覆盖
     }
 });
 

@@ -21,26 +21,39 @@ jobs:
           cache: 'pip'
           cache-dependency-path: models/training/requirements.txt
 
+      # 🚀 方案三：缓存数据集，大幅提升 CI 速度
+      - name: 缓存威胁情报源
+        uses: actions/cache@v4
+        with:
+          path: models/data/cache
+          key: intel-cache-v1
+          restore-keys: |
+            intel-cache-
+
       - name: 安装 Python 依赖
         run: |
           pip install -r models/training/requirements.txt
-          pip install onnx skl2onnx onnxruntime
+          pip install onnx skl2onnx onnxruntime pynacl
 
       - name: 下载数据集 (含 Supabase 反馈拉取与标记)
         working-directory: models
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
-          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }} # 🌟 新增：用于修改数据状态
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
         run: python training/data_prep.py
 
       - name: 训练模型
         working-directory: models
         run: python training/train.py
 
-      - name: 导出 ONNX
+      - name: 导出 ONNX 与 JSON
         working-directory: models
         run: python conversion/to_onnx.py
+
+      - name: 🛡 金标集防御校验 (防投毒)
+        working-directory: models
+        run: python training/golden_set.py
 
       - name: 读取模型元信息
         id: meta
@@ -57,35 +70,74 @@ jobs:
           echo "✅ 模型 Macro F1: $MACRO_F1"
           echo "✅ 版本: $VERSION"
 
-      - name: 安装 rclone
+      - name: 🔐 计算哈希并使用 Ed25519 签名
+        working-directory: models
+        env:
+          ED25519_PRIVATE_KEY: ${{ secrets.ED25519_PRIVATE_KEY }}
+          VERSION: ${{ steps.meta.outputs.version }}
+        run: python training/sign_model.py
+
+      - name: 安装 rclone (使用官方最新版避免 R2 501 错误)
         run: |
-          sudo apt-get update
-          sudo apt-get install -y rclone
+          wget https://downloads.rclone.org/v1.68.1/rclone-v1.68.1-linux-amd64.deb
+          sudo dpkg -i rclone-v1.68.1-linux-amd64.deb
+          rclone version
 
       - name: 配置 rclone
         run: |
           mkdir -p ~/.config/rclone
-          cat > ~/.config/rclone/rclone.conf << RCLONE_EOF
-          [r2]
-          type = s3
-          provider = Cloudflare
-          access_key_id = ${{ secrets.R2_ACCESS_KEY_ID }}
-          secret_access_key = ${{ secrets.R2_SECRET_ACCESS_KEY }}
-          endpoint = ${{ secrets.R2_ENDPOINT }}
-          no_check_bucket = true
-          RCLONE_EOF
+          echo "[r2]" > ~/.config/rclone/rclone.conf
+          echo "type = s3" >> ~/.config/rclone/rclone.conf
+          echo "provider = Cloudflare" >> ~/.config/rclone/rclone.conf
+          echo "access_key_id = ${{ secrets.R2_ACCESS_KEY_ID }}" >> ~/.config/rclone/rclone.conf
+          echo "secret_access_key = ${{ secrets.R2_SECRET_ACCESS_KEY }}" >> ~/.config/rclone/rclone.conf
+          echo "endpoint = ${{ secrets.R2_ENDPOINT }}" >> ~/.config/rclone/rclone.conf
+          echo "no_check_bucket = true" >> ~/.config/rclone/rclone.conf
 
-      - name: 上传模型到 R2 (优化分块防报错)
+      - name: 上传模型到 R2 - 双轨 ONNX 与 JSON
         run: |
+          # 上传 ONNX
           rclone copy models/weights/classifier_int8.onnx \
-            r2:${{ secrets.R2_BUCKET }}/latest/ --s3-no-check-bucket --s3-chunk-size 5M --s3-upload-concurrency 2
+            r2:${{ secrets.R2_BUCKET }}/canary/ --s3-no-check-bucket --s3-no-head --s3-chunk-size 5M --s3-upload-concurrency 2
+          # 上传 Meta (含双端签名)
           rclone copy models/weights/model_meta.json \
-            r2:${{ secrets.R2_BUCKET }}/latest/ --s3-no-check-bucket --s3-chunk-size 5M --s3-upload-concurrency 2
+            r2:${{ secrets.R2_BUCKET }}/canary/ --s3-no-check-bucket --s3-no-head --s3-chunk-size 5M --s3-upload-concurrency 2
+          # 上传纯 JS 权重
+          rclone copy models/weights/weights.json \
+            r2:${{ secrets.R2_BUCKET }}/canary/ --s3-no-check-bucket --s3-no-head --s3-chunk-size 5M --s3-upload-concurrency 2
+          
+          # 上传至版本目录备份
           rclone copy models/weights/classifier_int8.onnx \
-            r2:${{ secrets.R2_BUCKET }}/${{ steps.meta.outputs.version }}/ --s3-no-check-bucket --s3-chunk-size 5M --s3-upload-concurrency 2
+            r2:${{ secrets.R2_BUCKET }}/${{ steps.meta.outputs.version }}/ --s3-no-check-bucket --s3-no-head --s3-chunk-size 5M --s3-upload-concurrency 2
+          rclone copy models/weights/weights.json \
+            r2:${{ secrets.R2_BUCKET }}/${{ steps.meta.outputs.version }}/ --s3-no-check-bucket --s3-no-head --s3-chunk-size 5M --s3-upload-concurrency 2
 
-          echo "=== latest 目录内容 ==="
-          rclone ls r2:${{ secrets.R2_BUCKET }}/latest/ --s3-no-check-bucket
+          echo "=== canary 目录内容 ==="
+          rclone ls r2:${{ secrets.R2_BUCKET }}/canary/ --s3-no-check-bucket
+
+      - name: 🚀 检查是否需要提交规则反馈 PR
+        id: check_rules
+        run: |
+          if git diff --quiet models/training/hard_rules.json; then
+            echo "changed=false" >> $GITHUB_OUTPUT
+          else
+            echo "changed=true" >> $GITHUB_OUTPUT
+            git diff models/training/hard_rules.json
+          fi
+
+      - name: 🛡 自动生成规则更新 PR
+        if: steps.check_rules.outputs.changed == 'true'
+        uses: peter-evans/create-pull-request@v6
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          commit-message: "chore(rules): auto-apply feedback to hard_rules.json"
+          title: "🤖 Feedback Loop: Auto-generated Exception Rules"
+          body: |
+            这是一个根据用户反馈自动生成的白名单/黑名单 PR。
+            请人工审查 `hard_rules.json` 中的变更是否合理，确认没有恶意投毒后再合并。
+          branch: auto-feedback-rules
+          delete-branch: true
+          add-paths: models/training/hard_rules.json
 
       - name: 记录训练历史（不包含模型文件）
         uses: softprops/action-gh-release@v2
@@ -97,7 +149,7 @@ jobs:
 
             - Macro F1: ${{ steps.meta.outputs.macro_f1 }}
             - Trained at: ${{ github.event.repository.updated_at }}
-            - Model file size: 49 KB (INT8)
+            - Model file size: 49 KB (INT8) / < 1 MB (JSON)
             - Delivery: Cloudflare R2 (private, presigned URL only)
 
             ⚠️ Model files are NOT attached to this release.

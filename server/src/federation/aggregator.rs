@@ -59,11 +59,23 @@ impl FederatedAggregator {
         let mut aggregated = vec![0.0f32; dim];
 
         for update in self.updates.values() {
-            let weight = update.num_samples as f32 / total_samples as f32;
-            for (i, g) in update.gradients.iter().enumerate() {
-                if i < dim {
-                    aggregated[i] += g * weight;
+            // 🛡️ S-10 修复：跳过维度不匹配的恶意/异常更新
+            if update.gradients.len() != dim {
+                tracing::warn!("拦截异常梯度：维度不匹配");
+                continue;
+            }
+            
+            // 🛡️ S-10 修复：限制单次最高样本数，防止单点权重控制 (最高不能超过总样本数的 50%)
+            let safe_samples = std::cmp::min(update.num_samples, total_samples / 2 + 1);
+            let weight = safe_samples as f32 / total_samples as f32;
+
+            for (i, &g) in update.gradients.iter().enumerate() {
+                // 🛡️ S-10 修复：防御 NaN 与 Inf 投毒
+                if !g.is_finite() {
+                    tracing::warn!("拦截异常梯度：包含 NaN 或 Inf");
+                    break; // 发现恶意数据，直接放弃这个客户端的更新
                 }
+                aggregated[i] += g * weight;
             }
         }
 

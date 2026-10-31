@@ -1,5 +1,5 @@
 /**
- * DewSecure 认证管理器（Token 自动续期版）
+ * DewSecure 认证管理器（Token 自动续期版 + 多账号无缝切换）
  */
 const USER_KEY = 'dewsecure_user';
 const SETTINGS_KEY = 'dewsecure_settings';
@@ -47,7 +47,6 @@ export async function verifyOTP(email, token) {
             if (profiles && profiles.length > 0) tier = profiles[0].tier;
         } catch (e) {}
 
-        // 🌟 修复：把 refresh_token 和 token 的有效期时间也传进去
         await saveExternalAuth({ 
             token: data.access_token, 
             refreshToken: data.refresh_token,
@@ -62,40 +61,50 @@ export async function verifyOTP(email, token) {
 }
 
 export async function saveExternalAuth(payload) {
-    const { token, refreshToken, email, tier, expiresAt, ownerEmail, tokenExpiresAt } = payload;
+    const { token, refreshToken, email, tokenExpiresAt } = payload;
     if (!token) return { ok: false, error: 'Missing token' };
 
     const { [USER_KEY]: oldUser } = await chrome.storage.local.get(USER_KEY);
-    const isFullPayload = tier !== undefined;
+    const emailChanged = email && oldUser && oldUser.email !== email;
 
+    // 1. 只保存核心认证信息，绝不保存业务数据（tier等）
     const user = { 
         email: email || oldUser?.email || '',
-        tier: tier !== undefined ? tier : (oldUser?.tier || 'free'), 
+        tier: emailChanged ? 'free' : (oldUser?.tier || 'free'), 
         token: token, 
         refreshToken: refreshToken || oldUser?.refreshToken || null,
-        tokenExpiresAt: tokenExpiresAt || oldUser?.tokenExpiresAt || (Date.now() + 3600 * 1000), // 兜底 1 小时
-        expiresAt: expiresAt !== undefined ? expiresAt : (oldUser?.expiresAt || null),
-        ownerEmail: ownerEmail !== undefined ? ownerEmail : (oldUser?.ownerEmail || null),
-        familyOwnerId: oldUser?.familyOwnerId || null,
-        deviceCount: oldUser?.deviceCount || 0,
-        lastSync: Date.now() 
+        tokenExpiresAt: tokenExpiresAt || Date.now() + 3600 * 1000
     };
 
     await chrome.storage.local.set({ [USER_KEY]: user });
 
-    let { [SETTINGS_KEY]: settings = {} } = await chrome.storage.local.get(SETTINGS_KEY);
-    settings.email = user.email;
-    settings.tier = user.tier;
-    await chrome.storage.local.set({ [SETTINGS_KEY]: settings });
-
-    if (true) { // 🌟 强制发送通知
-        chrome.runtime.sendMessage({ type: 'AUTH_STATE_CHANGED' }).catch(() => {});
+    // 2. 🌟 核心修复：强制等待云端拉取最新权限数据
+    try {
+        await fetchUserProfile();
+    } catch (e) {
+        console.warn('拉取最新权限失败:', e);
     }
     
-    return { ok: true, user };
+    // 3. 云端拉取完毕，通知 UI 刷新
+    chrome.runtime.sendMessage({ type: 'AUTH_STATE_CHANGED' }).catch(() => {});
+    
+    return { ok: true };
 }
 
 export async function logoutUser() {
+    // 🔒 S-06 修复：先向 Supabase 发送服务端注销，吊销 Token
+    try {
+        const { [USER_KEY]: user } = await chrome.storage.local.get(USER_KEY);
+        if (user && user.token) {
+            await fetch(`${SUPABASE_URL}/auth/v1/logout`, {
+                method: 'POST',
+                headers: { 'apikey': SUPABASE_ANON_KEY, 'Authorization': `Bearer ${user.token}` }
+            });
+        }
+    } catch (e) {
+        console.warn('服务端登出失败（可能已离线），继续执行本地清理:', e);
+    }
+
     await chrome.storage.local.remove(USER_KEY);
     chrome.runtime.sendMessage({ type: 'AUTH_STATE_CHANGED' }).catch(() => {});
 
@@ -147,7 +156,6 @@ async function refreshAccessToken(user) {
 async function fetchWithAuth(url, options, user) {
     let currentUser = { ...user };
     
-    // 如果 Token 已经过期，或距离过期不到 5 分钟，提前刷新
     if (Date.now() >= (currentUser.tokenExpiresAt - 5 * 60 * 1000) && currentUser.refreshToken) {
         const refreshed = await refreshAccessToken(currentUser);
         if (refreshed) currentUser = refreshed;
@@ -160,14 +168,12 @@ async function fetchWithAuth(url, options, user) {
 
     let res = await doFetch();
 
-    // 如果被动 401，强制刷新再重试一次
     if (res.status === 401 && currentUser.refreshToken) {
         const refreshed = await refreshAccessToken(currentUser);
         if (refreshed) {
             currentUser = refreshed;
             res = await doFetch();
         } else {
-            // 彻底失效，只有这里才应该清理登录态
             console.warn("Refresh token 已失效，需要重新登录");
         }
     }
@@ -179,8 +185,9 @@ export async function fetchUserProfile() {
     if (!user || !user.token) return null;
 
     try {
-        // 1. 获取 Profile (使用自带续期的 fetchWithAuth)
-        const res = await fetchWithAuth(`${SUPABASE_URL}/rest/v1/profiles?select=*`, {
+        // 🌟 核心修复：必须带上当前用户的 ID 过滤，否则会被 RLS 拦截导致查不到数据！
+        const userId = JSON.parse(atob(user.token.split('.')[1])).sub;
+        const res = await fetchWithAuth(`${SUPABASE_URL}/rest/v1/profiles?id=eq.${userId}&select=tier,subscription_ends_at,trial_ends_at,referral_days_balance,family_owner_id,created_at,stripe_customer_id`, {
             headers: { 'apikey': SUPABASE_ANON_KEY }
         }, user);
         
@@ -224,18 +231,19 @@ export async function fetchUserProfile() {
                         }
                     } else {
                         updatedUser.expiresAt = p.subscription_ends_at || p.trial_ends_at || null;
-                        if (updatedUser.tier === 'pro') {
+                        if (updatedUser.tier === 'pro' || updatedUser.tier === 'trial') {
                             updatedUser.tier = 'free';
                         }
                     }
+                    
+                    // 判断是否是试用
+                    updatedUser.isTrial = (updatedUser.tier === 'trial') || (p.trial_ends_at && !p.stripe_customer_id);
                 }
             }
         } else if (res.status === 401) {
-             // 如果彻底 401 无法续签，则返回空，让上层处理
              return null;
         }
 
-        // 2. 获取设备数
         try {
             const devRes = await fetchWithAuth(`${SUPABASE_URL}/rest/v1/devices?select=id`, {
                 headers: { 'apikey': SUPABASE_ANON_KEY }
@@ -246,7 +254,6 @@ export async function fetchUserProfile() {
             }
         } catch(e) {}
 
-        // 3. 如果是子账号，强查 RPC
         if (isFamilySub || updatedUser.tier === 'family') {
             try {
                 const rpcRes = await fetchWithAuth(`${SUPABASE_URL}/rest/v1/rpc/get_family_shared_status`, {

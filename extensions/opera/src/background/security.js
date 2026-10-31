@@ -12,15 +12,7 @@ const AD_KEYS = [
     'utm_source=open_api', 'uls_trackid=', 'chain_key=',
     'utm_source=adcash', 'trip_sub1=', 'ud1=', 'laz_trackid=', 'mkttid=', 'exlaz=',
 ];
-const TARGET_BRANDS = [
-    'generali.com.my', 'steampowered.com', 'store.steampowered.com',
-    'shopee.com.my', 'kkday.com', 'trip.com', 'my.trip.com', 'klook.com',
-    'traveloka.com', 'tiktok.com', 'lazada.com.my', 'shein.com',
-    'ragasstore.com', 'opera.com/partner', '1xlite', '1xbet', 'omguk.com',
-    's.shopee.com.my', 'track.omguk.com', 'www.trip.com', 'www.kkday.com',
-    'www.klook.com', 'www.opera.com/partner', 'adexchangerapid.com',
-    'usrpubtrk.com', 'ntwkbc21.com', 'ntwkbc42.com',
-];
+
 
 function isSafeNavigation(url) {
     if (!url) return true;
@@ -43,28 +35,45 @@ async function checkIsWhitelisted(host) {
 }
 
 export function initSecurityListeners() {
+    const shouldBlock = async (url) => {
+        if (!url || isSafeNavigation(url)) return false;
+        let hostname = '';
+        try { hostname = new URL(url).hostname; } catch(e) { return false; }
+        
+        // 🔒 F-02 修复：只对特定的域名，且带有明确的广告参数才进行拦截
+        // 绝不再使用宽泛的子串匹配
+        const isTargetDomain = hostname.endsWith('trip.com') || hostname.endsWith('shopee.com.my') || 
+                               hostname.endsWith('kkday.com') || hostname.endsWith('klook.com') || 
+                               hostname.endsWith('lazada.com.my') || hostname.endsWith('traveloka.com') || 
+                               hostname.endsWith('omguk.com');
+                               
+        if (!isTargetDomain) return false;
+        if (await checkIsWhitelisted(hostname)) return false;
+
+        // 检查 URL search 参数中是否包含高危推广参数
+        try {
+            const u = new URL(url);
+            const hasAdParam = AD_KEYS.some(k => u.search.includes(k));
+            return hasAdParam;
+        } catch(e) { return false; }
+    };
+
     if (chrome.webNavigation && chrome.webNavigation.onCreatedNavigationTarget) chrome.webNavigation.onCreatedNavigationTarget.addListener(async (info) => {
-        const url = info.url || '';
-        if (AD_KEYS.some(k => url.includes(k)) || TARGET_BRANDS.some(h => url.includes(h))) {
-            try { if (await checkIsWhitelisted(new URL(url).hostname)) return; } catch(e) {}
+        if (await shouldBlock(info.url)) {
             chrome.tabs.remove(info.tabId, () => { if (chrome.runtime.lastError) {} });
         }
     });
 
     chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
         const url = changeInfo.url || tab.url || '';
-        if (!url || isSafeNavigation(url)) return;
-        if (AD_KEYS.some(k => url.includes(k)) || TARGET_BRANDS.some(h => url.includes(h))) {
-            try { if (await checkIsWhitelisted(new URL(url).hostname)) return; } catch(e) {}
+        if (await shouldBlock(url)) {
             chrome.tabs.remove(tabId, () => { if (chrome.runtime.lastError) {} });
         }
     });
 
     chrome.tabs.onCreated.addListener(async (tab) => {
         const url = tab.pendingUrl || tab.url || '';
-        if (!url || isSafeNavigation(url)) return;
-        if (AD_KEYS.some(k => url.includes(k)) || TARGET_BRANDS.some(k => url.includes(k))) {
-            try { if (await checkIsWhitelisted(new URL(url).hostname)) return; } catch(e) {}
+        if (await shouldBlock(url)) {
             chrome.tabs.remove(tab.id, () => { if (chrome.runtime.lastError) {} });
         }
     });

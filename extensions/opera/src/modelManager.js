@@ -1,3 +1,14 @@
+import * as ed from '@noble/ed25519';
+import { sha512 } from '@noble/hashes/sha512';
+
+// 🔒 核心修复：在 Service Worker 中必须显式注入 SHA-512 引擎，否则验签永远返回 false
+ed.etc.sha512Sync = (...m) => sha512(ed.etc.concatBytes(...m));
+
+
+// 🔒 S-03: Ed25519 公钥（32字节 hex 字符串，无 0x）
+// ⚠️ 请替换为你自己后端生成的正式公钥
+const ED25519_PUBLIC_KEY_HEX = '259eab8b493845eb78e345a139584c6812272d7183c7da29f774dea2d443fe77'; 
+
 /**
  * DewSecure 模型管理器（纯云端验证版）
  */
@@ -111,23 +122,65 @@ export async function checkAndUpdateModel() {
             return { updated: false, meta: null };
         }
 
-        // 3. 获取版本信息
+        // 3. 获取版本、哈希与签名信息
         const remoteVersion = modelResp.headers.get('X-Model-Version') || 'unknown';
         const remoteSha256 = modelResp.headers.get('X-Model-Sha256');
+        const signatureB64 = modelResp.headers.get('X-Model-Signature');
 
-        // 4. 对比版本
-        const localMeta = await dbGet(CACHE_META_KEY);
-        if (localMeta && localMeta.trainedAt === remoteVersion && remoteVersion !== 'unknown') {
-            console.log('[ModelManager] ✅ 已是最新版本:', remoteVersion);
-            return { updated: false, meta: localMeta };
+        // 🔒 S-03 修复 A：强制要求哈希和签名存在
+        if (remoteVersion === 'unknown' || !remoteSha256 || !signatureB64) {
+            console.error('[ModelManager] ❌ 拒绝更新：缺少版本号、哈希或签名头！(回退包内默认模型)');
+            await clearModelCache(); // 🔒 清理本地缓存
+            return { updated: false, meta: null, error: 'Missing security headers' };
         }
 
-        // 5. 下载并校验
+        // 🔒 S-03 修复 B：版本单调性检查（防降级攻击）
+        const localMeta = await dbGet(CACHE_META_KEY);
+        if (localMeta && localMeta.trainedAt) {
+            // 简单的字符串/数字比较。如果是纯数字时间戳，直接比较大小；如果是版本字符串，确保严格递增
+            if (remoteVersion <= localMeta.trainedAt) {
+                console.log(`[ModelManager] 🛡️ 拒绝降级：本地 (${localMeta.trainedAt}) >= 远程 (${remoteVersion})`);
+                return { updated: false, meta: localMeta };
+            }
+        }
+
+        // 4. 下载并校验哈希
         const modelBuffer = await modelResp.arrayBuffer();
         const actualHash = await computeSHA256(modelBuffer);
-        if (remoteSha256 && actualHash !== remoteSha256) {
-            console.error('[ModelManager] ❌ SHA-256 校验失败！');
+        if (actualHash !== remoteSha256) {
+            console.error('[ModelManager] ❌ SHA-256 校验失败！文件损坏或被篡改。(回退包内默认模型)');
+            await clearModelCache();
             return { updated: false, meta: null, error: 'SHA-256 mismatch' };
+        }
+
+        // 🔒 S-03 修复 C：Ed25519 签名校验
+        try {
+            console.log('[ModelManager] 🔐 开始验证 Ed25519 签名...');
+            const msgStr = `${remoteVersion}:${remoteSha256}`;
+            const msgBytes = new TextEncoder().encode(msgStr);
+            
+            // 解析 Base64 签名
+            const sigBytes = Uint8Array.from(atob(signatureB64.trim()), c => c.charCodeAt(0));
+            
+            // 解析 Hex 公钥
+            const pubKeyBytes = new Uint8Array(ED25519_PUBLIC_KEY_HEX.match(/.{1,2}/g).map(byte => parseInt(byte, 16)));
+
+            // 🔍 打印前端到底拿到了什么
+            console.log('🔍 [DEBUG] 待验原文:', msgStr);
+            console.log('🔍 [DEBUG] 签名长度:', sigBytes.length, '(应为 64)');
+            console.log('🔍 [DEBUG] 公钥长度:', pubKeyBytes.length, '(应为 32)');
+
+            // 执行校验
+            const isValid = await ed.verifyAsync(sigBytes, msgBytes, pubKeyBytes);
+            if (!isValid) {
+                console.error('[ModelManager] ❌ 签名校验失败！模型来源不可信。(回退包内默认模型)');
+                await clearModelCache(); // 🔒 签名不对，直接扬了旧缓存
+                return { updated: false, meta: null, error: 'Signature verification failed' };
+            }
+            console.log('[ModelManager] ✅ 签名校验通过！');
+        } catch (sigErr) {
+            console.error('[ModelManager] ❌ 签名解析异常:', sigErr);
+            return { updated: false, meta: null, error: 'Invalid signature format' };
         }
 
         // 6. 缓存

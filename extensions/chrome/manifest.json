@@ -1,16 +1,14 @@
 {
   "manifest_version": 3,
   "name": "DewSecure - Content Optimizer",
-  "version": "1.2.5",
+  "version": "1.2.6",
   "description": "On-device AI + 110,000+ rules. Stop phishing redirects, trackers, and intrusive popups. Privacy-first.",
   "permissions": [
     "declarativeNetRequest",
     "declarativeNetRequestFeedback",
     "storage",
     "alarms",
-    "scripting",
     "tabs",
-    "offscreen",
     "sidePanel",
     "webNavigation"
   ],
@@ -20,7 +18,7 @@
     "https://dewsecure-api.zero6039.workers.dev/*"
   ],
   "content_security_policy": {
-    "extension_pages": "script-src 'self' 'wasm-unsafe-eval'; object-src 'self'"
+    "extension_pages": "script-src 'self'; object-src 'self'; connect-src *;"
   },
   "background": {
     "service_worker": "src/background.js",
@@ -123,14 +121,23 @@
   },
   "externally_connectable": {
     "matches": [
-      "http://localhost:8888/*",
-    "http://127.0.0.1:8888/*",
-    "https://dewsecure.com/*",
+      "https://dewsecure.com/*",
       "https://www.dewsecure.com/*"
     ]
   },
   "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAtkg6OlWuWqV789Hzr8YhO0Yd3mhbSHNsCfpBjW79EBq5TYUW0HumDVrJgPPIczuK2BROHafk1wSm1l5l2+axaimccYfDGpn3hTRrHBmuY+OneZqORp90etBEX9sraOlcWp8wONRX5daHuGvtArUB+gsiktT3su1LzsjU//YrS07qDe1dIPYlrRFkksK/clmq/gkPE/wQxj+J2aMXcUuenjpd+4CsIssW4y+5T4Es4WizuKqj96i9ryilbm3vBI9uw8cn6ki5F7Ogf49l/lrGb3Dn1p8HUaqjygSKgq2bIYW/cRIoZDaC/2TxrZ0TKmInXPlIHL/8mOpOI1D5sRTxSwIDAQAB",
   "side_panel": {
     "default_path": "popup/index.html"
-  }
+  },
+  "web_accessible_resources": [
+    {
+      "resources": [
+        "warning.html",
+        "warning.js"
+      ],
+      "matches": [
+        "<all_urls>"
+      ]
+    }
+  ]
 }
