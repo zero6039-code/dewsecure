@@ -372,7 +372,7 @@ def build_dataset():
     for d in HARD_SAFE:
         hard_rows.append({"domain": d, "label": 0})
     for d in HARD_BLOCK:
-        hard_rows.append({"domain": d, "label": 1})
+        hard_rows.append({"domain": d, "label": 2}) # 🛡️ 强制黑名单为 Tracker(2)
 
     # 🔧 P1-A: 混合标签来源（Disconnect 主判据 + 关键词兜底）
     disconnect_map = download_disconnect_services()
