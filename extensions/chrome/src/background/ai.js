@@ -141,7 +141,12 @@ export async function runAICheck(url, tabId = null) {
                 return;
             }
             
-            // 🌟 防线 1：AI 拦截前置豁免检查
+            // 🌟 防线 1：AI 拦截前置豁免检查 (绝对白名单)
+            const HARD_SAFE_DOMAINS = ['github.com', 'cloudflare.com', 'apple.com', 'microsoft.com', 'google.com'];
+            if (HARD_SAFE_DOMAINS.some(d => domain === d || domain.endsWith('.' + d))) {
+                console.log(`🛡️ [AI] 拦截命中绝对白名单 (${domain})，已强制放行。`);
+                return;
+            }
             if (domain === 'dewsecure.com' || domain.endsWith('.dewsecure.com') || domain.includes('zero6039')) {
                 console.log('🛡️ [AI] 拦截命中官方域名，已强制放行。');
                 return;

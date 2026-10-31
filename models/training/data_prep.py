@@ -302,6 +302,15 @@ def build_dataset():
     legit -= KNOWN_TRACKERS
     print(f"  → 剔除已知追踪方后: {len(legit)} 个")
     
+    # 🛡️ S-09 修复：金标强制注入 (防止哈希碰撞导致大厂被误杀)
+    HARD_SAFE = {"github.com", "cloudflare.com", "apple.com", "microsoft.com", "google.com"}
+    HARD_BLOCK = {"criteo.com", "doubleclick.net", "google-analytics.com", "facebook.net"}
+    
+    legit.update(HARD_SAFE)
+    ad_domains.update(HARD_BLOCK)
+    legit -= HARD_BLOCK
+    ad_domains -= HARD_SAFE
+
     # 🌟 融合用户真实反馈
     missed_feedbacks, false_feedbacks = fetch_supabase_feedbacks()
     
