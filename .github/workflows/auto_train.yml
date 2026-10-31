@@ -42,6 +42,10 @@ jobs:
         working-directory: models
         run: python conversion/to_onnx.py
 
+      - name: 🛡 金标集防御校验 (防投毒)
+        working-directory: models
+        run: python training/golden_set.py
+
       - name: 读取模型元信息
         id: meta
         working-directory: models
