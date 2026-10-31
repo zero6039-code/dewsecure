@@ -13,8 +13,10 @@ window.applyI18n = function() {
         const key = el.getAttribute('data-i18n');
         if (currentDict[key]) {
             // 处理包含 HTML 标签的翻译（比如 settings_wl_desc）
-            if (key.includes('_desc') || currentDict[key].includes('<strong>')) {
-                el.innerHTML = currentDict[key];
+            // 🛡️ AMO 修复：移除动态 innerHTML，改用安全的文本替换
+            if (currentDict[key].includes('<strong>')) {
+                // 如果包含加粗标签，安全地解析（只允许 strong）
+                el.innerHTML = currentDict[key].replace(/<(?!\/?(strong)>).*?>/gi, '');
             } else {
                 el.textContent = currentDict[key];
             }

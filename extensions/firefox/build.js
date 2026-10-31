@@ -53,12 +53,19 @@ function generateFirefoxManifest() {
     chrome.browser_specific_settings = {
         "gecko": {
             "id": "contact@dewsecure.com",
-            "strict_min_version": "115.0"
+            "strict_min_version": "115.0",
+            "data_collection_permissions": {
+                "required": ["none"]
+            }
         }
     };
     // Firefox 对 MV3 的 background 写法要求
     if (chrome.background && chrome.background.service_worker) {
-        delete chrome.background.type;
+        const sw = chrome.background.service_worker;
+        chrome.background = {
+            "scripts": [sw],
+            "type": "module"
+        };
     }
 
     fs.writeFileSync('manifest.json', JSON.stringify(chrome, null, 2));
