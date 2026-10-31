@@ -18,11 +18,7 @@ window.addEventListener('message', (e) => {
 });
 
 // 包装原本的拦截逻辑
-const originalOpen = window.open;
-window.open = function(...args) {
-    if (isPaused) return nativeWindowOpen.apply(this, args);
-    return originalOpen.apply(this, args);
-};
+// 移除早期冗余且会导致双倍弹窗的 window.open 包装，统一在下方处理
 
 (function() {
     'use strict';
@@ -48,39 +44,26 @@ window.open = function(...args) {
     const _anchorClick = HTMLAnchorElement.prototype.click;
     const _formSubmit = HTMLFormElement.prototype.submit;
 
-    // 1. window.open
+    // 1. window.open (修复双倍弹窗与不可配置问题)
     try {
         Object.defineProperty(window, 'open', {
             get: function() {
                 return function(url, target, features) {
-                    _windowOpen.apply(this, arguments);
-                    if (isAdUrl(url)) return null;
+                    // 🛡️ F-07 修复：先判断，拦截了就直接返回，绝不执行原生弹窗
+                    if (!isPaused() && isAdUrl(url)) return null;
                     return _windowOpen.apply(this, arguments);
                 };
             },
-            set: function() {}, configurable: false
+            set: function() {}, configurable: true // 允许其他扩展再次包装
         });
     } catch (e) {}
 
-    // 2. location 跳转
-    try {
-        window.location.assign = function(url) {
-            _locationAssign.call(window.location, url);
-            if (isAdUrl(url)) return;
-            _locationAssign.call(window.location, url);
-        };
-        window.location.replace = function(url) {
-            _locationReplace.call(window.location, url);
-            if (isAdUrl(url)) return;
-            _locationReplace.call(window.location, url);
-        };
-    } catch (e) {}
+    // 2. location 跳转 (🛡️ F-07 修复：Chrome 禁止覆盖 location.assign/replace，直接移除)
 
     // 3. A 标签点击
     try {
         HTMLAnchorElement.prototype.click = function() {
-            _anchorClick.apply(this, arguments);
-            if (isAdUrl(this.href)) return;
+            if (!isPaused() && isAdUrl(this.href)) return;
             _anchorClick.apply(this, arguments);
         };
     } catch (e) {}
@@ -88,8 +71,7 @@ window.open = function(...args) {
     // 4. Form 提交
     try {
         HTMLFormElement.prototype.submit = function() {
-            _formSubmit.apply(this, arguments);
-            if (isAdUrl(this.action)) return;
+            if (!isPaused() && isAdUrl(this.action)) return;
             _formSubmit.apply(this, arguments);
         };
     } catch (e) {}
@@ -111,7 +93,7 @@ window.open = function(...args) {
 
     // 7. 点击拦截捕获
     const interceptClick = (e) => {
-        return;
+        if (isPaused()) return;
         let target = e.target;
         while (target && target.tagName !== 'A' && target.tagName !== 'FORM') target = target.parentElement;
         if (target) {
@@ -141,7 +123,7 @@ window.open = function(...args) {
     };
 
     const observer = new MutationObserver((mutations) => {
-        return;
+        if (isPaused()) return;
         for (const m of mutations) {
             for (const node of m.addedNodes) {
                 if (node.nodeType === Node.ELEMENT_NODE) {
