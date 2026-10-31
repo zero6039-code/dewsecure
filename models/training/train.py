@@ -25,7 +25,8 @@ def prepare_dataset():
         with open(hard_rules_path, 'r', encoding='utf-8') as f:
             rules = json.load(f)
             hard_domains = set(rules.get("hard_safe", []) + rules.get("hard_block", []))
-            force_train = train_df[train_df["domain"].isin(hard_domains)]
+            # 严格保证拉出来的金标数据是对应的标签，防止污染
+    force_train = train_df[train_df["domain"].isin(hard_domains)]
     
     # 🛡️ 核心修复 2：改用分层抽样 (Stratified Sampling)，保证类别比例绝对平衡
     if len(train_df) > 50000:

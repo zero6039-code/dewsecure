@@ -405,8 +405,14 @@ def build_dataset():
     if kw_ratio > 0.2:
         print(f"  ⚠️ 警告：Tracker 关键词兜底占比仍 > 20%，建议补充数据源（如 pgl.yoyo.org）")
 
-    # 🔒 核心修复：先转 DataFrame 并去重，然后再进行过采样
+    # 🔒 核心修复：先转 DataFrame 并去重
     df = pd.DataFrame(rows).drop_duplicates(subset="domain").reset_index(drop=True)
+
+    # 🛡️ S-09 终极防线：金标数据拥有绝对覆盖权！
+    # 无论前面怎么冲突去重，这里强制把金标标签刷写成正确值
+    df.loc[df["domain"].isin(HARD_SAFE), "label"] = 0
+    df.loc[df["domain"].isin(HARD_BLOCK), "label"] = 2
+    print(f"  → 已强制执行金标覆写 (绝对保护)")
     
     # 找出所有的 Tracker 样本
     trackers_df = df[df['label'] == 2]
