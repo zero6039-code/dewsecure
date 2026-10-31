@@ -68,3 +68,7 @@ extensions/chrome/src/r2-config.js
 releases/
 extensions/*/dist/
 *.bak*
+
+# Playwright
+/test-results/
+/playwright-report/

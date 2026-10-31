@@ -180,8 +180,22 @@ export function bindMiscEvents() {
         const t = window.t || ((k) => k);
         const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
         if (!tab || !tab.url) return;
-        const host = new URL(tab.url).hostname;
         
+        let host = new URL(tab.url).hostname;
+        
+        // 🛡️ 核心修复：如果当前是警告页，直接提取真实域名用于缓存判断
+        if (tab.url.includes('warning.html')) {
+            const urlParams = new URL(tab.url).searchParams;
+            const realDomain = urlParams.get('domain') || urlParams.get('url');
+            if (realDomain && realDomain !== 'Known Malicious Site') {
+                try {
+                    host = new URL(realDomain.startsWith('http') ? realDomain : `https://${realDomain}`).hostname;
+                } catch(e) {
+                    host = realDomain;
+                }
+            }
+        }
+
         const cacheKey = `last_report_${host}_${type}`;
         const { [cacheKey]: lastTime } = await chrome.storage.local.get(cacheKey);
         
@@ -205,7 +219,7 @@ export function bindMiscEvents() {
         btn.disabled = true;
         btn.innerText = t('feedback_submitting') || '⏳ Submitting...';
         
-        chrome.runtime.sendMessage({ type: 'REPORT_FEEDBACK', feedbackType: type }, (res) => {
+        chrome.runtime.sendMessage({ type: 'REPORT_FEEDBACK', feedbackType: type, domain: host }, (res) => {
             const success = res && res.ok;
             if (success) {
                 chrome.storage.local.set({ [cacheKey]: Date.now() });

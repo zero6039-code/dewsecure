@@ -24,19 +24,36 @@ applyI18n();
 document.addEventListener('DOMContentLoaded', async () => {
     const params = new URLSearchParams(window.location.search);
     const type = params.get('type');
-    // 兼容兼容 domain 和 url，同时过滤掉错误的 \0
+    
+    // 兼容 domain 和 url 参数
     let targetDomain = params.get('domain') || params.get('url');
     if (targetDomain === '\\0' || targetDomain === '%5C0') {
         targetDomain = 'Known Malicious Site';
     }
+    
+    // 解码域名
+    const displayDomain = targetDomain ? decodeURIComponent(targetDomain) : 'Unknown Malicious Site';
+    console.log('🛡️ [Warning] 解析到的真实域名:', displayDomain);
 
-    // 1. 真实显示被拦截的域名
-    const dangerUrl = document.getElementById('danger-url');
-    if (dangerUrl) {
-        dangerUrl.textContent = targetDomain ? decodeURIComponent(targetDomain) : 'Unknown Malicious Site';
-    }
+    // 延迟 100ms，等 i18n 渲染完后，强行覆盖所有 "Unknown URL"
+    setTimeout(() => {
+        const dangerUrlEl = document.getElementById('danger-url');
+        if (dangerUrlEl) {
+            dangerUrlEl.textContent = displayDomain;
+            dangerUrlEl.removeAttribute('data-i18n'); // 防止被再次覆盖
+        }
 
-    // 2. 绑定真实按钮功能
+        // 兜底：扫描整个页面，只要文本是 Unknown URL，全部干掉
+        document.querySelectorAll('div, span, p, h1, h2').forEach(el => {
+            const txt = el.textContent.trim();
+            if (txt === 'Unknown URL' || txt === 'Unknown Malicious Site' || txt === 'Loading...') {
+                el.textContent = displayDomain;
+                el.removeAttribute('data-i18n');
+            }
+        });
+    }, 100);
+
+    // 绑定真实按钮功能
     const btnClose = document.getElementById('btn-close');
     const btnContinue = document.getElementById('btn-continue');
 
@@ -52,33 +69,49 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (btnContinue) {
         btnContinue.onclick = () => {
             if (targetDomain && targetDomain !== 'Known Malicious Site') {
-                // 强制把用户送回原网址
-                window.location.href = targetDomain.startsWith('http') ? targetDomain : `http://${targetDomain}`;
+                let pureDomain = targetDomain;
+                try {
+                    pureDomain = new URL(targetDomain.startsWith('http') ? targetDomain : `https://${targetDomain}`).hostname;
+                } catch(e) {}
+
+                // 禁用按钮防止重复点击
+                btnContinue.disabled = true;
+                btnContinue.textContent = "Bypassing...";
+
+                // 🛡️ 核心修复：先告诉后台“放行这个域名”，等后台真正写完 DNR 规则后再跳转
+                chrome.runtime.sendMessage({ type: 'ADD_TEMP_WHITELIST', domain: pureDomain }, (res) => {
+                    if (res && res.ok) {
+                        // 加了 100ms 延迟，确保 Chrome 浏览器的 DNR 引擎加载了新的放行规则
+                        setTimeout(() => {
+                            window.location.href = targetDomain.startsWith('http') ? targetDomain : `https://${targetDomain}`;
+                        }, 100);
+                    } else {
+                        alert("放行失败，请重试！");
+                        btnContinue.disabled = false;
+                        btnContinue.textContent = "I am an expert, ignore risk";
+                    }
+                });
             } else {
                 window.history.back();
             }
         };
     }
 
-    // 3. 处理 intel 拦截的定制 UI（隐藏放行与 PRO 提示）
+    // 处理 intel 拦截的定制 UI
     if (type === 'intel') {
         document.title = "DewSecure PRO - Threat Blocked";
         
-        // 隐藏底部的 PRO 提示框
         const proTip = document.getElementById('pro-tip');
         if (proTip) proTip.style.display = 'none';
 
-        // 隐藏"我是专家"按钮，绝不给放行
-        if (btnContinue) btnContinue.style.display = 'none';
+        // 🛡️ 修复：把选择权交给用户，保留“我是专家”按钮，不隐藏
+        // if (btnContinue) btnContinue.style.display = 'none';
 
-        // 关闭按钮改红
         if (btnClose) {
             btnClose.textContent = "Close this page";
             btnClose.style.background = "#ef4444";
         }
     } else {
-        // 普通的钓鱼页面逻辑
-        // 检查是否是 Pro，决定是否显示底部的提示
         const { dewsecure_user } = await chrome.storage.local.get('dewsecure_user');
         const isPro = dewsecure_user && ['pro', 'trial', 'family', 'premium'].includes(dewsecure_user.tier);
         const proTip = document.getElementById('pro-tip');

@@ -30,12 +30,25 @@ async function applyRulesToDNR() {
     // 如果是打开的，从本地缓存读取规则并注入
     const { [CACHE_KEY]: cache } = await chrome.storage.local.get(CACHE_KEY);
     if (cache && cache.rulesData) {
+        // 🛡️ 绝对豁免名单，防止云端情报误杀核心开发者生态
+        const HARD_SAFE = [
+            'github.com', 'githubusercontent.com', 'github.io', 'gitlab.com', 
+            'npmjs.com', 'cloudflare.com', 'microsoft.com', 'apple.com', 
+            'dewsecure.com', 'google.com', 'youtube.com', 'facebook.com'
+        ];
+
         // 将 block 改为 redirect
         const processedRules = cache.rulesData.map(rule => {
             if (rule.condition && rule.condition.resourceTypes) {
                 rule.condition.resourceTypes = ["main_frame", "sub_frame"];
             }
             const domain = rule.condition.requestDomains[0];
+            
+            // 🛡️ 核心修复：如果是大厂白名单，直接返回 null（后面会被过滤）
+            if (!domain || HARD_SAFE.some(d => domain === d || domain.endsWith('.' + d))) {
+                return null;
+            }
+            
             return {
                 ...rule,
                 action: {
@@ -45,7 +58,7 @@ async function applyRulesToDNR() {
                     }
                 }
             };
-        });
+        }).filter(r => r !== null);
 
         await chrome.declarativeNetRequest.updateDynamicRules({
             addRules: processedRules

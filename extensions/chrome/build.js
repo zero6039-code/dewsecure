@@ -43,6 +43,8 @@ function copyStatic() {
         ['popup/popup.css', 'dist/popup/popup.css'],
         ['popup/i18n.js', 'dist/popup/i18n.js'],
         ['src/offscreen.html', 'dist/src/offscreen.html'],
+        ['warning.html', 'dist/warning.html'],
+        ['warning.js', 'dist/warning.js'],
     ];
     for (const [src, dest] of files) {
         if (fs.existsSync(src)) {

@@ -126,6 +126,8 @@ export async function checkAndUpdateModel() {
         const remoteVersion = modelResp.headers.get('X-Model-Version') || 'unknown';
         const remoteSha256 = modelResp.headers.get('X-Model-Sha256');
         const signatureB64 = modelResp.headers.get('X-Model-Signature');
+        const channel = modelResp.headers.get('X-Model-Channel') || 'latest';
+        console.log(`[ModelManager] 📡 当前分配通道: ${channel}`);
 
         // 🔒 S-03 修复 A：强制要求哈希和签名存在
         if (remoteVersion === 'unknown' || !remoteSha256 || !signatureB64) {

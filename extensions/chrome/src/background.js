@@ -158,6 +158,21 @@ if (chrome.webNavigation && chrome.webNavigation.onBeforeNavigate) {
     chrome.webNavigation.onBeforeNavigate.addListener(async (details) => {
         // 如果是警告页，记录一下真实被拦截的 URL，供 warning.js 使用
         if (details.url.includes('warning.html') && details.frameId === 0) {
+            // 🛡️ 核弹级防线：强行拦截对核心大厂的误跳转
+            try {
+                const urlParams = new URL(details.url).searchParams;
+                const domain = urlParams.get('domain') || urlParams.get('url') || '';
+                const HARD_SAFE = ['github.com', 'githubusercontent.com', 'gitlab.com', 'dewsecure.com', 'npmjs.com', 'cloudflare.com', 'microsoft.com', 'apple.com'];
+                
+                if (domain && HARD_SAFE.some(d => domain === d || domain.endsWith('.' + d))) {
+                    console.warn('🛡️ [Security] 强行拦下对核心大厂的警告页跳转，放行！', domain);
+                    chrome.tabs.update(details.tabId, { url: `https://${domain}` });
+                    return;
+                }
+            } catch (e) {
+                console.warn('警告页参数解析失败', e);
+            }
+
             chrome.tabs.get(details.tabId, (tab) => {
                 if (tab && tab.url && !tab.url.includes('warning.html')) {
                     chrome.storage.local.set({ last_blocked_url: tab.url });
@@ -177,10 +192,17 @@ if (chrome.webNavigation && chrome.webNavigation.onBeforeNavigate) {
         }
 
         try {
-            // 🛡️ 拦截前置检查 1：绝对放行我们自己的官网
+            // 🛡️ 拦截前置检查 1：绝对放行官方与核心开发者域名（防情报误杀）
             const urlObj = new URL(details.url);
             const host = urlObj.hostname;
-            if (host === 'dewsecure.com' || host.endsWith('.dewsecure.com') || host.includes('zero6039')) {
+            
+            const HARD_SAFE_DOMAINS = [
+                'dewsecure.com', 'github.com', 'githubusercontent.com', 'github.io', 
+                'gitlab.com', 'npmjs.com', 'cloudflare.com', 'microsoft.com', 'apple.com'
+            ];
+            
+            if (HARD_SAFE_DOMAINS.some(d => host === d || host.endsWith('.' + d)) || host.includes('zero6039')) {
+                // 豁免核心站点，直接放行，绝不拦截
                 return;
             }
 

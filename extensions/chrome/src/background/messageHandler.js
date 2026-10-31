@@ -73,7 +73,8 @@ export async function handleMessage(message, sender) {
                         priority: 2147483647, 
                         action: { type: 'allow' }, 
                         condition: { 
-                            initiatorDomains: [message.domain], 
+                            // 🛡️ 核心修复：必须用 requestDomains 才能放行主框架（main_frame）
+                            requestDomains: [message.domain], 
                             // 放行所有资源类型，彻底阻断静态规则的干扰
                             resourceTypes: [
                                 "main_frame", "sub_frame", "stylesheet", "script", "image", 
@@ -100,13 +101,43 @@ export async function handleMessage(message, sender) {
             return { stats: stats, settings: await getSettings() };
         case 'REPORT_FEEDBACK':
             try {
-                const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-                if (!tab || !tab.url) return { ok: false };
-                const host = new URL(tab.url).hostname;
+                let host = message.domain;
+                if (!host) {
+                    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+                    if (!tab || !tab.url) return { ok: false };
+                    host = new URL(tab.url).hostname;
+                }
                 
-                // 🔒 S-02 隐私修复：提取 eTLD+1（注册域），剥离 path/query/hash
-                const hostParts = host.split('.');
-                const domainOnly = hostParts.length > 2 ? hostParts.slice(-2).join('.') : host;
+                // 🛡️ 修复误报逻辑：如果是在警告页（被拦截页面）触发的上报，必须提取真实的被拦截域名
+                if (!message.domain && tab.url && tab.url.includes('warning.html')) {
+                    const urlParams = new URL(tab.url).searchParams;
+                    const realDomain = urlParams.get('domain') || urlParams.get('url');
+                    if (realDomain && realDomain !== 'Known Malicious Site') {
+                        try {
+                            host = new URL(realDomain.startsWith('http') ? realDomain : `https://${realDomain}`).hostname;
+                        } catch(e) {
+                            host = realDomain;
+                        }
+                    }
+                }
+
+                // 禁止上报扩展自身的 ID
+                if (host === chrome.runtime.id || !host.includes('.')) {
+                    console.warn('❌ [Report] 拒绝上报无效或扩展自身域名:', host);
+                    return { ok: false, error: 'Invalid domain' };
+                }
+
+                // 🔒 S-02 隐私修复：提取 eTLD+1（注册域）
+                let domainOnly = host;
+                // 🛡️ 如果是 IP 地址，直接使用 IP，绝对不能切割
+                const isIP = /^\d{1,3}(\.\d{1,3}){3}$/.test(host);
+                if (!isIP) {
+                    const hostParts = host.split('.');
+                    // 只对普通域名切割（如 a.b.com -> b.com），保留双后缀（如 .co.uk）
+                    if (hostParts.length > 2 && !host.endsWith('.co.uk') && !host.endsWith('.com.cn')) {
+                        domainOnly = hostParts.slice(-2).join('.');
+                    }
+                }
                 
                 // 🔒 修复外键冲突：恢复真实的 userId 以便通过外键和 RLS 鉴权
                 let userId = null;
