@@ -115,6 +115,30 @@ jobs:
           echo "=== canary 目录内容 ==="
           rclone ls r2:${{ secrets.R2_BUCKET }}/canary/ --s3-no-check-bucket
 
+      - name: 🚀 检查是否需要提交规则反馈 PR
+        id: check_rules
+        run: |
+          if git diff --quiet models/training/hard_rules.json; then
+            echo "changed=false" >> $GITHUB_OUTPUT
+          else
+            echo "changed=true" >> $GITHUB_OUTPUT
+            git diff models/training/hard_rules.json
+          fi
+
+      - name: 🛡 自动生成规则更新 PR
+        if: steps.check_rules.outputs.changed == 'true'
+        uses: peter-evans/create-pull-request@v6
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          commit-message: "chore(rules): auto-apply feedback to hard_rules.json"
+          title: "🤖 Feedback Loop: Auto-generated Exception Rules"
+          body: |
+            这是一个根据用户反馈自动生成的白名单/黑名单 PR。
+            请人工审查 `hard_rules.json` 中的变更是否合理，确认没有恶意投毒后再合并。
+          branch: auto-feedback-rules
+          delete-branch: true
+          add-paths: models/training/hard_rules.json
+
       - name: 记录训练历史（不包含模型文件）
         uses: softprops/action-gh-release@v2
         with:

@@ -340,6 +340,34 @@ def build_dataset():
     # 🌟 融合用户真实反馈
     missed_feedbacks, false_feedbacks = fetch_supabase_feedbacks()
     
+    # 🚀 闭环：将误拦反馈写入 hard_rules.json，准备自动提 PR
+    if false_feedbacks or missed_feedbacks:
+        hard_rules_path = os.path.join(os.path.dirname(__file__), 'hard_rules.json')
+        if os.path.exists(hard_rules_path):
+            with open(hard_rules_path, 'r', encoding='utf-8') as f:
+                rules = json.load(f)
+            
+            # 将新的误拦加入 safe，漏拦加入 block
+            new_safe = set(rules.get("hard_safe", []))
+            new_block = set(rules.get("hard_block", []))
+            
+            for fb in false_feedbacks:
+                if fb not in new_safe:
+                    new_safe.add(fb)
+                    print(f"  [规则闭环] 自动加入白名单草稿: {fb}")
+                    
+            for mb in missed_feedbacks:
+                if mb not in new_block:
+                    new_block.add(mb)
+                    print(f"  [规则闭环] 自动加入黑名单草稿: {mb}")
+            
+            # 重新写回
+            rules["hard_safe"] = list(new_safe)
+            rules["hard_block"] = list(new_block)
+            with open(hard_rules_path, 'w', encoding='utf-8') as f:
+                json.dump(rules, f, indent=2, ensure_ascii=False)
+            print("  -> hard_rules.json 已更新，等待 Actions 提 PR")
+    
     # 🔒 安全网 3：误拦的绝对保护，黑名单里绝对不能有
     for d in false_feedbacks:
         if d in ad_domains:
