@@ -73,7 +73,7 @@ impl RuleMatcher {
         if let Some(host) = host {
             // 检查所有可能的域名后缀
             for (domain, rules) in &self.domain_rules {
-                if host.ends_with(domain.as_str()) || host == *domain {
+                if host == domain.as_str() || host.ends_with(&format!(".{}", domain)) {
                     for rule in rules {
                         if url.contains(&normalize_pattern(&rule.pattern)) {
                             return true;
@@ -89,7 +89,7 @@ impl RuleMatcher {
     /// 判断 URL 是否匹配例外规则
     pub fn is_exception(&self, url: &str) -> bool {
         for pattern in &self.exception_patterns {
-            if url.contains(pattern) {
+            if url.starts_with(pattern) || url.contains(&format!("{}/", pattern)) || url.contains(&format!(".{}", pattern)) {
                 return true;
             }
         }
