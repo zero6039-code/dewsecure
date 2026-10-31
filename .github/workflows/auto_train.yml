@@ -21,6 +21,15 @@ jobs:
           cache: 'pip'
           cache-dependency-path: models/training/requirements.txt
 
+          # 🚀 方案三：缓存数据集，大幅提升 CI 速度
+          - name: 缓存威胁情报源
+            uses: actions/cache@v4
+            with:
+              path: models/data/cache
+              key: intel-cache-${{ github.run_number }}
+              restore-keys: |
+                intel-cache-
+
       - name: 安装 Python 依赖
         run: |
           pip install -r models/training/requirements.txt

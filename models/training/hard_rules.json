@@ -1,0 +1,12 @@
+{
+  "hard_safe": [
+    "github.com", "cloudflare.com", "apple.com", "microsoft.com", "google.com",
+    "youtube.com", "facebook.com", "baidu.com", "wikipedia.org", "amazon.com",
+    "twitter.com", "qq.com", "taobao.com", "jd.com", "bing.com", "office.com"
+  ],
+  "hard_block": [
+    "doubleclick.net", "google-analytics.com", "googlesyndication.com",
+    "adservice.google.com", "scorecardresearch.com", "criteo.com",
+    "taboola.com", "outbrain.com", "facebook.net", "adnxs.com"
+  ]
+}

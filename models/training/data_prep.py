@@ -5,8 +5,31 @@ import requests
 import pandas as pd
 from tqdm import tqdm
 import json
+import time
 
 DATA_DIR = os.path.join(os.path.dirname(__file__), '..', 'data')
+CACHE_DIR = os.path.join(DATA_DIR, 'cache')
+os.makedirs(CACHE_DIR, exist_ok=True)
+
+def fetch_with_cache(url, filename, expire_hours=24):
+    """带 24 小时过期时间的文件缓存获取器"""
+    filepath = os.path.join(CACHE_DIR, filename)
+    # 检查缓存是否存在且未过期
+    if os.path.exists(filepath):
+        mtime = os.path.getmtime(filepath)
+        if time.time() - mtime < expire_hours * 3600:
+            print(f"  [缓存命中] 读取 {filename}")
+            with open(filepath, 'r', encoding='utf-8') as f:
+                return f.read()
+    
+    # 缓存未命中或已过期，发起网络请求
+    print(f"  [网络下载] 拉取 {url}")
+    r = requests.get(url, timeout=120)
+    r.raise_for_status()
+    text = r.text
+    with open(filepath, 'w', encoding='utf-8') as f:
+        f.write(text)
+    return text
 
 # 大幅扩展的 Tracker 关键词（覆盖主流追踪服务）
 TRACKER_KEYWORDS = [
@@ -76,10 +99,9 @@ def download_disconnect_services():
     """下载 Disconnect.me 追踪服务列表，返回 {domain: category}。失败返回空 dict（回退纯关键词）。"""
     result = {}
     try:
-        print("下载 Disconnect.me 追踪服务列表...")
-        r = requests.get(DISCONNECT_URL, timeout=60)
-        r.raise_for_status()
-        data = r.json()
+        print("加载 Disconnect.me 追踪服务列表...")
+        text = fetch_with_cache(DISCONNECT_URL, "disconnect.json", expire_hours=72)
+        data = json.loads(text)
         categories = data.get("categories", {})
         for cat_name, val in categories.items():
             before = len(result)
@@ -96,10 +118,9 @@ def download_easyprivacy():
     EASYPRIVACY_URL = "https://easylist.to/easylist/easyprivacy.txt"
     result = set()
     try:
-        print("下载 EasyPrivacy 追踪列表...")
-        r = requests.get(EASYPRIVACY_URL, timeout=120)
-        r.raise_for_status()
-        for line in r.text.split("\n"):
+        print("加载 EasyPrivacy 追踪列表...")
+        text = fetch_with_cache(EASYPRIVACY_URL, "easyprivacy.txt", expire_hours=24)
+        for line in text.split("\n"):
             line = line.strip()
             if not line or line.startswith("!") or line.startswith("["):
                 continue
@@ -168,10 +189,9 @@ def download_ad_domains():
     ]
     for url in sources:
         try:
-            print(f"下载: {url}")
-            r = requests.get(url, timeout=60)
-            r.raise_for_status()
-            for line in tqdm(r.text.split("\n"), desc=url.split("/")[-1]):
+            filename = url.split("/")[-1] or "adlist.txt"
+            text = fetch_with_cache(url, filename, expire_hours=24)
+            for line in tqdm(text.split("\n"), desc=filename):
                 line = line.strip()
                 if not line or line.startswith("#") or line.startswith("!"):
                     continue
@@ -187,12 +207,13 @@ def download_ad_domains():
 def download_legit_domains(limit=100000):
     legit = set()
     try:
-        print("下载 Majestic Million...")
-        r = requests.get(
-            "https://downloads.majestic.com/majestic_million.csv", timeout=120
+        print("加载 Majestic Million...")
+        text = fetch_with_cache(
+            "https://downloads.majestic.com/majestic_million.csv", 
+            "majestic_million.csv", 
+            expire_hours=72
         )
-        r.raise_for_status()
-        for i, line in enumerate(r.text.split("\n")):
+        for i, line in enumerate(text.split("\n")):
             if i == 0 or i > limit:
                 continue
             parts = line.split(",")
@@ -302,14 +323,19 @@ def build_dataset():
     legit -= KNOWN_TRACKERS
     print(f"  → 剔除已知追踪方后: {len(legit)} 个")
     
-    # 🛡️ S-09 修复：金标强制注入 (防止哈希碰撞导致大厂被误杀)
-    HARD_SAFE = {"github.com", "cloudflare.com", "apple.com", "microsoft.com", "google.com"}
-    HARD_BLOCK = {"criteo.com", "doubleclick.net", "google-analytics.com", "facebook.net"}
-    
-    legit.update(HARD_SAFE)
-    ad_domains.update(HARD_BLOCK)
-    legit -= HARD_BLOCK
-    ad_domains -= HARD_SAFE
+    # 🛡️ S-09 修复：读取外部金标配置，防止哈希碰撞导致大厂被误杀
+    hard_rules_path = os.path.join(os.path.dirname(__file__), 'hard_rules.json')
+    if os.path.exists(hard_rules_path):
+        with open(hard_rules_path, 'r', encoding='utf-8') as f:
+            hard_rules = json.load(f)
+            HARD_SAFE = set(hard_rules.get("hard_safe", []))
+            HARD_BLOCK = set(hard_rules.get("hard_block", []))
+            
+        legit.update(HARD_SAFE)
+        ad_domains.update(HARD_BLOCK)
+        legit -= HARD_BLOCK
+        ad_domains -= HARD_SAFE
+        print(f"  → 已应用外部金标规则 (White: {len(HARD_SAFE)}, Black: {len(HARD_BLOCK)})")
 
     # 🌟 融合用户真实反馈
     missed_feedbacks, false_feedbacks = fetch_supabase_feedbacks()
