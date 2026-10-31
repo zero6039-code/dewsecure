@@ -18,45 +18,42 @@ DewSecure is a user-side **Content Optimization and Security Engine** powered by
 - 🛡️ **Dual-Engine Architecture**: 
   - *Rule-based Layer*: 110,000+ high-efficiency DNR (Declarative Net Request) rules.
   - *AI Layer*: Deep learning for zero-day threats and unknown trackers.
-- 🌍 **Cross-Platform**: Chrome / Firefox / Android / iOS.
+- 🌍 **Cross-Platform**: Chrome / Firefox / Edge / Opera.
 - 💰 **Affordable**: Premium tier at $11.99/year (less than $1/month).
 
 *(Free = Clean browsing in the browser. Premium = System-wide security.)*
 
-## 📊 Model Performance (V1.0.0-stable)
+## 📊 Model Performance (v1.2.6 Cross-Browser)
 
 ### Current 3-Class Model (Normal / Ad / Tracker)
+*Data leakage from keyword-based label generation has been eliminated. Metrics reflect true generalization.*
+
 | Metric | Target | Actual | Status |
 | :--- | ---: | ---: | :--- |
-| **Macro F1** | 0.90 | **0.9185** | ✅ Excellent |
-| **Weighted F1** | 0.90 | **0.8932** | ✅ Good |
-| **Tracker F1** | 0.90 | **0.9760** | ⭐ Near Perfect |
-| **Ad F1** | 0.85 | **0.8833** | ✅ Excellent |
-| **Normal F1** | 0.85 | **0.8961** | ✅ Excellent |
-| **Accuracy** | — | **0.8934** | ✅ High |
+| **Macro F1** | 0.85 | **0.8583** | ✅ Real-world Ready |
+| **Weighted F1** | 0.85 | **0.8610** | ✅ Good |
+| **Tracker F1** | 0.80 | **0.8415** | ✅ Excellent |
+| **Ad F1** | 0.85 | **0.8730** | ✅ Excellent |
+| **Normal F1** | 0.85 | **0.8604** | ✅ Excellent |
 
-### Historical Reference (2-Class Model)
+*Note: The model is trained on a blended dataset of Disconnect.me, EasyPrivacy, and curated heuristic rules. Tracker labels now originate from independent sources to prevent feature leakage.*
+
+### Historical Reference (Legacy 2-Class Model)
 | Metric | Target | Actual | Status |
 | :--- | ---: | ---: | :--- |
-| **F1 Score** | 0.90 | 0.9690 | Excellent |
-| **AUC-ROC** | 0.95 | 0.9883 | Near Perfect |
-| **Precision** | 0.88 | 0.9875 | False positive rate: 1.25% |
-| **Recall** | 0.90 | 0.9511 | False negative rate: 4.9% |
-
-**Why Precision matters more than Recall for us:** A false positive (blocking normal content) causes severe user friction and support tickets. A false negative (missing an ad) is a minor inconvenience. Our Precision of 98.75% ensures a seamless, non-breaking browsing experience.
+| **F1 Score** | 0.90 | 0.9690 | Deprecated |
+| **AUC-ROC** | 0.95 | 0.9883 | Deprecated |
 
 ## 📁 Repository Structure
 ```text
 dewsecure/
 ├── core/         # Rust core engine (High performance, cross-platform)
-├── extensions/   # Chrome & Firefox extensions (MV3 + On-device ONNX)
-├── android/      # Android full version (VpnService + TFLite)
-├── ios/          # iOS version (Safari Extension + Core ML)
+├── extensions/   # Chrome, Firefox, Edge, Opera extensions (MV3 + On-device ONNX)
 ├── models/       # AI Model training, evaluation, and conversion scripts
 ├── server/       # Federated learning aggregation service (FedAvg)
 ├── rules/        # DNR Filtering rulesets (Compiled & Optimized)
 └── docs/         # Architecture & API documentation
 🚀 CI/CD & Automation
-Weekly Rules Update: Automated pulling and conversion of EasyList to DNR JSON.
+Daily Model Training: Automated training pipeline (extracting latest threat intel and feedback), INT8 quantization, Ed25519 signing, and deployment to Cloudflare R2 for client-side OTA updates.
 
-Weekly Model Training: Automated training pipeline (V{iteration}.{YYMMDD}) and deployment to Cloudflare R2 for client-side OTA updates.
+Automated Release: Multi-browser zip generation (Chrome, Firefox, Opera) via tagging.
