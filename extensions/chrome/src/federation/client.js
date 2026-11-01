@@ -7,7 +7,7 @@
  */
 
 const FEEDBACK_KEY = 'dewsecure_feedback';
-const UPLOAD_ENDPOINT = 'https://api.dewsecure.com/v1/feedback';
+const UPLOAD_ENDPOINT = 'https://dev.dewsecure.com/v1/feedback';
 const UPLOAD_INTERVAL_HOURS = 24;
 const MAX_BUFFER_SIZE = 1000;
 

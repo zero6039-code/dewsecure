@@ -82,7 +82,7 @@ export async function updateThreatIntel() {
         }
 
         console.log('📡 [ThreatIntel] 正在拉取云端最新情报...');
-        const baseUrl = 'https://api.dewsecure.com/api/intel';
+        const baseUrl = 'https://dev.dewsecure.com/api/intel';
         
         const [rulesRes, sigRes] = await Promise.all([
             fetch(`${baseUrl}/threat-rules`, { cache: 'no-store' }),
