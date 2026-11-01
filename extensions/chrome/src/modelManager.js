@@ -17,7 +17,7 @@ const DB_VERSION = 1;
 const STORE_NAME = 'models';
 const CACHE_META_KEY = 'latest_meta';
 
-const WORKER_API_URL = 'https://dewsecure-api.zero6039.workers.dev/api';
+const WORKER_API_URL = 'https://api.dewsecure.com/api';
 
 let dbPromise = null;
 

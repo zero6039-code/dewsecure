@@ -1,45 +1,85 @@
 import { getSettings, STATS_KEY, LOG_KEY } from './settings.js';
 
+// 🛡️ F-06 修复：内存缓存与防抖写入
+let memoryLogs = null;
+let memoryStats = null;
+let flushTimer = null;
+
+async function loadFromStorage() {
+    if (memoryLogs === null || memoryStats === null) {
+        const res = await chrome.storage.local.get([LOG_KEY, STATS_KEY]);
+        memoryLogs = Array.isArray(res[LOG_KEY]) ? res[LOG_KEY] : [];
+        memoryStats = res[STATS_KEY] || { totalBlocked: 0, todayBlocked: 0, lastReset: '' };
+    }
+}
+
+async function flushToStorage() {
+    if (flushTimer) {
+        clearTimeout(flushTimer);
+        flushTimer = null;
+    }
+    if (memoryLogs !== null && memoryStats !== null) {
+        await chrome.storage.local.set({
+            [LOG_KEY]: memoryLogs,
+            [STATS_KEY]: memoryStats
+        });
+    }
+}
+
+function scheduleFlush() {
+    if (!flushTimer) {
+        flushTimer = setTimeout(flushToStorage, 2000); // 2秒节流批量落盘
+    }
+}
+
 export async function recordDetailedBlock(url, type) {
     try {
-        let safeUrl = url.substring(0, 100);
+        await loadFromStorage();
         let domain = '未知';
         try {
             const urlObj = new URL(url.startsWith('http') ? url : 'https://' + url);
-            safeUrl = `${urlObj.hostname}${urlObj.pathname}`;
-            domain = urlObj.hostname;
+            domain = urlObj.hostname; // 🛡️ 修复：只保留域名，不存路径
         } catch (e) {}
-        let { [LOG_KEY]: logs } = await chrome.storage.local.get(LOG_KEY);
-        if (!Array.isArray(logs)) logs = [];
-        logs.push({ url: safeUrl, domain: domain, type: type, ts: Date.now(), date: new Date().toDateString() });
-        if (logs.length > 1000) logs.shift();
-        await chrome.storage.local.set({ [LOG_KEY]: logs });
+
+        memoryLogs.push({
+            url: domain, // UI 显示用
+            domain: domain,
+            type: type,
+            ts: Date.now(),
+            date: new Date().toDateString()
+        });
+
+        if (memoryLogs.length > 1000) {
+            memoryLogs.splice(0, memoryLogs.length - 1000);
+        }
+        scheduleFlush();
     } catch (e) {}
 }
 
 export async function recordBlock(url, type = 'dnr') {
     await recordDetailedBlock(url, type);
-    let { [STATS_KEY]: stats } = await chrome.storage.local.get(STATS_KEY);
-    let safeStats = (stats && typeof stats === 'object') ? stats : {};
-    safeStats.totalBlocked = Number(safeStats.totalBlocked) || 0;
-    safeStats.todayBlocked = Number(safeStats.todayBlocked) || 0;
+    await loadFromStorage();
+
     const today = new Date().toDateString();
-    if (safeStats.lastReset !== today) {
-        safeStats.todayBlocked = 0;
-        safeStats.lastReset = today;
+    if (memoryStats.lastReset !== today) {
+        memoryStats.todayBlocked = 0;
+        memoryStats.lastReset = today;
     }
-    safeStats.totalBlocked += 1;
-    safeStats.todayBlocked += 1;
-    await chrome.storage.local.set({ [STATS_KEY]: safeStats });
+    memoryStats.totalBlocked += 1;
+    memoryStats.todayBlocked += 1;
     
-    if (chrome.action) {
-        const text = safeStats.todayBlocked > 999 ? '999+' : safeStats.todayBlocked.toString();
-        chrome.action.setBadgeText({ text });
-        chrome.action.setBadgeBackgroundColor({ color: '#4CAF50' });
-    }
+    // 移除了 chrome.action.setBadgeText，交给 DNR 原生接管
+    scheduleFlush();
 }
 
 export function initStatsListener() {
+    // DNR 原生接管角标显示
+    if (chrome.declarativeNetRequest && chrome.declarativeNetRequest.setExtensionActionOptions) {
+        chrome.declarativeNetRequest.setExtensionActionOptions({
+            displayActionCountAsBadgeText: true
+        }).catch(e => console.warn('DNR 角标接管失败:', e));
+    }
+
     if (chrome.declarativeNetRequest && chrome.declarativeNetRequest.onRuleMatchedDebug) {
         chrome.declarativeNetRequest.onRuleMatchedDebug.addListener(async (info) => {
             try {
@@ -48,6 +88,7 @@ export function initStatsListener() {
                 const settings = await getSettings();
                 if ((settings.whitelist || []).some(d => host === d || host.endsWith('.' + d)) ||
                     (settings.tempWhitelist || []).some(d => host === d || host.endsWith('.' + d))) return;
+                
                 let type = 'dnr';
                 if (info.rule && info.rule.rulesetId && info.rule.rulesetId.includes('tracker')) type = 'tracker';
                 else if (info.rule && info.rule.rulesetId && info.rule.rulesetId.includes('ads')) type = 'ad';
@@ -57,13 +98,10 @@ export function initStatsListener() {
     }
 }
 
-// 🌟 终极兜底：数据只看 LocalStorage，完全放弃在 Firefox 下查 API
 export async function getMatchedStats() {
-    // 直接读取我们在 DOM 上报和 Chrome Debug 上报时写入的本地数据
-    const { [STATS_KEY]: stats } = await chrome.storage.local.get(STATS_KEY);
-    
+    await loadFromStorage();
     return {
-        todayBlocked: stats?.todayBlocked || 0,
-        totalBlocked: stats?.totalBlocked || 0
+        todayBlocked: memoryStats.todayBlocked || 0,
+        totalBlocked: memoryStats.totalBlocked || 0
     };
 }
