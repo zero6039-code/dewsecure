@@ -1,3 +1,5 @@
+import { getCachedModel } from '../modelManager.js';
+
 // 辅助函数：FNV-1a 哈希
 function fnv1a(str) {
     let hash = 0xcbf29ce484222325n;
@@ -105,7 +107,7 @@ export function extractFeaturesFromUrl(url) {
 }
 
 const AI_CHECKED_DOMAINS = new Set();
-export async function runAICheck(url) {
+export async function runAICheck(url, tabId = null) {
     try {
         const domain = new URL(url).hostname;
         if (AI_CHECKED_DOMAINS.has(domain)) return;
@@ -114,10 +116,53 @@ export async function runAICheck(url) {
             AI_CHECKED_DOMAINS.clear();
         }
         AI_CHECKED_DOMAINS.add(domain);
+
+        // 🛑 防线 0：前端硬拦截 (与规则层对齐，命中直接拦截，不消耗 AI 算力)
+        const HARD_BLOCK_DOMAINS = [
+            'doubleclick.net', 'google-analytics.com', 'googlesyndication.com',
+            'adservice.google.com', 'scorecardresearch.com', 'criteo.com',
+            'taboola.com', 'outbrain.com', 'facebook.net', 'adnxs.com'
+        ];
+        if (HARD_BLOCK_DOMAINS.some(d => domain === d || domain.endsWith('.' + d))) {
+            console.log(`🛑 [AI] 命中绝对黑名单，强制软隐藏: ${domain}`);
+            let targetTabId = tabId;
+            if (!targetTabId) {
+                const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
+                if (tabs[0] && tabs[0].id) targetTabId = tabs[0].id;
+            }
+            if (targetTabId) {
+                chrome.tabs.sendMessage(targetTabId, { type: 'HIDE_AI_AD', domain: domain }).catch(() => {});
+            }
+            return;
+        }
+
         const features = extractFeaturesFromUrl(domain); // 🔧 P1-B Step1: 归一化为 hostname，对齐训练分布
-        const response = await chrome.runtime.sendMessage({ target: 'offscreen', type: 'CLASSIFY', features });
-        if (!response || !response.probs) return;
-        const probs = response.probs;
+        
+        // 🚀 纯 JS 推理：零延迟，跨端兼容
+        const cached = await getCachedModel();
+        if (!cached || !cached.weights) return; // 模型没加载成功就放弃
+        
+        const { coef, intercept } = cached.weights;
+        const logits = [0, 0, 0];
+        
+        // 稀疏优化：只计算非零特征的权重
+        for (let i = 0; i < features.length; i++) {
+            const val = features[i];
+            if (val !== 0) {
+                logits[0] += coef[0][i] * val;
+                logits[1] += coef[1][i] * val;
+                logits[2] += coef[2][i] * val;
+            }
+        }
+        logits[0] += intercept[0];
+        logits[1] += intercept[1];
+        logits[2] += intercept[2];
+        
+        // Softmax 转为概率
+        const maxLogit = Math.max(...logits);
+        const exps = logits.map(l => Math.exp(l - maxLogit));
+        const sumExps = exps.reduce((a, b) => a + b, 0);
+        const probs = exps.map(e => e / sumExps);
         const maxIdx = probs.indexOf(Math.max(...probs));
         const classes = ['Normal', 'Ad', 'Tracker']; // 🔒 P-01 修复：模型只有 3 类
         const classification = classes[maxIdx];
@@ -141,17 +186,27 @@ export async function runAICheck(url) {
                 return;
             }
             
-            // 🌟 防线 1：AI 拦截前置豁免检查
+            // 🌟 防线 1：AI 拦截前置豁免检查 (绝对白名单)
+            const HARD_SAFE_DOMAINS = ['github.com', 'cloudflare.com', 'apple.com', 'microsoft.com', 'google.com'];
+            if (HARD_SAFE_DOMAINS.some(d => domain === d || domain.endsWith('.' + d))) {
+                console.log(`🛡️ [AI] 拦截命中绝对白名单 (${domain})，已强制放行。`);
+                return;
+            }
             if (domain === 'dewsecure.com' || domain.endsWith('.dewsecure.com') || domain.includes('zero6039')) {
                 console.log('🛡️ [AI] 拦截命中官方域名，已强制放行。');
                 return;
             }
             
-            // 🌟 核心架构级修复：彻底废弃 DNR 网络级阻断（防止白屏误杀）
-            // 改为发送消息给 content.js，进行安全的 DOM 级别软隐藏
-            const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
-            if (tabs[0] && tabs[0].id) {
-                chrome.tabs.sendMessage(tabs[0].id, { 
+            // 🌟 修复 S-08：通过传入的 tabId 精确投递，防止多标签并发时误杀
+            let targetTabId = tabId;
+            if (!targetTabId) {
+                // 兜底：如果没有传 tabId，才去查 active tab
+                const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
+                if (tabs[0] && tabs[0].id) targetTabId = tabs[0].id;
+            }
+            
+            if (targetTabId) {
+                chrome.tabs.sendMessage(targetTabId, { 
                     type: 'HIDE_AI_AD', 
                     domain: domain 
                 }).catch(() => {});
@@ -161,9 +216,4 @@ export async function runAICheck(url) {
     } catch(e) {}
 }
 
-// 🌟 自动容错：如果模型首次下载失败（如网络波动），静默处理，下次再试
-chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
-    if (msg.type === 'OFFSCREEN_ERROR') {
-        console.warn('⚠️ [Offscreen] 模型加载失败，已静默忽略，等待下次心跳重试。');
-    }
-});
+
