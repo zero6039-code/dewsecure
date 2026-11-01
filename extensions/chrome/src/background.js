@@ -152,17 +152,26 @@ chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
 });
 
 // 🌟 P-01 硬核钓鱼拦截：在页面加载前抢占并重定向
+// 🔒 H1 修复：使用扩展自身 URL 前缀判断，不再用子串匹配（防止 ?warning.html / #warning.html 绕过）
+const OWN_WARNING_URL = chrome.runtime.getURL('warning.html');
+const isOwnWarningPage = (u) => {
+    if (typeof u !== 'string') return false;
+    return u === OWN_WARNING_URL ||
+           u.startsWith(OWN_WARNING_URL + '?') ||
+           u.startsWith(OWN_WARNING_URL + '#');
+};
+
 if (chrome.webNavigation && chrome.webNavigation.onBeforeNavigate) {
     const blockedTabs = new Set();
 
     chrome.webNavigation.onBeforeNavigate.addListener(async (details) => {
         // 如果是警告页，记录一下真实被拦截的 URL，供 warning.js 使用
-        if (details.url.includes('warning.html') && details.frameId === 0) {
+        if (isOwnWarningPage(details.url) && details.frameId === 0) {
             // 🛡️ 核弹级防线：强行拦截对核心大厂的误跳转
             try {
                 const urlParams = new URL(details.url).searchParams;
                 const domain = urlParams.get('domain') || urlParams.get('url') || '';
-                const HARD_SAFE = ['github.com', 'githubusercontent.com', 'gitlab.com', 'dewsecure.com', 'npmjs.com', 'cloudflare.com', 'microsoft.com', 'apple.com'];
+                const HARD_SAFE = ['github.com', 'gitlab.com', 'dewsecure.com', 'npmjs.com', 'cloudflare.com', 'microsoft.com', 'apple.com'];
                 
                 if (domain && HARD_SAFE.some(d => domain === d || domain.endsWith('.' + d))) {
                     console.warn('🛡️ [Security] 强行拦下对核心大厂的警告页跳转，放行！', domain);
@@ -174,7 +183,7 @@ if (chrome.webNavigation && chrome.webNavigation.onBeforeNavigate) {
             }
 
             chrome.tabs.get(details.tabId, (tab) => {
-                if (tab && tab.url && !tab.url.includes('warning.html')) {
+                if (tab && tab.url && !isOwnWarningPage(tab.url)) {
                     chrome.storage.local.set({ last_blocked_url: tab.url });
                 }
             });
@@ -196,12 +205,16 @@ if (chrome.webNavigation && chrome.webNavigation.onBeforeNavigate) {
             const urlObj = new URL(details.url);
             const host = urlObj.hostname;
             
+            // 🔒 H2 修复：移除 github.io / githubusercontent.com；删除 includes('zero6039') 子串豁免
+            // 官方 Worker 用 zero6039.workers.dev 精确放行（点分隔，不误放 evil-zero6039.workers.dev）
             const HARD_SAFE_DOMAINS = [
-                'dewsecure.com', 'github.com', 'githubusercontent.com', 'github.io', 
+                'dewsecure.com', 'zero6039.workers.dev', 'github.com',
                 'gitlab.com', 'npmjs.com', 'cloudflare.com', 'microsoft.com', 'apple.com'
             ];
+            const isHardSafeDomain = (h) =>
+                HARD_SAFE_DOMAINS.some(d => h === d || h.endsWith('.' + d));
             
-            if (HARD_SAFE_DOMAINS.some(d => host === d || host.endsWith('.' + d)) || host.includes('zero6039')) {
+            if (isHardSafeDomain(host)) {
                 // 豁免核心站点，直接放行，绝不拦截
                 return;
             }
