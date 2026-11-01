@@ -15,7 +15,7 @@
   "host_permissions": [
     "<all_urls>",
     "https://cdn.dewsecure.com/*",
-    "https://api.dewsecure.com/*"
+    "https://dev.dewsecure.com/*"
   ],
   "content_security_policy": {
     "extension_pages": "script-src 'self'; object-src 'self'; connect-src *;"
