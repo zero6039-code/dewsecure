@@ -30,6 +30,18 @@ const ALLOWED_SETTING_KEYS = new Set([
     'dailyLimit', 'dailyUsed', 'lastResetDate'
 ]);
 
+
+// 🔒 H3 修复：白名单域名格式与公共后缀严格校验
+function isValidWhitelistDomain(domain) {
+    if (typeof domain !== 'string' || !/^[a-z0-9.-]+$/i.test(domain)) return false;
+    if (/^\d{1,3}(\.\d{1,3}){3}$/.test(domain)) return false; // 拒绝 IP
+    const parts = domain.split('.');
+    if (parts.length < 2 || parts.some(p => p === '')) return false; // 拒绝单段、a..b
+    const PUBLIC_SUFFIXES = new Set(['com','net','org','edu','gov','mil','int','io','co','ai','app','dev','xyz','info','biz','me','tv','cc','so','uk','cn','jp','de','fr','ru','br','au','ca','it','nl','se','no','es','mx','ch','at','be','dk','fi','gr','hk','hu','ie','il','in','kr','lt','lv','nz','pl','pt','ro','sg','sk','th','tr','tw','ua','za','co.uk','com.cn','net.cn','org.cn','gov.cn','edu.cn','co.jp','ne.jp','or.jp','com.au','net.au','org.au','co.nz','net.nz','org.nz','co.za','com.br','net.br','org.br']);
+    if (PUBLIC_SUFFIXES.has(domain.toLowerCase())) return false;
+    return true;
+}
+
 export async function handleMessage(message, sender) {
     // 🔒 S-07: 拒绝非扩展内部发出的消息，防止恶意网页通过 content.js 篡改内部状态
     const isExtensionSender = sender?.id === chrome.runtime.id || 
@@ -54,8 +66,8 @@ export async function handleMessage(message, sender) {
             return Array.isArray(rawLogs) ? rawLogs : [];
         case 'ADD_TEMP_WHITELIST':
             // 🔒 S-07: 补全域名格式校验
-            if (typeof message.domain !== 'string' || !/^[a-z0-9.-]+$/i.test(message.domain)) {
-                return { ok: false, error: '格式非法' };
+            if (!isValidWhitelistDomain(message.domain)) {
+                return { ok: false, error: '格式非法或公共后缀' };
             }
             try {
                 const settings = await getSettings();
@@ -198,7 +210,7 @@ export async function handleMessage(message, sender) {
             return { ok: true };
         case 'ADD_WHITELIST':
             let curSettings = await getSettings();
-            if (!/^[a-z0-9.-]+$/i.test(message.domain)) return { ok: false, error: '格式非法' };
+            if (!isValidWhitelistDomain(message.domain)) return { ok: false, error: '格式非法或公共后缀' };
             if (!curSettings.whitelist.includes(message.domain)) {
                 curSettings.whitelist.push(message.domain);
                 await chrome.storage.local.set({ [SETTINGS_KEY]: curSettings });

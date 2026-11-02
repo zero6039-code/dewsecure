@@ -74,6 +74,12 @@ document.addEventListener('DOMContentLoaded', async () => {
                     pureDomain = new URL(targetDomain.startsWith('http') ? targetDomain : `https://${targetDomain}`).hostname;
                 } catch(e) {}
 
+                // 🔒 H3 修复：本地拦截公共后缀和非法域名
+                if (!pureDomain.includes('.') || pureDomain.length < 4 || pureDomain === 'Known Malicious Site') {
+                    alert('Invalid domain to whitelist.');
+                    return;
+                }
+
                 // 禁用按钮防止重复点击
                 btnContinue.disabled = true;
                 btnContinue.textContent = "Bypassing...";
