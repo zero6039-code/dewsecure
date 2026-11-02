@@ -84,15 +84,17 @@ jobs:
       - name: 🔐 计算哈希并使用 Ed25519 签名
         working-directory: models
         env:
-          # ⚠️ 注意：这里换成专供模型签名的环境变量名
           ED25519_PRIVATE_KEY: ${{ secrets.ED25519_MODEL_KEY }}
-          VERSION: V${{ github.run_number }}.$(date -u +%y%m%d)
-        run: python training/sign_model.py
+        run: |
+          # 🛡️ 核心修复：在 run 脚本里动态生成变量，Shell 才能真正执行 date 命令
+          export VERSION="V${{ github.run_number }}.$(date -u +%y%m%d)"
+          echo "正在签名的版本: $VERSION"
+          echo "VERSION=$VERSION" >> $GITHUB_ENV
+          python training/sign_model.py
 
       - name: 安装 rclone (安全校验版)
         run: |
           wget https://downloads.rclone.org/v1.68.1/rclone-v1.68.1-linux-amd64.deb
-          # 🛡️ 硬编码校验 SHA256，防止中间人篡改
           EXPECTED_SHA="$(wget -qO- https://downloads.rclone.org/v1.68.1/SHA256SUMS | grep 'rclone-v1.68.1-linux-amd64.deb' | awk '{print $1}')"
           ACTUAL_SHA=$(sha256sum rclone-v1.68.1-linux-amd64.deb | awk '{print $1}')
           if [ "$EXPECTED_SHA" != "$ACTUAL_SHA" ]; then
@@ -116,5 +118,12 @@ jobs:
 
       - name: 上传模型到 R2
         run: |
-          # 上传至 canary 及版本目录 (省略了长命令，保留你原有逻辑即可)
-          rclone copy models/weights/ r2:${{ secrets.R2_BUCKET }}/canary/ --s3-no-check-bucket
+          # 1. 上传至 canary 目录（供 Worker 立即使用，注意必须包含 weights.json）
+          rclone copy models/weights/classifier_int8.onnx r2:${{ secrets.R2_BUCKET }}/canary/ --s3-no-check-bucket
+          rclone copy models/weights/weights.json r2:${{ secrets.R2_BUCKET }}/canary/ --s3-no-check-bucket
+          rclone copy models/weights/model_meta.json r2:${{ secrets.R2_BUCKET }}/canary/ --s3-no-check-bucket
+          
+          # 2. 上传至版本目录（用于记录和回滚）
+          rclone copy models/weights/classifier_int8.onnx r2:${{ secrets.R2_BUCKET }}/${{ env.VERSION }}/ --s3-no-check-bucket
+          rclone copy models/weights/weights.json r2:${{ secrets.R2_BUCKET }}/${{ env.VERSION }}/ --s3-no-check-bucket
+          rclone copy models/weights/model_meta.json r2:${{ secrets.R2_BUCKET }}/${{ env.VERSION }}/ --s3-no-check-bucket
