@@ -13,9 +13,10 @@
     "webNavigation"
   ],
   "host_permissions": [
-    "<all_urls>",
     "https://cdn.dewsecure.com/*",
-    "https://dev.dewsecure.com/*"
+    "https://dewsecure-api.zero6039.workers.dev/*",
+    "https://api.dewsecure.com/*",
+    "<all_urls>"
   ],
   "content_security_policy": {
     "extension_pages": "script-src 'self'; object-src 'self'; connect-src *;"
@@ -101,6 +102,11 @@
         "id": "annoyances",
         "enabled": false,
         "path": "rules/annoyances.json"
+      },
+      {
+        "id": "allowlist",
+        "enabled": true,
+        "path": "rules/allowlist.json"
       }
     ]
   },

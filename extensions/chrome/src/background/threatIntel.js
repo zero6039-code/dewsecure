@@ -84,7 +84,7 @@ export async function updateThreatIntel() {
         }
 
         console.log('📡 [ThreatIntel] 正在拉取云端最新情报...');
-        const baseUrl = 'https://dev.dewsecure.com/api/intel';
+        const baseUrl = 'https://api.dewsecure.com/api/intel';
         
         const headers = user?.token ? { 'Authorization': `Bearer ${user.token}` } : {};
         const [rulesRes, sigRes] = await Promise.all([

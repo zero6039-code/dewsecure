@@ -103,8 +103,16 @@ document.addEventListener('DOMContentLoaded', async () => {
         };
     }
 
+    // 处理 affiliate 推广链接拦截的 UI
+    if (type === 'affiliate') {
+        document.title = "DewSecure - Affiliate Link Blocked";
+        const h1 = document.querySelector('h1');
+        if (h1) h1.textContent = "Malicious Promo Link Blocked";
+        const p = document.querySelector('p');
+        if (p) p.textContent = "DewSecure blocked this URL because it contains aggressive tracking or affiliate parameters.";
+    }
     // 处理 intel 拦截的定制 UI
-    if (type === 'intel') {
+    else if (type === 'intel') {
         document.title = "DewSecure PRO - Threat Blocked";
         
         const proTip = document.getElementById('pro-tip');

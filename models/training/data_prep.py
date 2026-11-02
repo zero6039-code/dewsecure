@@ -243,9 +243,14 @@ def mark_feedbacks_as_processed():
     }
     
     try:
-        # 批量更新所有 pending 的数据为 processed
+        # 🛡️ M1 修复：这里使用时间戳过滤（假设拉取逻辑是在 1 小时前），防止把刚提交的新数据误标记
+        # 注意：如果服务端支持，最好使用 ID 列表更新。这里采用简单的时间窗口作为后备方案。
+        import datetime
+        an_hour_ago = (datetime.datetime.utcnow() - datetime.timedelta(hours=1)).isoformat() + "Z"
+        
+        # 批量更新（只更新早于 1 小时前提交的 pending 数据）
         res = requests.patch(
-            f"{supabase_url}/rest/v1/reports?status=eq.pending",
+            f"{supabase_url}/rest/v1/reports?status=eq.pending&created_at=lte.{an_hour_ago}",
             headers=headers,
             json={"status": "processed"},
             timeout=30

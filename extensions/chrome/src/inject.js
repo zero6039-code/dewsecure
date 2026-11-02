@@ -8,12 +8,16 @@ let isPaused = false;
 const nativeWindowOpen = window.open;
 const nativeLocationAssign = window.location.assign;
 
+let dwSettings = { antiHijackEnabled: true, antiBypassEnabled: true, blockSocialTrackers: true };
 window.addEventListener('message', (e) => {
     if (e.data && e.data.type === 'DEWSECURE_PAUSE') {
         isPaused = true;
-        // 恢复原生 window.open
         window.open = nativeWindowOpen;
         console.log('🛡️ [DewSecure Inject] 主世界已挂起，恢复原生 API');
+    }
+    // 🔒 F2 修复：接收真实的设置状态
+    if (e.data && e.data.type === 'DEWSECURE_SETTINGS') {
+        dwSettings = e.data.settings || {};
     }
 });
 
@@ -32,10 +36,11 @@ window.addEventListener('message', (e) => {
 
     // 每个 Hook 执行前检查是否暂停
     function isPaused() {
+        if (!document.documentElement) return false;
         return document.documentElement.getAttribute('data-dewsecure-paused') === 'true';
     }
 
-    const adPatterns = /(mmp_pid=|Allianceid=|from_affiliate=|affiliate_id=|uls_trackid=|utm_source=InvolveAsia|utm_source=adcash|aid=api%7C|1xlite|1xbet|omguk|tiktok\.com\/view|doubleclick|googlesyndication|propellerads|adsterra|a_aid=|a_bid=|gsid=|gsc=)/i;
+    const adPatterns = /(mmp_pid=|Allianceid=|from_affiliate=|affiliate_id=|uls_trackid=|utm_source=|aid=api%7C|1xlite|1xbet|omguk|tiktok\.com\/view|doubleclick|googlesyndication|propellerads|adsterra|a_aid=|a_bid=|gsid=|gsc=|track=|affiliate=|click_id=|sub_id=)/i;
     const isAdUrl = (url) => url && typeof url === 'string' && adPatterns.test(url);
 
     const _windowOpen = window.open;
@@ -44,19 +49,59 @@ window.addEventListener('message', (e) => {
     const _anchorClick = HTMLAnchorElement.prototype.click;
     const _formSubmit = HTMLFormElement.prototype.submit;
 
+    // 0. 拦截系统通知请求 (图2 tiket.com 的原因)
+    try {
+        if (window.Notification) {
+            const _requestPermission = window.Notification.requestPermission;
+            window.Notification.requestPermission = function(callback) {
+                if (!isPaused() && dwSettings.antiHijackEnabled !== false) {
+                    console.log('🛡️ [DewSecure] 已拦截系统通知请求');
+                    if (callback) callback('denied');
+                    return Promise.resolve('denied');
+                }
+                return _requestPermission.apply(this, arguments);
+            };
+        }
+    } catch(e) {}
+
     // 1. window.open (修复双倍弹窗与不可配置问题)
     try {
+        const _windowOpen = window.open;
+        // 伪装原生代码，防止被网页检测出 Hook
+        const nativeOpenStr = _windowOpen.toString();
+
+        const hookedOpen = function(url, target, features) {
+            if (!isPaused() && isAdUrl(url)) {
+                // AdGuard 策略：如果没有用户真实交互（自动弹窗），直接抛弃
+                if (window.navigator && window.navigator.userActivation && !window.navigator.userActivation.isActive) {
+                    console.warn('🛡️ [DewSecure] 零闪烁拦截自动弹窗:', url);
+                    return null; 
+                }
+            }
+            return _windowOpen.apply(this, arguments);
+        };
+
+        // 伪装 toString
+        hookedOpen.toString = function() { return nativeOpenStr; };
+
+        // 使用 defineProperty 防止被覆盖或删除
         Object.defineProperty(window, 'open', {
-            get: function() {
-                return function(url, target, features) {
-                    // 🛡️ F-07 修复：先判断，拦截了就直接返回，绝不执行原生弹窗
-                    if (!isPaused() && isAdUrl(url)) return null;
-                    return _windowOpen.apply(this, arguments);
-                };
-            },
-            set: function() {}, configurable: true // 允许其他扩展再次包装
+            get: function() { return hookedOpen; },
+            set: function() { /* 劫持赋值，保持静默 */ },
+            configurable: false,
+            enumerable: true
         });
-    } catch (e) {}
+    } catch (e) {
+        // 降级策略：如果 defineProperty 失败，回退到普通赋值
+        try {
+            window.open = function(url, target, features) {
+                if (!isPaused() && isAdUrl(url) && window.navigator?.userActivation?.isActive === false) {
+                    return null;
+                }
+                return window.open.apply(this, arguments);
+            };
+        } catch(err) {}
+    }
 
     // 2. location 跳转 (🛡️ F-07 修复：Chrome 禁止覆盖 location.assign/replace，直接移除)
 
@@ -97,10 +142,10 @@ window.addEventListener('message', (e) => {
         let target = e.target;
         while (target && target.tagName !== 'A' && target.tagName !== 'FORM') target = target.parentElement;
         if (target) {
-            if (target.tagName === 'A' && target.href && isAdUrl(target.href)) {
+            if (!isPaused() && target.tagName === 'A' && target.href && isAdUrl(target.href)) {
                 e.preventDefault(); e.stopImmediatePropagation();
             }
-            if (target.tagName === 'FORM' && target.action && isAdUrl(target.action)) {
+            if (!isPaused() && target.tagName === 'FORM' && target.action && isAdUrl(target.action)) {
                 e.preventDefault(); e.stopImmediatePropagation();
             }
         }

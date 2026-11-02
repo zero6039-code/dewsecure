@@ -2,21 +2,29 @@ import { getSettings, SETTINGS_KEY, STATS_KEY, LOG_KEY } from './settings.js';
 import { getInstallationId } from '../deviceManager.js';
 import { recordBlock, getMatchedStats } from './stats.js';
 
-// 🔒 正确的 DNR 规则集列表（必须与 manifest.json 完全一致）
-const ALL_DNR_RULESETS = [
-    'ads_1a', 'ads_1b', 'ads_2', 'ads_3', 'ads_4',
-    'trackers_1a', 'trackers_1b', 'trackers_2a', 'trackers_2b',
-    'anti_affiliate', 'annoyances'
-];
+// 🔒 分离广告与追踪器规则集，实现独立开关
+const ADS_RULESETS = ['ads_1a', 'ads_1b', 'ads_2', 'ads_3', 'ads_4', 'anti_affiliate'];
+const TRACKER_RULESETS = ['trackers_1a', 'trackers_1b', 'trackers_2a', 'trackers_2b'];
+const EXTRA_RULESETS = ['annoyances'];
 
-// 🔒 辅助函数：统一处理 DNR 规则的开启/关闭
-async function updateDNRRulesets(isEnabled) {
+export async function updateDNRRulesets(dnrEnabled, blockTrackers) {
     try {
+        const enable = [];
+        const disable = [];
+        
+        // 处理广告和额外规则
+        if (dnrEnabled) enable.push(...ADS_RULESETS, ...EXTRA_RULESETS);
+        else disable.push(...ADS_RULESETS, ...EXTRA_RULESETS);
+
+        // 处理追踪器规则 (必须总开关开启且追踪器开关开启)
+        if (dnrEnabled && blockTrackers) enable.push(...TRACKER_RULESETS);
+        else disable.push(...TRACKER_RULESETS);
+
         await chrome.declarativeNetRequest.updateEnabledRulesets({
-            enableRulesetIds: isEnabled ? ALL_DNR_RULESETS : [],
-            disableRulesetIds: isEnabled ? [] : ALL_DNR_RULESETS
+            enableRulesetIds: enable,
+            disableRulesetIds: disable
         });
-        console.log(`✅ [DNR] 规则集已${isEnabled ? '启用' : '禁用'}`);
+        console.log(`✅ [DNR] 规则集已更新 (广告:${dnrEnabled}, 追踪器:${blockTrackers})`);
     } catch (e) {
         console.warn('❌ [DNR] 规则集更新失败:', e);
     }
@@ -238,9 +246,9 @@ export async function handleMessage(message, sender) {
             s[message.key] = message.value;
             await chrome.storage.local.set({ [SETTINGS_KEY]: s });
             
-            // 如果修改的是总开关，同步更新 DNR 规则
-            if (message.key === 'dnrEnabled') {
-                await updateDNRRulesets(message.value);
+            // 如果修改的是总开关或追踪器开关，同步更新 DNR 规则
+            if (message.key === 'dnrEnabled' || message.key === 'blockTrackers') {
+                await updateDNRRulesets(s.dnrEnabled, s.blockTrackers);
             }
             return { ok: true };
         case 'UPDATE_SETTINGS':
@@ -252,8 +260,8 @@ export async function handleMessage(message, sender) {
                 }
             }
             await chrome.storage.local.set({ [SETTINGS_KEY]: currentSettings });
-            if (message.settings.dnrEnabled !== undefined) {
-                await updateDNRRulesets(message.settings.dnrEnabled);
+            if (message.settings.dnrEnabled !== undefined || message.settings.blockTrackers !== undefined) {
+                await updateDNRRulesets(currentSettings.dnrEnabled, currentSettings.blockTrackers);
             }
             return { ok: true };
         case 'ADD_WHITELIST':
