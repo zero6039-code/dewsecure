@@ -42,10 +42,12 @@ export function initSecurityListeners() {
         
         // 🔒 F-02 修复：只对特定的域名，且带有明确的广告参数才进行拦截
         // 绝不再使用宽泛的子串匹配
-        const isTargetDomain = hostname.endsWith('trip.com') || hostname.endsWith('shopee.com.my') || 
-                               hostname.endsWith('kkday.com') || hostname.endsWith('klook.com') || 
-                               hostname.endsWith('lazada.com.my') || hostname.endsWith('traveloka.com') || 
-                               hostname.endsWith('omguk.com');
+        // 🔒 M5 修复：精确匹配点边界，防止 strip.com 误伤 trip.com
+        const TARGET_DOMAINS = [
+            'trip.com', 'shopee.com.my', 'kkday.com', 'klook.com', 
+            'lazada.com.my', 'traveloka.com', 'omguk.com'
+        ];
+        const isTargetDomain = TARGET_DOMAINS.some(d => hostname === d || hostname.endsWith('.' + d));
                                
         if (!isTargetDomain) return false;
         if (await checkIsWhitelisted(hostname)) return false;
@@ -60,21 +62,24 @@ export function initSecurityListeners() {
 
     if (chrome.webNavigation && chrome.webNavigation.onCreatedNavigationTarget) chrome.webNavigation.onCreatedNavigationTarget.addListener(async (info) => {
         if (await shouldBlock(info.url)) {
-            chrome.tabs.remove(info.tabId, () => { if (chrome.runtime.lastError) {} });
+            const warnUrl = chrome.runtime.getURL(`warning.html?type=affiliate&url=${encodeURIComponent(info.url)}`);
+            chrome.tabs.update(info.tabId, { url: warnUrl });
         }
     });
 
     chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
         const url = changeInfo.url || tab.url || '';
         if (await shouldBlock(url)) {
-            chrome.tabs.remove(tabId, () => { if (chrome.runtime.lastError) {} });
+            const warnUrl = chrome.runtime.getURL(`warning.html?type=affiliate&url=${encodeURIComponent(url)}`);
+            chrome.tabs.update(tabId, { url: warnUrl });
         }
     });
 
     chrome.tabs.onCreated.addListener(async (tab) => {
         const url = tab.pendingUrl || tab.url || '';
         if (await shouldBlock(url)) {
-            chrome.tabs.remove(tab.id, () => { if (chrome.runtime.lastError) {} });
+            const warnUrl = chrome.runtime.getURL(`warning.html?type=affiliate&url=${encodeURIComponent(url)}`);
+            chrome.tabs.update(tab.id, { url: warnUrl });
         }
     });
 }

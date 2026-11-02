@@ -162,7 +162,7 @@ const isOwnWarningPage = (u) => {
 };
 
 if (chrome.webNavigation && chrome.webNavigation.onBeforeNavigate) {
-    const blockedTabs = new Set();
+    const blockedTabs = new Map(); // 🔒 M6 修复：改用 Map 记录 tabId -> 上次拦截的 URL
 
     chrome.webNavigation.onBeforeNavigate.addListener(async (details) => {
         // 如果是警告页，记录一下真实被拦截的 URL，供 warning.js 使用
@@ -193,11 +193,17 @@ if (chrome.webNavigation && chrome.webNavigation.onBeforeNavigate) {
         // 只拦截主框架的真实网页
         if (details.frameId !== 0 || !details.url.startsWith('http')) return;
 
-        // 🔒 防循环
+        // 🔒 M6 修复：防循环逻辑改为比对 URL
         if (blockedTabs.has(details.tabId)) {
-            console.log('[DEBUG] 标签页已拦截过，本次放行:', details.tabId);
-            blockedTabs.delete(details.tabId);
-            return;
+            const lastUrl = blockedTabs.get(details.tabId);
+            if (lastUrl === details.url) {
+                console.log('[DEBUG] 用户主动放行同一 URL，解除防循环:', details.url);
+                blockedTabs.delete(details.tabId);
+                return;
+            } else {
+                console.log('[DEBUG] 发现该标签页产生新恶意跳转，重新执行拦截:', details.url);
+                // 继续往下走，重新拦截
+            }
         }
 
         try {
@@ -240,7 +246,7 @@ if (chrome.webNavigation && chrome.webNavigation.onBeforeNavigate) {
             if (detectBrandPhishing(details.url)) {
                 console.log('🚨 [Security] 检测到品牌钓鱼，执行强制拦截:', details.url);
                 const warningUrl = chrome.runtime.getURL(`warning.html?url=${encodeURIComponent(details.url)}&isPro=false`);
-                blockedTabs.add(details.tabId);
+                blockedTabs.set(details.tabId, details.url);
                 chrome.tabs.update(details.tabId, { url: warningUrl });
             }
         } catch (e) {
