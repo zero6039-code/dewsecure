@@ -121,5 +121,6 @@
   "footer_privacy": "개인정보 처리방침",
   "footer_terms": "서비스 약관",
   "footer_link": "GitHub에서 소스 보기",
-  "footer_text": "핵심 엔진은 오픈소스이며 데이터는 절대 외부로 유출되지 않습니다."
+  "footer_text": "핵심 엔진은 오픈소스이며 데이터는 절대 외부로 유출되지 않습니다.",
+  "feedback_login_required": "피드백을 제출하려면 로그인하십시오."
 }
