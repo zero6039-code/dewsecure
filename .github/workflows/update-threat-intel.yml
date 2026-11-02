@@ -21,7 +21,7 @@ jobs:
       - name: 下载最新威胁情报
         env:
           URLHAUS_AUTH_KEY: ${{ secrets.URLHAUS_AUTH_KEY }}
-          ED25519_PRIVATE_KEY: ${{ secrets.ED25519_PRIVATE_KEY }}
+          ED25519_PRIVATE_KEY: ${{ secrets.ED25519_INTEL_KEY }}
         run: python scripts/download_threat_intel.py
 
       - name: 校验产物
@@ -30,9 +30,15 @@ jobs:
           [ -f threat-rules.json.sig ] || (echo "❌ threat-rules.json.sig 未生成（签名失败）" && exit 1)
           echo "✅ 产物完整：threat-rules.json + threat-rules.json.sig"
 
-      - name: 安装 rclone
+      - name: 安装 rclone (安全校验版)
         run: |
           wget https://downloads.rclone.org/v1.68.1/rclone-v1.68.1-linux-amd64.deb
+          EXPECTED_SHA="$(wget -qO- https://downloads.rclone.org/v1.68.1/SHA256SUMS | grep 'rclone-v1.68.1-linux-amd64.deb' | awk '{print $1}')"
+          ACTUAL_SHA=$(sha256sum rclone-v1.68.1-linux-amd64.deb | awk '{print $1}')
+          if [ "$EXPECTED_SHA" != "$ACTUAL_SHA" ]; then
+            echo "❌ SHA256 mismatch!"
+            exit 1
+          fi
           sudo dpkg -i rclone-v1.68.1-linux-amd64.deb
 
       - name: 配置 rclone

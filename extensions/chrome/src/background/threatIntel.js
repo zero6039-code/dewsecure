@@ -3,7 +3,7 @@ import * as ed from '@noble/ed25519';
 import { sha512 } from '@noble/hashes/sha512';
 
 ed.etc.sha512Sync = (...m) => sha512(ed.etc.concatBytes(...m));
-const ED25519_PUBLIC_KEY_HEX = '259eab8b493845eb78e345a139584c6812272d7183c7da29f774dea2d443fe77';
+const ED25519_PUBLIC_KEY_HEX = 'a21b4c875ab246b58adc225ddf66a054cfa7b79ed2093fcc2f97598fd1197631';
 const CACHE_KEY = 'dewsecure_intel_cache';
 
 // 🌟 核心函数：只负责把规则应用到浏览器（不涉及网络）
