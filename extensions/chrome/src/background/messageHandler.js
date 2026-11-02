@@ -42,16 +42,68 @@ function isValidWhitelistDomain(domain) {
     return true;
 }
 
+
+// 🔒 M2 修复：特权消息必须来自扩展内部页面（Popup / Sidepanel），不能来自内容脚本
+function isPrivilegedSender(sender) {
+    if (!sender) return false;
+    const extUrl = chrome.runtime.getURL('');
+    // 🔒 修复：去掉 !sender.tab 限制，因为 warning.html 也是以标签页打开的。
+    // 只要是从扩展内部页面发出的消息即可信任；内容脚本的 URL 是 http/https 开头的，会被拦截。
+    return !!(sender.url && sender.url.startsWith(extUrl));
+}
+
+function isExtensionSender(sender) {
+    if (!sender) return false;
+    if (sender.id === chrome.runtime.id) return true;
+    if (sender.url && (sender.url.startsWith('chrome-extension://') || sender.url.startsWith('moz-extension://'))) return true;
+    return false;
+}
+
+// 🔒 M1 修复：精准提取 eTLD+1（处理 .com.my 等多级后缀）
+const MULTI_LEVEL_SUFFIXES = new Set([
+    'com.cn', 'net.cn', 'org.cn', 'gov.cn', 'edu.cn',
+    'co.uk', 'org.uk', 'me.uk', 'ltd.uk',
+    'com.my', 'net.my', 'org.my', 'gov.my', 'edu.my',
+    'com.au', 'net.au', 'org.au',
+    'co.jp', 'ne.jp', 'or.jp',
+    'co.nz', 'net.nz', 'org.nz',
+    'com.br', 'net.br', 'org.br',
+    'com.sg', 'net.sg', 'org.sg', 'edu.sg',
+    'com.hk', 'net.hk', 'org.hk', 'edu.hk'
+]);
+
+function getETLD1(host) {
+    if (!host) return host;
+    if (/^\d{1,3}(\.\d{1,3}){3}$/.test(host)) return host; // IP 直接返回
+    const parts = host.split('.');
+    if (parts.length <= 2) return host;
+    const lastTwo = parts.slice(-2).join('.');
+    if (MULTI_LEVEL_SUFFIXES.has(lastTwo) && parts.length >= 3) {
+        return parts.slice(-3).join('.');
+    }
+    return lastTwo;
+}
+
 export async function handleMessage(message, sender) {
-    // 🔒 S-07: 拒绝非扩展内部发出的消息，防止恶意网页通过 content.js 篡改内部状态
-    const isExtensionSender = sender?.id === chrome.runtime.id || 
-                              (sender?.url && (sender.url.startsWith('chrome-extension://') || sender.url.startsWith('moz-extension://')));
-    if (!isExtensionSender) {
+    // 🔒 S-07: 拒绝非扩展内部发出的消息
+    if (!isExtensionSender(sender)) {
         console.warn('❌ [拦截] 拒绝非扩展来源的消息:', message?.type, 'Sender:', sender?.url || sender?.id);
         return { error: 'Unauthorized sender' };
     }
 
+    // 🔒 M2 修复：特权消息分级校验
+    const privilegedTypes = [
+        'UPDATE_SETTING_KEY', 'UPDATE_SETTINGS', 
+        'ADD_WHITELIST', 'REMOVE_WHITELIST', 
+        'ADD_TEMP_WHITELIST', 'REMOVE_TEMP_WHITELIST'
+    ];
+    if (privilegedTypes.includes(message.type) && !isPrivilegedSender(sender)) {
+        console.warn('❌ [拦截] 拒绝非特权页面调用:', message.type);
+        return { error: 'Privileged sender required' };
+    }
+
     switch (message.type) {
+
         case 'DOM_AD_HIDDEN':
             try {
                 const host = new URL(message.url).hostname;
@@ -113,6 +165,12 @@ export async function handleMessage(message, sender) {
             return { stats: stats, settings: await getSettings() };
         case 'REPORT_FEEDBACK':
             try {
+                // 🔒 M1 修复：强制要求登录，阻断匿名刷接口
+                const { dewsecure_user: user } = await chrome.storage.local.get('dewsecure_user');
+                if (!user || !user.token) {
+                    return { ok: false, error: 'Please login to report false positives/negatives' };
+                }
+
                 let host = message.domain;
                 if (!host) {
                     const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
@@ -139,21 +197,11 @@ export async function handleMessage(message, sender) {
                     return { ok: false, error: 'Invalid domain' };
                 }
 
-                // 🔒 S-02 隐私修复：提取 eTLD+1（注册域）
-                let domainOnly = host;
-                // 🛡️ 如果是 IP 地址，直接使用 IP，绝对不能切割
-                const isIP = /^\d{1,3}(\.\d{1,3}){3}$/.test(host);
-                if (!isIP) {
-                    const hostParts = host.split('.');
-                    // 只对普通域名切割（如 a.b.com -> b.com），保留双后缀（如 .co.uk）
-                    if (hostParts.length > 2 && !host.endsWith('.co.uk') && !host.endsWith('.com.cn')) {
-                        domainOnly = hostParts.slice(-2).join('.');
-                    }
-                }
+                // 🔒 M1 修复：使用 getETLD1 精准提取，防止 shopee.com.my 被截断为 com.my
+                const domainOnly = getETLD1(host);
                 
                 // 🔒 修复外键冲突：恢复真实的 userId 以便通过外键和 RLS 鉴权
                 let userId = null;
-                const { dewsecure_user: user } = await chrome.storage.local.get('dewsecure_user');
                 if (user && user.token) {
                     try { const payload = JSON.parse(atob(user.token.split('.')[1])); userId = payload.sub; } catch (e) {}
                 }
