@@ -50,15 +50,42 @@ export function showDeviceLimitModal(t) {
             e.stopPropagation();
             document.removeEventListener('click', handleModalClick, true);
             if (modal) modal.remove();
+            
             try {
                 await chrome.storage.local.remove('dewsecure_device_limit_reached');
                 let url = 'https://dewsecure.com/dashboard.html';
                 const { dewsecure_user: user } = await chrome.storage.local.get('dewsecure_user');
+                
                 if (user && user.token) {
-                    const u = new URL(url);
-                    // 🔒 H4 修复：使用 Hash 传递 Token，避免被记录到服务器日志和 Referer 中
-                    u.hash = `token=${encodeURIComponent(user.token)}` + (user.refreshToken ? `&refresh=${encodeURIComponent(user.refreshToken)}` : '');
-                    url = u.toString();
+                    let handoffSuccess = false;
+                    // 🔒 M-9 终极修复：优先请求一次性短时效交换码
+                    try {
+                        const API_URL = 'https://api.dewsecure.com'; // 根据实际后端域名调整
+                        const res = await fetch(`${API_URL}/auth/handoff`, {
+                            method: 'POST',
+                            headers: { 
+                                'Authorization': `Bearer ${user.token}`,
+                                'Content-Type': 'application/json'
+                            }
+                        });
+                        
+                        if (res.ok) {
+                            const data = await res.json();
+                            if (data.code) {
+                                url += `#code=${encodeURIComponent(data.code)}`;
+                                handoffSuccess = true;
+                            }
+                        }
+                    } catch (err) {
+                        console.warn('[M-9] Handoff exchange failed, falling back to hash', err);
+                    }
+
+                    // 降级方案：如果后端接口未就绪或报错，暂时走 Hash（保证现有用户体验不中断）
+                    if (!handoffSuccess) {
+                        const u = new URL(url);
+                        u.hash = `token=${encodeURIComponent(user.token)}` + (user.refreshToken ? `&refresh=${encodeURIComponent(user.refreshToken)}` : '');
+                        url = u.toString();
+                    }
                 }
                 chrome.tabs.create({ url });
             } catch (err) {
