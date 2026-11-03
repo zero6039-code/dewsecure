@@ -42,6 +42,9 @@ export function initStatsListener() {
                     const { request } = info;
                     if (!request || !request.url) return;
                     const host = new URL(request.url).hostname;
+                    // 🛡️ 修复：忽略对自家后台 API 的拦截记录，防止统计面板被污染
+                    if (host === 'api.dewsecure.com' || host.endsWith('.dewsecure.com')) return;
+                    
                     await recordBlock(host + '/dnr', 'dnr');
                 } catch (e) {}
             });
@@ -71,7 +74,19 @@ export async function recordBlock(url, type) {
     memoryStats.totalBlocked += 1;
     memoryStats.todayBlocked += 1;
     
+    // 🛡️ M-6 修复：解析并写入 domain 字段，解决 UI 显示 undefined 的问题
+    let domain = '未知';
+    try {
+        if (url.startsWith('http')) {
+            domain = new URL(url).hostname;
+        } else {
+            // 兼容 host + '/dnr' 或 host + '/dom-hidden' 的格式
+            domain = url.split('/')[0];
+        }
+    } catch (e) {}
+
     memoryLogs.push({
+        domain, // 👈 新增 domain 字段
         url,
         type,
         date: todayStr,

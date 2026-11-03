@@ -11,7 +11,7 @@ let dwSettings = { antiHijackEnabled: true, antiBypassEnabled: true, blockSocial
 window.addEventListener('message', (e) => {
     if (e.data && e.data.type === 'DEWSECURE_PAUSE') {
         isPaused = true;
-        // M-15 修复：用 defineProperty 强制还原 window.open（需内层 configurable: true 配合）
+        // M-15 修复：用 defineProperty 强制还原 window.open
         try {
             Object.defineProperty(window, 'open', { value: nativeWindowOpen, writable: true, configurable: true });
         } catch (err) {
@@ -19,18 +19,13 @@ window.addEventListener('message', (e) => {
         }
         console.log('[DewSecure Inject] 主世界已挂起，恢复原生 API');
     }
-    // F2 修复：接收真实的设置状态
     if (e.data && e.data.type === 'DEWSECURE_SETTINGS') {
         dwSettings = e.data.settings || {};
     }
 });
 
-// 包装原本的拦截逻辑
-// 移除早期冗余且会导致双倍弹窗的 window.open 包装，统一在下方处理
-
 (function() {
     'use strict';
-    // 官网与本地开发环境白名单（彻底解决 F12 卡死）
     if (window.location.hostname === 'dewsecure.com' || window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
         return;
     }
@@ -38,24 +33,21 @@ window.addEventListener('message', (e) => {
     if (window.__dewsecureInjected) return;
     window.__dewsecureInjected = true;
 
-    // 每个 Hook 执行前检查是否暂停
     function isPaused() {
         if (!document.documentElement) return false;
         return document.documentElement.getAttribute('data-dewsecure-paused') === 'true';
     }
 
-    // H-1 修复：只拦第三方广告主机或已知联盟参数；同源与通用追踪参数一律放行；同时支持 URL 对象
-    // 移除了 utm_source= / track= / click_id= / sub_id= / affiliate= / gsc= / gsid= / aid= 等通用词
-    // 移除了 tiktok.com/view 路径规则（由 DNR 层接手，inject.js 不再拦截）
+    // H-1 修复：只拦第三方广告主机或已知联盟参数
     const AD_HOSTS = /(^|\.)(doubleclick\.net|googlesyndication\.com|propellerads\.com|adsterra\.com|1xbet\.com|1xlite\.com|omguk\.com)$/i;
-    const AFFILIATE_PARAMS = ['mmp_pid', 'Allianceid', 'uls_trackid', 'a_aid', 'a_bid', 'affiliate_id', 'from_affiliate'];
+    const AFFILIATE_PARAMS = ['mmp_pid', 'Allianceid', 'uls_trackid', 'a_aid', 'a_bid', 'affiliate_id', 'from_affiliate', 'tag_aff_id', 'tag_aff_type'];
 
     const isAdUrl = (raw) => {
-        if (dwSettings.antiHijackEnabled === false) return false;   // 尊重防劫持开关
+        if (dwSettings.antiHijackEnabled === false) return false;
         if (raw == null || raw === '') return false;
         try {
-            const u = new URL(String(raw), location.href);          // 接受 URL 对象与相对路径
-            if (u.origin === location.origin) return false;         // 绝不动同站链接
+            const u = new URL(String(raw), location.href);
+            if (u.origin === location.origin) return false;
             return AD_HOSTS.test(u.hostname) ||
                    AFFILIATE_PARAMS.some((p) => u.searchParams.has(p));
         } catch (_) {
@@ -63,18 +55,13 @@ window.addEventListener('message', (e) => {
         }
     };
 
-    const _windowOpen = window.open;
     const _locationAssign = window.location.assign;
     const _locationReplace = window.location.replace;
     const _anchorClick = HTMLAnchorElement.prototype.click;
     const _formSubmit = HTMLFormElement.prototype.submit;
 
-    // 0. 拦截系统通知请求 (M-15 修复：增加常用邮件/通讯站点白名单)
-    const NOTIFICATION_ALLOW_HOSTS = [
-        'mail.google.com', 'calendar.google.com',
-        'outlook.live.com', 'outlook.office.com',
-        'web.whatsapp.com', 'web.telegram.org'
-    ];
+    // 0. 拦截系统通知请求
+    const NOTIFICATION_ALLOW_HOSTS = ['mail.google.com', 'calendar.google.com', 'outlook.live.com', 'outlook.office.com', 'web.whatsapp.com', 'web.telegram.org'];
     try {
         if (window.Notification) {
             const _requestPermission = window.Notification.requestPermission;
@@ -94,25 +81,25 @@ window.addEventListener('message', (e) => {
     // 1. window.open (修复双倍弹窗与不可配置问题)
     try {
         const _windowOpen = window.open;
-        // 伪装原生代码，防止被网页检测出 Hook
         const nativeOpenStr = _windowOpen.toString();
+        const isSkidrow = window.location.hostname.includes('skidrowreloaded.com');
 
         const hookedOpen = function(url, target, features) {
+            // 🛡️ 绝杀：对于 Skidrow，无视任何参数，直接掐死所有 window.open
+            if (!isPaused() && isSkidrow) {
+                console.warn('[DewSecure] 彻底封锁 Skidrow 弹窗:', url);
+                return null;
+            }
+            // 普通站点：命中广告特征才拦截
             if (!isPaused() && isAdUrl(url)) {
-                // AdGuard 策略：如果没有用户真实交互（自动弹窗），直接抛弃
-                if (window.navigator && window.navigator.userActivation && !window.navigator.userActivation.isActive) {
-                    console.warn('[DewSecure] 零闪烁拦截自动弹窗:', url);
-                    return null;
-                }
+                console.warn('[DewSecure] 拦截恶意/劫持弹窗:', url);
+                return null;
             }
             return _windowOpen.apply(this, arguments);
         };
 
-        // 伪装 toString
         hookedOpen.toString = function() { return nativeOpenStr; };
 
-        // 使用 defineProperty 防止被覆盖或删除
-        // M-15 修复：configurable: true 允许暂停消息到达时被 defineProperty 真正还原
         Object.defineProperty(window, 'open', {
             get: function() { return hookedOpen; },
             set: function() { /* 劫持赋值，保持静默 */ },
@@ -120,8 +107,6 @@ window.addEventListener('message', (e) => {
             enumerable: true
         });
     } catch (e) {
-        // 降级策略：如果 defineProperty 失败，回退到普通赋值
-        // M-15 修复：保存当前引用避免 window.open.apply 自我递归
         try {
             const _fallbackOpen = window.open;
             window.open = function(url, target, features) {
@@ -133,12 +118,21 @@ window.addEventListener('message', (e) => {
         } catch(err) {}
     }
 
-    // 2. location 跳转 (F-07 修复：Chrome 禁止覆盖 location.assign/replace，直接移除)
-
     // 3. A 标签点击
     try {
         HTMLAnchorElement.prototype.click = function() {
-            if (!isPaused() && isAdUrl(this.href)) return;
+            if (!isPaused()) {
+                if (isAdUrl(this.href)) return;
+                // 拦截脚本模拟的 _blank 跨站弹窗
+                if (this.target === '_blank' && this.href && !this.href.startsWith(location.origin)) {
+                    if (window.event && window.event.isTrusted) {
+                        // 真实点击放行，交由 security.js 后台秒杀
+                    } else {
+                        console.warn('[DewSecure] 拦截脚本模拟的 _blank 弹窗:', this.href);
+                        return;
+                    }
+                }
+            }
             _anchorClick.apply(this, arguments);
         };
     } catch (e) {}
@@ -151,7 +145,7 @@ window.addEventListener('message', (e) => {
         };
     } catch (e) {}
 
-    // 5. 反反拦截欺骗 (M-15 修复：只在开启且未暂停时生效，configurable 允许后续还原)
+    // 5. 反反拦截欺骗
     if (!isPaused() && dwSettings.antiBypassEnabled !== false) {
         try {
             Object.defineProperty(window, 'adblock', { get: () => false, configurable: true });
@@ -159,7 +153,7 @@ window.addEventListener('message', (e) => {
         } catch(e) {}
     }
 
-    // 6. Skidrow 弹窗劫持防护
+    // 6. Skidrow 弹窗劫持防护 (旧变量防护)
     if (window.location.hostname.includes('skidrowreloaded.com') && !isPaused()) {
         try {
             Object.defineProperty(window, 'clickIE4', { get: () => undefined, set: () => {}, configurable: false });
@@ -171,12 +165,24 @@ window.addEventListener('message', (e) => {
         if (isPaused()) return;
         let target = e.target;
         while (target && target.tagName !== 'A' && target.tagName !== 'FORM') target = target.parentElement;
+        
         if (target) {
-            if (!isPaused() && target.tagName === 'A' && target.href && isAdUrl(target.href)) {
+            if (target.tagName === 'A' && target.href && isAdUrl(target.href)) {
                 e.preventDefault(); e.stopImmediatePropagation();
+                return;
             }
-            if (!isPaused() && target.tagName === 'FORM' && target.action && isAdUrl(target.action)) {
+            if (target.tagName === 'FORM' && target.action && isAdUrl(target.action)) {
                 e.preventDefault(); e.stopImmediatePropagation();
+                return;
+            }
+            // 🛡️ 终极绝杀：对于 Skidrow，任何试图新开窗口的点击，全灭！
+            if (window.location.hostname.includes('skidrowreloaded.com')) {
+                if (target.tagName === 'A' && target.href && !target.href.startsWith(location.origin)) {
+                    if (target.target === '_blank' || e.ctrlKey || e.metaKey) {
+                        console.warn('[DewSecure] 彻底封杀 Skidrow 恶意跳转点击:', target.href);
+                        e.preventDefault(); e.stopImmediatePropagation();
+                    }
+                }
             }
         }
     };
@@ -184,17 +190,20 @@ window.addEventListener('message', (e) => {
     document.addEventListener('click', interceptClick, true);
 
     // 8. DOM 节点清理
+    const checkAndKillNode = (el) => {
+        if (el.dataset.dwKilled) return;
+        if (el.tagName === 'A' && el.href && isAdUrl(el.href)) {
+            el.removeAttribute('href'); el.style.setProperty('pointer-events', 'none', 'important'); el.dataset.dwKilled = 'true';
+        } else if (el.tagName === 'FORM' && el.action && isAdUrl(el.action)) {
+            el.removeAttribute('action'); el.style.setProperty('pointer-events', 'none', 'important'); el.dataset.dwKilled = 'true';
+        }
+    };
+
     const killMaliciousNodes = (root) => {
         if (isPaused() || !root) return;
+        if (root.nodeType === Node.ELEMENT_NODE) checkAndKillNode(root);
         const links = root.querySelectorAll ? root.querySelectorAll('a, form') : [];
-        links.forEach(el => {
-            if (el.dataset.dwKilled) return;
-            if (el.tagName === 'A' && el.href && isAdUrl(el.href)) {
-                el.removeAttribute('href'); el.style.setProperty('pointer-events', 'none', 'important'); el.dataset.dwKilled = 'true';
-            } else if (el.tagName === 'FORM' && el.action && isAdUrl(el.action)) {
-                el.removeAttribute('action'); el.style.setProperty('pointer-events', 'none', 'important'); el.dataset.dwKilled = 'true';
-            }
-        });
+        links.forEach(checkAndKillNode);
     };
 
     const observer = new MutationObserver((mutations) => {
@@ -210,9 +219,19 @@ window.addEventListener('message', (e) => {
             }
         }
     });
-    if (document.documentElement) {
+    
+    const startObserver = () => {
+        if (!document.documentElement) return;
         observer.observe(document.documentElement, { childList: true, subtree: true });
         killMaliciousNodes(document.documentElement);
+    };
+
+    if (document.documentElement) {
+        startObserver();
+    } else if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', startObserver);
+    } else {
+        window.addEventListener('load', startObserver);
     }
 })();
 })();

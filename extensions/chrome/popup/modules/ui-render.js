@@ -9,6 +9,19 @@ function escapeHTML(str) {
     );
 }
 
+
+// 🛡️ M-6 终极修复：兼容历史遗留的缺失 domain 的旧数据
+function extractDomain(log) {
+    if (log.domain && log.domain !== '未知') return log.domain;
+    if (!log.url) return '未知';
+    try {
+        if (log.url.startsWith('http')) return new URL(log.url).hostname;
+        return log.url.split('/')[0];
+    } catch (e) {
+        return '未知';
+    }
+}
+
 export function getTypeText(type) { 
     const t = window.t || (window.i18n && window.i18n.t) || ((k) => k); 
     const map = { dnr: "type_dnr", tracker: "type_tracker", ad: "type_ad", "dom-hidden": "type_dom_hidden" }; 
@@ -64,8 +77,9 @@ export async function renderTodayLogs() {
 
     const grouped = {};
     todayLogs.forEach(log => {
-        if (!grouped[log.domain]) grouped[log.domain] = [];
-        grouped[log.domain].push(log);
+        const d = extractDomain(log);
+        if (!grouped[d]) grouped[d] = [];
+        grouped[d].push(log);
     });
 
     const sortedDomains = Object.keys(grouped).map(domain => ({
@@ -113,8 +127,9 @@ export async function renderTotalStats() {
 
     const domainCounts = {};
     logs.forEach(log => {
-        if (log.domain && log.domain !== '未知') {
-            domainCounts[log.domain] = (domainCounts[log.domain] || 0) + 1;
+        const d = extractDomain(log);
+        if (d && d !== '未知') {
+            domainCounts[d] = (domainCounts[d] || 0) + 1;
         }
     });
 

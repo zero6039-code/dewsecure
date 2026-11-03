@@ -302,7 +302,7 @@ chrome.declarativeNetRequest.updateSessionRules({
             "priority": 1000000, // 一百万级碾压，高于任何 AI 或暂停规则
             "action": { "type": "allow" },
             "condition": {
-                "requestDomains": ["dewsecure.com", "dewsecure-api.zero6039.workers.dev"],
+                "requestDomains": ["dewsecure.com", "api.dewsecure.com", "dewsecure-api.zero6039.workers.dev"],
                 "resourceTypes": ["main_frame", "sub_frame", "stylesheet", "script", "image", "font", "object", "xmlhttprequest", "ping", "csp_report", "media", "websocket", "other"]
             }
         }]

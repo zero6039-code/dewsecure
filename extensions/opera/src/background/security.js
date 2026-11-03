@@ -7,7 +7,8 @@ const SAFE_OFFICIAL_DOMAINS = [
 
 const TARGET_DOMAINS = [
     'trip.com', 'shopee.com.my', 'kkday.com', 'klook.com', 
-    'lazada.com.my', 'traveloka.com', 'omguk.com'
+    'lazada.com.my', 'traveloka.com', 'omguk.com', 
+    'tiktok.com', 'ticket.com' // 👈 补充新的恶意重定向常客
 ];
 
 // 需要移除的广告追踪参数名
@@ -16,7 +17,7 @@ const TRACKING_KEYS = [
     'mmp_pid', 'Allianceid', 'clickref', 'partner_id',
     'banid', 'campid', 'affiliate_id', 'sub_id',
     'uls_trackid', 'chain_key', 'trip_sub1', 'ud1',
-    'laz_trackid', 'mkttid', 'exlaz'
+    'laz_trackid', 'mkttid', 'exlaz', 'tag_aff_id', 'tag_aff_type'
 ];
 
 function isSafeNavigation(url) {
@@ -26,7 +27,6 @@ function isSafeNavigation(url) {
         const u = new URL(url);
         const host = u.hostname.replace(/^www\./, '');
         const isOfficial = SAFE_OFFICIAL_DOMAINS.some(d => host === d || host.endsWith('.' + d));
-        // 安全检查：如果已经不带广告参数了，直接放行
         const hasAdParam = TRACKING_KEYS.some(k => u.searchParams.has(k));
         if (isOfficial && !hasAdParam) return true;
     } catch(_) {}
@@ -40,7 +40,6 @@ async function checkIsWhitelisted(host) {
            (settings.tempWhitelist || []).some(d => host === d || host.endsWith('.' + d));
 }
 
-// 🛡️ M-2 修复：获取去参后的干净 URL
 async function getCleanedUrl(url) {
     if (!url || isSafeNavigation(url)) return null;
     if (url.startsWith('chrome-extension://') || url.startsWith('moz-extension://')) return null;
@@ -55,29 +54,20 @@ async function getCleanedUrl(url) {
     try {
         const u = new URL(url);
         let modified = false;
-        
-        // 精准遍历 searchParams，移除黑名单键名
         const paramsToDelete = [];
         for (const [key, value] of u.searchParams.entries()) {
             const lowerKey = key.toLowerCase();
-            // 匹配常见追踪参数
             if (TRACKING_KEYS.includes(key)) {
                 paramsToDelete.push(key);
-            } 
-            // 匹配特定值的 utm_source
-            else if (lowerKey === 'utm_source' && ['an_', 'involveasia', 'open_api', 'adcash'].some(v => value.toLowerCase().includes(v))) {
+            } else if (lowerKey === 'utm_source' && ['an_', 'involveasia', 'open_api', 'adcash'].some(v => value.toLowerCase().includes(v))) {
                 paramsToDelete.push(key);
-            }
-            // 匹配 aid=api|
-            else if (lowerKey === 'aid' && value.startsWith('api')) {
+            } else if (lowerKey === 'aid' && value.startsWith('api')) {
                 paramsToDelete.push(key);
             }
         }
 
         if (paramsToDelete.length > 0) {
-            for (const key of paramsToDelete) {
-                u.searchParams.delete(key);
-            }
+            for (const key of paramsToDelete) u.searchParams.delete(key);
             return u.toString();
         }
         return null;
@@ -85,20 +75,20 @@ async function getCleanedUrl(url) {
 }
 
 export function initSecurityListeners() {
-    // 🚀 M-2 修复：新弹窗不关闭，而是原地去参重定向
+    // 🚀 核心恢复：新弹窗（onCreatedNavigationTarget）只要命中去参逻辑，直接【秒杀关闭】！
     if (chrome.webNavigation && chrome.webNavigation.onCreatedNavigationTarget) {
         chrome.webNavigation.onCreatedNavigationTarget.addListener(async (info) => {
             const cleanedUrl = await getCleanedUrl(info.url);
             if (cleanedUrl) {
-                chrome.tabs.update(info.tabId, { url: cleanedUrl });
+                // 用户希望弹窗秒杀，直接 remove
+                chrome.tabs.remove(info.tabId, () => { if (chrome.runtime.lastError) {} });
             }
         });
     }
 
-    // 🚀 M-2 修复：主页面跳转不关闭，而是原地去参重定向
+    // 主页面跳转：继续使用去参重定向（不关页面）
     chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
         const url = changeInfo.url;
-        // 只在 URL 发生变化时触发，防止死循环
         if (url) {
             const cleanedUrl = await getCleanedUrl(url);
             if (cleanedUrl) {
@@ -107,7 +97,7 @@ export function initSecurityListeners() {
         }
     });
 
-    // 🚀 M-2 修复：新建标签页时，如果直接包含参数也去参
+    // 新建标签页：继续使用去参重定向
     chrome.tabs.onCreated.addListener(async (tab) => {
         const url = tab.pendingUrl || tab.url;
         if (url) {
