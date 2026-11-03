@@ -75,8 +75,8 @@ jobs:
   publish:
     needs: train
     runs-on: ubuntu-latest
-    # 🔒 这里可以配置 GitHub Environment 保护，要求人工审批
-    environment: production 
+    # 🔒 全自动发布，依靠 gate.py 做自动化门禁拦截（若失败，流水线标红并发送通知）
+    # environment: production 
     steps:
       - uses: actions/checkout@v4
       
