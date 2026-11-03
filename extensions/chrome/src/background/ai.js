@@ -107,6 +107,7 @@ export function extractFeaturesFromUrl(url) {
 }
 
 const AI_CHECKED_DOMAINS = new Set();
+let cachedWeights = null; // 🚀 M-7 修复：内存级模型缓存
 export async function runAICheck(url, tabId = null, isThirdParty = false) {
     try {
         const domain = isThirdParty ? url : new URL(url).hostname;
@@ -138,11 +139,15 @@ export async function runAICheck(url, tabId = null, isThirdParty = false) {
 
         const features = extractFeaturesFromUrl(domain); // 🔧 P1-B Step1: 归一化为 hostname，对齐训练分布
         
-        // 🚀 纯 JS 推理：零延迟，跨端兼容
-        const cached = await getCachedModel();
-        if (!cached || !cached.weights) return; // 模型没加载成功就放弃
+        // 🚀 M-7 修复：内存级缓存，避免每次从 IndexedDB 反序列化整份权重
+        if (!cachedWeights) {
+            const cached = await getCachedModel();
+            if (!cached || !cached.weights) return;
+            cachedWeights = cached.weights;
+            console.log('⚡ [AI] 模型权重已加载至内存缓存');
+        }
         
-        const { coef, intercept } = cached.weights;
+        const { coef, intercept } = cachedWeights;
         const logits = [0, 0, 0];
         
         // 稀疏优化：只计算非零特征的权重
@@ -190,27 +195,40 @@ export async function runAICheck(url, tabId = null, isThirdParty = false) {
             if (HARD_SAFE_DOMAINS.some(d => domain === d || domain.endsWith('.' + d))) return;
             if (domain === 'dewsecure.com' || domain.endsWith('.dewsecure.com')) return;
 
-            // 🛡️ F1 修复：只对第三方请求执行 HIDE_AI_AD。
-            // 如果这是用户访问的页面本身，绝不隐藏页面自身元素（那会导致网页变成空白）。
+            // 🛡️ F1 修复：只对第三方请求执行拦截。
             if (!isThirdParty) {
-                console.log(`🛡️ [AI] 发现可疑主页 (${domain})，但为防白屏，不执行 DOM 隐藏。`);
+                console.log(`🛡️ [AI] 发现可疑主页 (${domain})，但为防白屏，不执行拦截。`);
                 return;
             }
             
-            // 🌟 修复 S-08：通过传入的 tabId 精确投递，防止多标签并发时误杀
-            let targetTabId = tabId;
-            if (!targetTabId) {
-                const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
-                if (tabs[0] && tabs[0].id) targetTabId = tabs[0].id;
+            // 🚀 M-7 核心修复：置信度 >= 0.95 时，直接注入 DNR 规则，在【网络层】真正切断请求！
+            if (confidence >= 0.95) {
+                // 生成一个固定的 800 万段规则 ID，避免与白名单(1万段)和威胁情报(100万段)冲突
+                const hash = domain.split('').reduce((a, b) => ((a << 5) - a) + b.charCodeAt(0), 0);
+                const ruleId = 8000000 + Math.abs(hash % 100000);
+
+                await chrome.declarativeNetRequest.updateSessionRules({
+                    removeRuleIds: [ruleId],
+                    addRules: [{
+                        id: ruleId,
+                        priority: 2000000, // 高优先级
+                        action: { type: 'block' },
+                        condition: {
+                            requestDomains: [domain],
+                            // 🔒 限定为子资源，绝不拦截 main_frame，彻底杜绝网页白屏
+                            resourceTypes: [
+                                "sub_frame", "stylesheet", "script", "image", 
+                                "font", "object", "xmlhttprequest", "ping", 
+                                "csp_report", "media", "websocket", "other"
+                            ]
+                        }
+                    }]
+                }).catch(e => console.warn('[AI] DNR 规则注入失败:', e));
+                
+                console.log(`🛡️ [AI] 已对 ${domain} 实施网络层硬拦截 (置信度: ${confidence.toFixed(2)})`);
+            } else {
+                console.log(`🛡️ [AI] 发现可疑第三方 (${domain})，但置信度不足 0.95 (${confidence.toFixed(2)})，仅观察。`);
             }
-            
-            if (targetTabId) {
-                chrome.tabs.sendMessage(targetTabId, { 
-                    type: 'HIDE_AI_AD', 
-                    domain: domain 
-                }).catch(() => {});
-            }
-            console.log(`🛡️ [AI] 已精准隐藏第三方恶意元素: ${domain}`);
         }
     } catch(e) {}
 }
