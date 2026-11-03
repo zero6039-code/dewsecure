@@ -106,6 +106,84 @@ export function extractFeaturesFromUrl(url) {
     return Array.from(features);
 }
 
+// ==========================================
+// 🚀 性能优化：稀疏特征提取（M-7 稠密向量优化）
+// 返回 { buckets: Map<bucketIdx, count>, structs: [[idx, val], ...] }
+// 只包含非零项，避免构造 16418 维稠密数组与 Array.from
+// 与 extractFeaturesFromUrl 输出在数学上等价（同一 n-gram 桶、同一结构特征索引）
+// ==========================================
+export function extractSparseFeatures(url) {
+    const url_lower = url.toLowerCase();
+
+    // 1. n-gram 桶计数（Map 聚合，同桶累加）
+    const buckets = new Map();
+    const maxI = url_lower.length - 3;
+    for (let i = 0; i <= maxI; i++) {
+        const ngram = url_lower.substring(i, i + 3);
+        const hash = fnv1a(ngram);
+        const bucket = Number(hash % 16384n);
+        buckets.set(bucket, (buckets.get(bucket) || 0) + 1);
+    }
+
+    // 2. 结构特征（严格对齐 features.py，偏移 o=16384）
+    const structs = [];
+    const o = 16384;
+    const count = (str, ch) => str.split(ch).length - 1;
+    const containsAny = (s, kws) => kws.some(kw => s.includes(kw)) ? 1.0 : 0.0;
+    const push = (idx, val) => { if (val !== 0) structs.push([idx, val]); };
+
+    push(o + 0, url_lower.length);
+    push(o + 1, count(url_lower, "."));
+    push(o + 2, count(url_lower, "/"));
+    push(o + 3, count(url_lower, "-"));
+    push(o + 4, count(url_lower, "_"));
+    push(o + 5, count(url_lower, "?"));
+    push(o + 6, count(url_lower, "="));
+    push(o + 7, count(url_lower, "&"));
+    push(o + 8, count(url_lower, "%"));
+
+    push(o + 9,  containsAny(url_lower, ["ad", "ads", "advert"]));
+    push(o + 10, containsAny(url_lower, ["track", "tracking"]));
+    push(o + 11, containsAny(url_lower, ["analytics", "stats"]));
+    push(o + 12, containsAny(url_lower, ["banner", "banners"]));
+    push(o + 13, containsAny(url_lower, ["popup", "popunder"]));
+    push(o + 14, containsAny(url_lower, ["click", "clicks"]));
+    push(o + 15, containsAny(url_lower, ["pixel", "beacon"]));
+    push(o + 16, containsAny(url_lower, ["doubleclick", "googlesyndication"]));
+    push(o + 17, containsAny(url_lower, ["facebook", "fbcdn"]));
+    push(o + 18, containsAny(url_lower, ["google", "gstatic"]));
+
+    push(o + 19, url_lower.endsWith(".com") ? 1.0 : 0.0);
+    push(o + 20, url_lower.endsWith(".net") ? 1.0 : 0.0);
+    push(o + 21, url_lower.endsWith(".org") ? 1.0 : 0.0);
+    push(o + 22, url_lower.endsWith(".io")  ? 1.0 : 0.0);
+    push(o + 23, url_lower.endsWith(".cn")  ? 1.0 : 0.0);
+
+    push(o + 24, url_lower.startsWith("https")  ? 1.0 : 0.0);
+    push(o + 25, url_lower.startsWith("http://") ? 1.0 : 0.0);
+
+    const digitCount = (url.match(/\d/g) || []).length;
+    push(o + 26, digitCount / Math.max(url_lower.length, 1));
+
+    const upperCount = (url.match(/[A-Z]/g) || []).length;
+    push(o + 27, upperCount / Math.max(url_lower.length, 1));
+
+    push(o + 28, count(url_lower, "/"));
+    push(o + 29, count(url_lower, "&") + count(url_lower, "?"));
+
+    const parts = url_lower.split("/");
+    if (parts.length > 2) {
+        const host = parts[2].split(":")[0];
+        push(o + 30, host.length);
+        push(o + 31, isIpAddress(url_lower) ? 1.0 : 0.0);
+        push(o + 32, Math.max(0, count(host, ".") - 1));
+    }
+
+    push(o + 33, calculateEntropy(url_lower));
+
+    return { buckets, structs };
+}
+
 const AI_CHECKED_DOMAINS = new Set();
 let cachedWeights = null; // 🚀 M-7 修复：内存级模型缓存
 export async function runAICheck(url, tabId = null, isThirdParty = false) {
@@ -137,8 +215,9 @@ export async function runAICheck(url, tabId = null, isThirdParty = false) {
             return;
         }
 
-        const features = extractFeaturesFromUrl(domain); // 🔧 P1-B Step1: 归一化为 hostname，对齐训练分布
-        
+        // 🚀 稀疏化：只取非零 n-gram 桶与结构特征，不建 16418 维稠密数组
+        const { buckets, structs } = extractSparseFeatures(domain);
+
         // 🚀 M-7 修复：内存级缓存，避免每次从 IndexedDB 反序列化整份权重
         if (!cachedWeights) {
             const cached = await getCachedModel();
@@ -146,23 +225,22 @@ export async function runAICheck(url, tabId = null, isThirdParty = false) {
             cachedWeights = cached.weights;
             console.log('⚡ [AI] 模型权重已加载至内存缓存');
         }
-        
+
         const { coef, intercept } = cachedWeights;
-        const logits = [0, 0, 0];
-        
-        // 稀疏优化：只计算非零特征的权重
-        for (let i = 0; i < features.length; i++) {
-            const val = features[i];
-            if (val !== 0) {
-                logits[0] += coef[0][i] * val;
-                logits[1] += coef[1][i] * val;
-                logits[2] += coef[2][i] * val;
-            }
+        // 🚀 稀疏化：以 intercept 初始化，仅累加非零特征，无 16418 次全量扫描
+        const logits = [intercept[0], intercept[1], intercept[2]];
+
+        for (const [bucket, cnt] of buckets) {
+            logits[0] += coef[0][bucket] * cnt;
+            logits[1] += coef[1][bucket] * cnt;
+            logits[2] += coef[2][bucket] * cnt;
         }
-        logits[0] += intercept[0];
-        logits[1] += intercept[1];
-        logits[2] += intercept[2];
-        
+        for (const [idx, val] of structs) {
+            logits[0] += coef[0][idx] * val;
+            logits[1] += coef[1][idx] * val;
+            logits[2] += coef[2][idx] * val;
+        }
+
         // Softmax 转为概率
         const maxLogit = Math.max(...logits);
         const exps = logits.map(l => Math.exp(l - maxLogit));
@@ -171,7 +249,7 @@ export async function runAICheck(url, tabId = null, isThirdParty = false) {
         const maxIdx = probs.indexOf(Math.max(...probs));
         const classes = ['Normal', 'Ad', 'Tracker']; // 🔒 P-01 修复：模型只有 3 类
         const classification = classes[maxIdx];
-        
+
         // 🔒 安全网 1：如果开关关闭或网站在白名单里，直接放行
         const settings = await chrome.storage.local.get('dewsecure_settings').then(r => r.dewsecure_settings || {});
         if (settings.aiEnabled === false) return; // 尊重前端开关
@@ -189,11 +267,11 @@ export async function runAICheck(url, tabId = null, isThirdParty = false) {
                 // console.log(`[AI] 置信度不足 (${confidence.toFixed(2)})，放弃拦截: ${domain}`);
                 return;
             }
-            
+
             // 🌟 防线 1：AI 拦截前置豁免检查 (绝对白名单)
             const HARD_SAFE_DOMAINS = [
-            'github.com', 'cloudflare.com', 'apple.com', 'microsoft.com', 
-            'google.com', 'gstatic.com', 'googleapis.com', 'forbes.com', 
+            'github.com', 'cloudflare.com', 'apple.com', 'microsoft.com',
+            'google.com', 'gstatic.com', 'googleapis.com', 'forbes.com',
             'forbesimg.com', 'cloudflareinsights.com', 'cnn.io', 'discomax.com', 'max.com',
             'dropbox.com', 'dropboxstatic.com', 'dropboxusercontent.com'
         ];
@@ -205,7 +283,7 @@ export async function runAICheck(url, tabId = null, isThirdParty = false) {
                 console.log(`🛡️ [AI] 发现可疑主页 (${domain})，但为防白屏，不执行拦截。`);
                 return;
             }
-            
+
             // 🚀 M-7 核心修复：置信度 >= 0.95 时，直接注入 DNR 规则，在【网络层】真正切断请求！
             if (confidence >= 0.95) {
                 // 生成一个固定的 800 万段规则 ID，避免与白名单(1万段)和威胁情报(100万段)冲突
@@ -222,14 +300,14 @@ export async function runAICheck(url, tabId = null, isThirdParty = false) {
                             requestDomains: [domain],
                             // 🔒 限定为子资源，绝不拦截 main_frame，彻底杜绝网页白屏
                             resourceTypes: [
-                                "sub_frame", "stylesheet", "script", "image", 
-                                "font", "object", "xmlhttprequest", "ping", 
+                                "sub_frame", "stylesheet", "script", "image",
+                                "font", "object", "xmlhttprequest", "ping",
                                 "csp_report", "media", "websocket", "other"
                             ]
                         }
                     }]
                 }).catch(e => console.warn('[AI] DNR 规则注入失败:', e));
-                
+
                 console.log(`🛡️ [AI] 已对 ${domain} 实施网络层硬拦截 (置信度: ${confidence.toFixed(2)})`);
             } else {
                 console.log(`🛡️ [AI] 发现可疑第三方 (${domain})，但置信度不足 0.95 (${confidence.toFixed(2)})，仅观察。`);
@@ -237,5 +315,3 @@ export async function runAICheck(url, tabId = null, isThirdParty = false) {
         }
     } catch(e) {}
 }
-
-

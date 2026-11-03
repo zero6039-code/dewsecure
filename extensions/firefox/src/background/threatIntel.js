@@ -30,7 +30,8 @@ async function applyRulesToDNR() {
         const HARD_SAFE = [
             'github.com', 'githubusercontent.com', 'github.io', 'gitlab.com', 
             'npmjs.com', 'cloudflare.com', 'microsoft.com', 'apple.com', 
-            'dewsecure.com', 'google.com', 'youtube.com', 'facebook.com'
+            'dewsecure.com', 'google.com', 'youtube.com', 'facebook.com',
+            'dropbox.com', 'dropboxusercontent.com'
         ];
 
         const newRules = [];
