@@ -15,9 +15,11 @@
 
     if (window.__dewsecureInjected) return;
     
-    // ===== DewSecure Wired Bypass =====
-    if (window.location.hostname.includes('wired.com')) {
-        console.warn('🛡️ [DewSecure] 检测到 Wired，已自动豁免 DOM 清理以防止 React 水合失败。');
+    // ===== DewSecure 复杂 SPA 豁免名单 =====
+    // Forbes 拥有极其严格的 Datadome 反爬和 React 水合机制，任何 DOM 篡改都会导致白屏
+    const SPA_SAFE_LIST = ['wired.com', 'forbes.com'];
+    if (SPA_SAFE_LIST.some(d => window.location.hostname.includes(d))) {
+        console.warn('🛡️ [DewSecure] 检测到复杂 SPA 站点，已自动豁免 DOM 清理以防止白屏。');
         return; 
     }
 
@@ -189,40 +191,6 @@
         checkTimer = setTimeout(flushCheck, 50);
     }
 
-    // ===== Forbes 专项处理 =====
-    function runForbesBypass() {
-        let attempts = 0;
-        const bypassForbes = setInterval(() => {
-            const skipSelectors = [
-                'a[href*="skip"]', 'button[class*="skip"]', 
-                '[class*="welcome"] a[class*="continue"]', '[id*="welcome"] a[class*="continue"]'
-            ];
-            for (const sel of skipSelectors) {
-                const btn = document.querySelector(sel);
-                if (btn && !btn.dataset.dwClicked) {
-                    btn.click();
-                    btn.dataset.dwClicked = 'true';
-                    break;
-                }
-            }
-            const overlays = document.querySelectorAll('[class*="welcome"], [class*="adblock"], [class*="overlay"], [id*="welcome"]');
-            overlays.forEach(el => {
-                if (!el.dataset.dwKilled) {
-                    el.style.setProperty('display', 'none', 'important');
-                    el.remove();
-                    el.dataset.dwKilled = 'true';
-                    reportDomHidden(el);
-                }
-            });
-            document.querySelectorAll('article, main, .article-body, [class*="content"]').forEach(el => {
-                if (el.style.display === 'none' || el.style.visibility === 'hidden') {
-                    el.style.setProperty('display', 'block', 'important');
-                    el.style.setProperty('visibility', 'visible', 'important');
-                }
-            });
-            if (++attempts > 20) clearInterval(bypassForbes);
-        }, 500);
-    }
 
     // ===== 节点扫描与击毙 =====
     function checkAndKill(root) {
@@ -284,10 +252,6 @@
                         injectDynamicCSS(settings);
                     }
 
-                    // 2. 只有在开启 Cookie 隐藏时，才执行 Forbes 破防逻辑
-                    if (window.location.hostname.includes('forbes.com') && settings.hideCookieNotices !== false) {
-                        setTimeout(runForbesBypass, 1000); // 延迟 1 秒，等 React 渲染完再拔管
-                    }
 
                     // 3. 启动 MutationObserver
                     const observer = new MutationObserver((mutations) => {
