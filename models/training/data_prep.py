@@ -345,33 +345,36 @@ def build_dataset():
     # 🌟 融合用户真实反馈
     missed_feedbacks, false_feedbacks = fetch_supabase_feedbacks()
     
-    # 🚀 闭环：将误拦反馈写入 hard_rules.json，准备自动提 PR
+    # 🛡️ M-13 修复：不再直接写入生产环境的 hard_rules.json，防止被恶意反馈投毒
+    # 改为写入独立的 pending 文件，必须人工审核（提 PR）后才可合并
     if false_feedbacks or missed_feedbacks:
-        hard_rules_path = os.path.join(os.path.dirname(__file__), 'hard_rules.json')
-        if os.path.exists(hard_rules_path):
-            with open(hard_rules_path, 'r', encoding='utf-8') as f:
-                rules = json.load(f)
-            
-            # 将新的误拦加入 safe，漏拦加入 block
-            new_safe = set(rules.get("hard_safe", []))
-            new_block = set(rules.get("hard_block", []))
-            
-            for fb in false_feedbacks:
-                if fb not in new_safe:
-                    new_safe.add(fb)
-                    print(f"  [规则闭环] 自动加入白名单草稿: {fb}")
-                    
-            for mb in missed_feedbacks:
-                if mb not in new_block:
-                    new_block.add(mb)
-                    print(f"  [规则闭环] 自动加入黑名单草稿: {mb}")
-            
-            # 重新写回
-            rules["hard_safe"] = list(new_safe)
-            rules["hard_block"] = list(new_block)
-            with open(hard_rules_path, 'w', encoding='utf-8') as f:
-                json.dump(rules, f, indent=2, ensure_ascii=False)
-            print("  -> hard_rules.json 已更新，等待 Actions 提 PR")
+        pending_path = os.path.join(os.path.dirname(__file__), 'pending_feedback_rules.json')
+        pending_rules = {"hard_safe": [], "hard_block": []}
+        if os.path.exists(pending_path):
+            try:
+                with open(pending_path, 'r', encoding='utf-8') as f:
+                    pending_rules = json.load(f)
+            except Exception:
+                pass
+        
+        new_safe = set(pending_rules.get("hard_safe", []))
+        new_block = set(pending_rules.get("hard_block", []))
+        
+        for fb in false_feedbacks:
+            if fb not in new_safe:
+                new_safe.add(fb)
+                print(f"  [人工审核草稿] 加入白名单待审核: {fb}")
+                
+        for mb in missed_feedbacks:
+            if mb not in new_block:
+                new_block.add(mb)
+                print(f"  [人工审核草稿] 加入黑名单待审核: {mb}")
+        
+        pending_rules["hard_safe"] = list(new_safe)
+        pending_rules["hard_block"] = list(new_block)
+        with open(pending_path, 'w', encoding='utf-8') as f:
+            json.dump(pending_rules, f, indent=2, ensure_ascii=False)
+        print("  -> pending_feedback_rules.json 已更新，等待维护者人工审核合并")
     
     # 🔒 安全网 3：误拦的绝对保护，黑名单里绝对不能有
     for d in false_feedbacks:
