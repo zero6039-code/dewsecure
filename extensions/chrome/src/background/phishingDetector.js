@@ -34,7 +34,9 @@ const SAFE_HOSTS = [
     'dewsecure.com', 'dev.dewsecure.com',
     'github.com', 'google.com', 'youtube.com', 'facebook.com', 'twitter.com', 
     'x.com', 'instagram.com', 'linkedin.com', 'wikipedia.org', 'microsoft.com', 
-    'apple.com', 'amazon.com', 'cloudflare.com', 'reddit.com'
+    'apple.com', 'amazon.com', 'cloudflare.com', 'reddit.com',
+    // 🛡️ 修复 dropbox 误报
+    'dropbox.com', 'www.dropbox.com', 'dropboxusercontent.com'
 ];
 
 // 简单的 IDN (Punycode) 同形字解码处理函数

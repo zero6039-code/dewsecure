@@ -39,7 +39,8 @@ restoreSessionRules();
 
 // 消息中心
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
-    handleMessage(message, sender).then(sendResponse);
+    // 🛡️ L-4 修复：只有明确的异步消息才返回 true
+    handleMessage(message, sender).then(sendResponse).catch(() => sendResponse({ ok: false }));
     return true;
 });
 
@@ -64,7 +65,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     if (msg.type === 'CHECK_URL_AI') {
         runAICheck(msg.url, sender?.tab?.id);
         sendResponse({ ok: true });
-        return true;
+        return false; // 🛡️ L-4 修复：同步处理完毕，无需返回 true 抢占信道
     }
 });
 
@@ -93,7 +94,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
             if (user && user.token) reportDeviceSilently(user.token);
         })().catch(e => console.warn(e));
         sendResponse({ ok: true });
-        return true;
+        return false; // 🛡️ L-4 修复：同步处理完毕
     }
 });
 
@@ -125,6 +126,11 @@ chrome.runtime.onMessageExternal.addListener((message, sender, sendResponse) => 
         return false;
     }
     if (message.type === 'SYNC_AUTH') {
+        // 🛡️ L-3 修复：确保 payload 存在且包含合法的 token
+        if (!message.payload || typeof message.payload.token !== 'string') {
+            console.warn('❌ [拦截] 非法 SYNC_AUTH 载荷');
+            return false;
+        }
         saveExternalAuth(message.payload).then(res => sendResponse({ ok: res.ok }));
         return true;
     }
@@ -191,12 +197,19 @@ if (chrome.webNavigation && chrome.webNavigation.onBeforeNavigate) {
             // 🛡️ 核弹级防线：强行拦截对核心大厂的误跳转
             try {
                 const urlParams = new URL(details.url).searchParams;
-                const domain = urlParams.get('domain') || urlParams.get('url') || '';
+                const rawDomain = urlParams.get('domain') || urlParams.get('url') || '';
+                let parsedHost = null;
+                try {
+                    // 🛡️ L-1 修复：解析出纯净的 hostname，防止 evil.com/x.github.com 绕过
+                    parsedHost = new URL(rawDomain.startsWith('http') ? rawDomain : `https://${rawDomain}`).hostname;
+                } catch(e) {}
+
                 const HARD_SAFE = ['github.com', 'gitlab.com', 'dewsecure.com', 'npmjs.com', 'cloudflare.com', 'microsoft.com', 'apple.com', 'trip.com', 'shopee.com.my', 'tiktok.com'];
                 
-                if (domain && HARD_SAFE.some(d => domain === d || domain.endsWith('.' + d))) {
-                    console.warn('🛡️ [Security] 强行拦下对核心大厂的警告页跳转，放行！', domain);
-                    chrome.tabs.update(details.tabId, { url: `https://${domain}` });
+                if (parsedHost && HARD_SAFE.some(d => parsedHost === d || parsedHost.endsWith('.' + d))) {
+                    console.warn('🛡️ [Security] 强行拦下对核心大厂的警告页跳转，放行！', parsedHost);
+                    // 强制只用提取出的 hostname 跳转，绝不带路径
+                    chrome.tabs.update(details.tabId, { url: `https://${parsedHost}` });
                     return;
                 }
             } catch (e) {
@@ -239,7 +252,8 @@ if (chrome.webNavigation && chrome.webNavigation.onBeforeNavigate) {
                 'gitlab.com', 'npmjs.com', 'cloudflare.com', 'microsoft.com', 'apple.com',
                 'trip.com', 'shopee.com.my', 'tiktok.com', 'kkday.com', 'klook.com',
                 'lazada.com.my', 'traveloka.com', 'omguk.com', 'google.com', 'youtube.com',
-                'facebook.com', 'x.com', 'instagram.com', 'wired.com'
+                'facebook.com', 'x.com', 'instagram.com', 'wired.com',
+                'dropbox.com', 'dropboxusercontent.com'
             ];
             const isHardSafeDomain = (h) =>
                 HARD_SAFE_DOMAINS.some(d => h === d || h.endsWith('.' + d));
@@ -292,19 +306,19 @@ chrome.declarativeNetRequest.getDynamicRules().then(rules => {
 });
 
 // 🌟 防线 3：全局最高优先级豁免 (防止未来任何新模块误伤官方)
-// 先安全移除旧规则（如果不存在也不会报错），再添加新规则，彻底杜绝 ID 冲突报错
-chrome.declarativeNetRequest.updateSessionRules({
-    removeRuleIds: [999999]
-}).then(() => {
-    return chrome.declarativeNetRequest.updateSessionRules({
-        addRules: [{
-            "id": 999999,
-            "priority": 1000000, // 一百万级碾压，高于任何 AI 或暂停规则
-            "action": { "type": "allow" },
-            "condition": {
-                "requestDomains": ["dewsecure.com", "api.dewsecure.com", "dewsecure-api.zero6039.workers.dev"],
-                "resourceTypes": ["main_frame", "sub_frame", "stylesheet", "script", "image", "font", "object", "xmlhttprequest", "ping", "csp_report", "media", "websocket", "other"]
-            }
-        }]
-    });
+// 改用 DynamicRules 并设置最高优先级，确保在 DNR 底层绝对放行
+chrome.declarativeNetRequest.updateDynamicRules({
+    removeRuleIds: [999999],
+    addRules: [{
+        "id": 999999,
+        "priority": 2147483647, // 最高优先级，碾压一切静态/动态拦截规则
+        "action": { "type": "allow" }, // 改为 allow，全资源放行
+        "condition": {
+            "requestDomains": [
+                "dewsecure.com", "api.dewsecure.com", "dewsecure-api.zero6039.workers.dev",
+                "dropbox.com", "dropboxstatic.com", "dropboxusercontent.com"
+            ],
+            "resourceTypes": ["main_frame", "sub_frame", "stylesheet", "script", "image", "font", "object", "xmlhttprequest", "ping", "csp_report", "media", "websocket", "other"]
+        }
+    }]
 }).catch(e => console.warn('设置官方豁免失败:', e));

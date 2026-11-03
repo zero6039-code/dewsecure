@@ -191,7 +191,12 @@ export async function runAICheck(url, tabId = null, isThirdParty = false) {
             }
             
             // 🌟 防线 1：AI 拦截前置豁免检查 (绝对白名单)
-            const HARD_SAFE_DOMAINS = ['github.com', 'cloudflare.com', 'apple.com', 'microsoft.com', 'google.com', 'gstatic.com', 'googleapis.com', 'forbes.com', 'forbesimg.com', 'cloudflareinsights.com', 'cnn.io', 'discomax.com', 'max.com'];
+            const HARD_SAFE_DOMAINS = [
+            'github.com', 'cloudflare.com', 'apple.com', 'microsoft.com', 
+            'google.com', 'gstatic.com', 'googleapis.com', 'forbes.com', 
+            'forbesimg.com', 'cloudflareinsights.com', 'cnn.io', 'discomax.com', 'max.com',
+            'dropbox.com', 'dropboxstatic.com', 'dropboxusercontent.com'
+        ];
             if (HARD_SAFE_DOMAINS.some(d => domain === d || domain.endsWith('.' + d))) return;
             if (domain === 'dewsecure.com' || domain.endsWith('.dewsecure.com')) return;
 
