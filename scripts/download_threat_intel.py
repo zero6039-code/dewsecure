@@ -33,13 +33,24 @@ print(f"📦 URLhaus 返回 {len(items)} 条近期条目")
 domains = []           # 保序去重：URLhaus recent 最新在前
 seen = set()
 
+# 🛡️ M-4 修复：排除共享托管域名（防止整个平台被误杀）
+SHARED_HOSTING = ['github.io', 'githubusercontent.com', 'blogspot.com', 'pages.dev', 'vercel.app', 'netlify.app', 'herokuapp.com', 'glitch.me', 'web.app', 'firebaseapp.com', 'workers.dev']
+
+
 for item in items:
     raw_url = item.get("url")
     if not raw_url:
         continue
     try:
+        # 🛡️ M-4 修复：只处理在线状态的恶意 URL
+        if item.get('url_status') != 'online':
+            continue
+
         host = urlparse(raw_url).hostname
         if host and host not in seen:
+            # 🛡️ M-4 修复：过滤共享托管域名
+            if any(host == d or host.endswith('.' + d) for d in SHARED_HOSTING):
+                continue
             seen.add(host)
             domains.append(host)
     except:
@@ -73,7 +84,7 @@ print(f"✅ 已生成 {output_file}，准备上传 R2。")
 # Ed25519 签名（与模型签名同格式：{version}:{sha256}）
 # ==========================================
 sha256 = hashlib.sha256(json_data.encode('utf-8')).hexdigest()
-version = datetime.now(timezone.utc).strftime("intel-%Y%m%d")
+version = datetime.now(timezone.utc).strftime("intel-%Y%m%d%H%M%S")
 
 private_key_hex = os.environ.get('ED25519_PRIVATE_KEY')
 if private_key_hex:

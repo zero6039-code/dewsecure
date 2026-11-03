@@ -111,6 +111,16 @@ export async function updateThreatIntel() {
             throw new Error('Ed25519 signature invalid');
         }
 
+        // 🛡️ M-4 修复：版本单调性检查（防回放攻击）
+        const { [CACHE_KEY]: localCache } = await chrome.storage.local.get(CACHE_KEY);
+        if (localCache && localCache.sigData && localCache.sigData.version) {
+            // 格式为 intel-YYYYMMDDHHMMSS，可直接按字符串比对
+            if (sigData.version <= localCache.sigData.version) {
+                console.warn(`🛡️ [ThreatIntel] 拒绝回放：远端版本(${sigData.version}) <= 本地版本(${localCache.sigData.version})`);
+                return; // 直接退出，保留本地旧缓存
+            }
+        }
+
         console.log('✅ [ThreatIntel] 签名校验通过，写入本地缓存...');
         const rulesData = JSON.parse(new TextDecoder().decode(rulesBuffer));
         // 🌟 缓存到本地
