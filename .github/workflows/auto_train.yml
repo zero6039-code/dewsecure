@@ -104,7 +104,7 @@ jobs:
         run: |
           wget https://downloads.rclone.org/v1.68.1/rclone-v1.68.1-linux-amd64.deb
           # 🔒 M-14 修复：校验和硬编码，防止同源篡改
-          EXPECTED_SHA="e38618e0578da7b1ae8f2b752e553c90b47ef6e8a82df2e41328658ba6ee66a1"
+          EXPECTED_SHA="d84e2e78d6a28fbda4ba06c40c8566b8b58f84f79918e173b16186d2071c8547"
           ACTUAL_SHA=$(sha256sum rclone-v1.68.1-linux-amd64.deb | awk '{print $1}')
           if [ "$EXPECTED_SHA" != "$ACTUAL_SHA" ]; then
             echo "❌ SHA256 mismatch! Security risk."
