@@ -49,19 +49,20 @@ jobs:
         working-directory: models
         run: |
           MACRO_F1=$(python -c "import json; print(round(json.load(open('weights/model_meta.json'))['macroF1'], 4))")
-          VERSION="V${{ github.run_number }}.$(date -u +%y%m%d)"
+          VERSION="V${{ github.run_number }}.$(date -u +%Y%m%d)"
           echo "macro_f1=$MACRO_F1" >> $GITHUB_OUTPUT
           echo "version=$VERSION" >> $GITHUB_OUTPUT
-        - name: 🛡️ 回归与质量门禁校验
-          working-directory: models
-          run: |
-            if [ ! -f "weights/baseline_meta.json" ]; then
-              echo "⚠️ 缺少 baseline_meta.json，跳过对比，仅校验绝对阈值"
-              echo '{"macroF1": 0.0}' > weights/baseline_meta.json
-            fi
-            python training/gate.py --meta weights/model_meta.json --baseline weights/baseline_meta.json --min-macro-f1 0.85
 
-        - name: 将模型产物上传为 Artifact
+      - name: 🛡️ 回归与质量门禁校验
+        working-directory: models
+        run: |
+          if [ ! -f "weights/baseline_meta.json" ]; then
+            echo "⚠️ 缺少 baseline_meta.json，跳过对比，仅校验绝对阈值"
+            echo '{"macroF1": 0.0}' > weights/baseline_meta.json
+          fi
+          python training/gate.py --meta weights/model_meta.json --baseline weights/baseline_meta.json --min-macro-f1 0.85
+
+      - name: 将模型产物上传为 Artifact
         uses: actions/upload-artifact@v4
         with:
           name: trained-model
@@ -94,8 +95,7 @@ jobs:
         env:
           ED25519_PRIVATE_KEY: ${{ secrets.ED25519_MODEL_KEY }}
         run: |
-          # 🛡️ 核心修复：在 run 脚本里动态生成变量，Shell 才能真正执行 date 命令
-          export VERSION="V${{ github.run_number }}.$(date -u +%y%m%d)"
+          export VERSION="V${{ github.run_number }}.$(date -u +%Y%m%d)"
           echo "正在签名的版本: $VERSION"
           echo "VERSION=$VERSION" >> $GITHUB_ENV
           python training/sign_model.py
