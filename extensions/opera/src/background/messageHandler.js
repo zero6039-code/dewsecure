@@ -1,7 +1,8 @@
 import { getSettings, SETTINGS_KEY, STATS_KEY, LOG_KEY } from './settings.js';
 import { getInstallationId } from '../deviceManager.js';
 import { recordBlock, getMatchedStats } from './stats.js';
-import { getDomain } from 'tldts'; // 👈 引入 tldts
+import { getDomain } from 'tldts';
+import { jwtPayload } from '../authManager.js'; // 🔒 M-3 修复：引入安全解析工具
 
 // 🔒 分离广告与追踪器规则集，实现独立开关
 const ADS_RULESETS = ['ads_1a', 'ads_1b', 'ads_2', 'ads_3', 'ads_4', 'anti_affiliate'];
@@ -224,15 +225,11 @@ export async function handleMessage(message, sender) {
                 // 🔒 M1 修复：使用 getETLD1 精准提取，防止 shopee.com.my 被截断为 com.my
                 const domainOnly = getETLD1(host);
                 
-                // 🔒 M-3 修复：安全的 JWT 解码，修复 atob 无法处理 base64url 的抛错
+                // 🔒 M-3 修复：使用统一的 jwtPayload 安全解析
                 let userId = null;
                 if (user && user.token) {
-                    try {
-                        const b64 = user.token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/');
-                        const bin = atob(b64.padEnd(Math.ceil(b64.length / 4) * 4, '='));
-                        const payload = JSON.parse(new TextDecoder().decode(Uint8Array.from(bin, (c) => c.charCodeAt(0))));
-                        userId = payload.sub;
-                    } catch (e) {}
+                    const payload = jwtPayload(user.token);
+                    if (payload) userId = payload.sub;
                 }
 
                 const SUPABASE_URL = 'https://uvbaioqqjqseapcancvi.supabase.co';

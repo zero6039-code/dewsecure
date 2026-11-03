@@ -85,20 +85,53 @@ function parseVer(v) {
     return m ? parseInt(m[1], 10) : 0;
 }
 
-// 🔒 M-8 修复：校验权重形状和有效性
+// 🔒 M-8 修复：精确校验 {coef: [3][16418], intercept: [3]} 结构
 function isValidModelShape(modelJson) {
-    if (!modelJson) return false;
-    // 兼容直接输出一维数组，或包裹在 weights 属性中
-    const weights = modelJson.weights || modelJson;
-    if (!Array.isArray(weights)) return false;
-    
-    // 检查维度（特征数 16418，类别数 3）
-    if (weights.length !== 16418 * 3) return false;
-    
-    // 检查数值有限性（过滤 NaN / Infinity）
-    for (let i = 0; i < weights.length; i++) {
-        if (!Number.isFinite(weights[i])) return false;
+    if (!modelJson || typeof modelJson !== 'object') return false;
+
+    const coef = modelJson.coef;
+    const intercept = modelJson.intercept;
+
+    // 1. 检查 coef 是否存在且为数组
+    if (!Array.isArray(coef) || coef.length !== 3) {
+        console.warn('[ModelManager] coef 格式非法或缺失');
+        return false;
     }
+
+    // 2. 检查 intercept 是否存在且为数组
+    if (!Array.isArray(intercept) || intercept.length !== 3) {
+        console.warn('[ModelManager] intercept 格式非法或缺失');
+        return false;
+    }
+
+    // 3. 检查每个类别的权重维度是否为 16418
+    for (let i = 0; i < 3; i++) {
+        if (!Array.isArray(coef[i]) || coef[i].length !== 16418) {
+            console.warn(`[ModelManager] coef[${i}] 维度非法: 预期 16418, 实际 ${coef[i]?.length}`);
+            return false;
+        }
+    }
+
+    // 4. 抽样检查数值有限性（防止 NaN/Infinity 投毒）
+    const isFiniteCheck = (arr) => {
+        for (let i = 0; i < arr.length; i++) {
+            if (!Number.isFinite(arr[i])) return false;
+        }
+        return true;
+    };
+
+    if (!intercept.every(Number.isFinite)) {
+        console.warn('[ModelManager] intercept 包含非法数值');
+        return false;
+    }
+
+    for (let i = 0; i < 3; i++) {
+        if (!isFiniteCheck(coef[i])) {
+            console.warn(`[ModelManager] coef[${i}] 包含 NaN/Infinity`);
+            return false;
+        }
+    }
+
     return true;
 }
 

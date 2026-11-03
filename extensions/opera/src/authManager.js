@@ -7,6 +7,17 @@ const SETTINGS_KEY = 'dewsecure_settings';
 const SUPABASE_URL = 'https://uvbaioqqjqseapcancvi.supabase.co';
 const SUPABASE_ANON_KEY = 'sb_publishable_xiiA-yt_jRKkzRdkYkoWJA_CVZjNjq8';
 
+// 🔒 M-3 修复：安全的 JWT 解析工具，处理 Base64URL 与 UTF-8 字符
+export function jwtPayload(token) {
+    try {
+        const b64 = token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/');
+        const bin = atob(b64.padEnd(Math.ceil(b64.length / 4) * 4, '='));
+        return JSON.parse(new TextDecoder().decode(Uint8Array.from(bin, (c) => c.charCodeAt(0))));
+    } catch (e) {
+        return null;
+    }
+}
+
 export async function sendOTP(email) {
     try {
         const res = await fetch(`${SUPABASE_URL}/auth/v1/otp`, {
@@ -67,7 +78,6 @@ export async function saveExternalAuth(payload) {
     const { [USER_KEY]: oldUser } = await chrome.storage.local.get(USER_KEY);
     const emailChanged = email && oldUser && oldUser.email !== email;
 
-    // 1. 只保存核心认证信息，绝不保存业务数据（tier等）
     const user = { 
         email: email || oldUser?.email || '',
         tier: emailChanged ? 'free' : (oldUser?.tier || 'free'), 
@@ -78,21 +88,18 @@ export async function saveExternalAuth(payload) {
 
     await chrome.storage.local.set({ [USER_KEY]: user });
 
-    // 2. 🌟 核心修复：强制等待云端拉取最新权限数据
     try {
         await fetchUserProfile();
     } catch (e) {
         console.warn('拉取最新权限失败:', e);
     }
     
-    // 3. 云端拉取完毕，通知 UI 刷新
     chrome.runtime.sendMessage({ type: 'AUTH_STATE_CHANGED' }).catch(() => {});
     
     return { ok: true };
 }
 
 export async function logoutUser() {
-    // 🔒 S-06 修复：先向 Supabase 发送服务端注销，吊销 Token
     try {
         const { [USER_KEY]: user } = await chrome.storage.local.get(USER_KEY);
         if (user && user.token) {
@@ -126,7 +133,6 @@ export function formatDate(timestamp) {
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
 
-// 🌟 核心：无感刷新 Token
 async function refreshAccessToken(user) {
     if (!user.refreshToken) return null;
     try {
@@ -152,7 +158,6 @@ async function refreshAccessToken(user) {
     }
 }
 
-// 拦截请求，如果 401 或提前 5 分钟过期则自动续期重试
 async function fetchWithAuth(url, options, user) {
     let currentUser = { ...user };
     
@@ -185,8 +190,11 @@ export async function fetchUserProfile() {
     if (!user || !user.token) return null;
 
     try {
-        // 🌟 核心修复：必须带上当前用户的 ID 过滤，否则会被 RLS 拦截导致查不到数据！
-        const userId = JSON.parse(atob(user.token.split('.')[1])).sub;
+        // 🔒 M-3 修复：使用 jwtPayload
+        const payload = jwtPayload(user.token);
+        if (!payload || !payload.sub) return null;
+        
+        const userId = payload.sub;
         const res = await fetchWithAuth(`${SUPABASE_URL}/rest/v1/profiles?id=eq.${userId}&select=tier,subscription_ends_at,trial_ends_at,referral_days_balance,family_owner_id,created_at,stripe_customer_id`, {
             headers: { 'apikey': SUPABASE_ANON_KEY }
         }, user);
@@ -236,7 +244,6 @@ export async function fetchUserProfile() {
                         }
                     }
                     
-                    // 判断是否是试用
                     updatedUser.isTrial = (updatedUser.tier === 'trial') || (p.trial_ends_at && !p.stripe_customer_id);
                 }
             }
