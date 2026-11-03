@@ -1,4 +1,5 @@
-// 🔒 P-01 硬核钓鱼检测：品牌仿冒、同形字与防误杀优化 (V3)
+// 🔒 P-01 硬核钓鱼检测：品牌仿冒、同形字与防误杀优化 (V4 修复 H-2)
+import { parse } from 'tldts';
 
 const BRAND_DOMAINS = {
     'paypal': ['paypal.com', 'paypal.me', 'paypalobjects.com'],
@@ -36,13 +37,25 @@ const SAFE_HOSTS = [
     'apple.com', 'amazon.com', 'cloudflare.com', 'reddit.com'
 ];
 
+// 简单的 IDN (Punycode) 同形字解码处理函数
+function checkIdnHomograph(host) {
+    if (!host.includes('xn--')) return false;
+    // 对于 Punycode 域名，若去掉 xn-- 后包含品牌词的后缀（如 xn--pple-43d -> pple），判定为 IDN 伪装
+    // 合法的 IDN（如中文 xn--fiqs8s）通常不包含长串英文，因此不会误杀
+    const stripped = host.replace(/xn--/g, '');
+    return BRANDS.some(brand => {
+        const tail = brand.slice(1);
+        return tail.length >= 3 && stripped.includes(tail);
+    });
+}
+
 export function detectBrandPhishing(url) {
     try {
         const u = new URL(url);
         let host = u.hostname.toLowerCase().replace(/^www\./, '');
         const pathAndSearch = (u.pathname + u.search).toLowerCase();
         
-        // 🛡️ 安全网 1：对全球高信誉域名直接放行，绝不检查它们的路径（防 github.com/apple/verify 误杀）
+        // 🛡️ 安全网 1：对全球高信誉域名直接放行，绝不检查它们的路径
         if (SAFE_HOSTS.some(safe => host === safe || host.endsWith('.' + safe))) {
             return false;
         }
@@ -52,8 +65,9 @@ export function detectBrandPhishing(url) {
             return true;
         }
 
-        // 2. 拦截包含 @ 的混淆 URL
-        if (url.includes('@') && !url.includes('mailto:')) {
+        // 2. [H-2 修复] 精准拦截 userinfo 混淆 (如 https://paypal.com@evil.com)
+        // 使用 URL 解析的 username 属性，绝不误杀 medium.com/@user
+        if (u.username && u.username.includes('.')) {
             return true;
         }
 
@@ -64,29 +78,44 @@ export function detectBrandPhishing(url) {
             return true;
         }
 
+        // [H-2 修复] 预解析注册域与子域
+        const domainInfo = parse(host);
+        const registeredDomain = domainInfo.domain;
+        const subdomain = domainInfo.subdomain || '';
+
         // 4. 品牌仿冒检测
         for (const brand of BRANDS) {
             const officialDomains = BRAND_DOMAINS[brand];
             
-            // 4.1 官方域名直接跳过（如 paypal.me）
-            const isOfficial = officialDomains.some(od => host === od || host.endsWith('.' + od));
-            if (isOfficial) continue;
+            // 4.1 官方注册域直接跳过 (如登录页 login.paypal.com，注册域是 paypal.com)
+            const isOfficialReg = officialDomains.some(od => registeredDomain === od || (registeredDomain && registeredDomain.endsWith('.' + od)));
+            if (isOfficialReg) continue;
 
-            // 4.2 同形字检测（如 paypa1 -> paypal）
+            // 4.2 [H-2 修复] 子域欺骗检测 (如 paypal.com.evil-site.net)
+            if (registeredDomain && subdomain) {
+                const subLabels = subdomain.split('.');
+                if (subLabels.some(label => label === brand || label.startsWith(brand + '-'))) {
+                    return true;
+                }
+            }
+
+            // 4.3 IDN 同形字检测 (如 xn--pple-43d.com)
+            if (checkIdnHomograph(host)) {
+                return true;
+            }
+
+            // 4.4 传统同形字检测（如 paypa1 -> paypal）
             const deobfuscated = host.replace(/0/g, 'o').replace(/1/g, 'l').replace(/3/g, 'e').replace(/5/g, 's').replace(/rn/g, 'm');
-            // 🔒 只有当原域名【不包含】品牌，但替换后【包含】品牌，才算同形字
             if (!host.includes(brand) && deobfuscated.includes(brand)) {
                 return true; 
             }
 
-            // 4.3 域名包含品牌词但非官方（防误杀 notpaypal.com, myappleblog.com）
+            // 4.5 域名包含品牌词但非官方（防误杀 notpaypal.com, myappleblog.com）
             if (host.includes(brand)) {
-                // 分离出品牌词前后的内容，例如 host = "apple-login.com", parts = ["", "-login.com"]
                 const parts = host.split(brand);
                 const prefix = parts[0];
                 const suffix = parts[1] || '';
                 
-                // 只有品牌词前后有非字母字符（如 -_），或者带有诱导词（如 login），才拦截
                 const isSuspiciousPrefix = /[-_@.]/.test(prefix) || PHISH_KEYWORDS.some(kw => prefix.includes(kw));
                 const isSuspiciousSuffix = /^[-_]/.test(suffix) || PHISH_KEYWORDS.some(kw => suffix.includes(kw));
                 
