@@ -324,6 +324,10 @@ def build_dataset():
         'criteo.com', 'criteo.net', 'taboola.com', 'outbrain.com',
         'twitter.com', 'x.com', 'linkedin.com', 'tiktok.com',
         'yandex.ru', 'mc.yandex.ru', 'hotjar.com', 'mixpanel.com',
+        # 🛡️ 修复：加入底层 CDN 与安全服务商，防止因 StevenBlack 列表误伤导致模型特征污染
+        'cloudflare.com', 'cloudflareinsights.com', 'amazonaws.com',
+        'azure.com', 'microsoft.com', 'apple.com', 'github.com',
+        'jsdelivr.net', 'unpkg.com', 'gstatic.com', 'cdnjs.cloudflare.com'
     }
     legit -= KNOWN_TRACKERS
     print(f"  → 剔除已知追踪方后: {len(legit)} 个")
