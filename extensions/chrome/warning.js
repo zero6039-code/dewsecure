@@ -25,14 +25,24 @@ document.addEventListener('DOMContentLoaded', async () => {
     const params = new URLSearchParams(window.location.search);
     const type = params.get('type');
     
-    // 兼容 domain 和 url 参数
-    let targetDomain = params.get('domain') || params.get('url');
-    if (targetDomain === '\\0' || targetDomain === '%5C0') {
-        targetDomain = 'Known Malicious Site';
+    // 🔒 M-1 修复：杜绝二次 decodeURIComponent 抛错
+    const raw = params.get('domain') || params.get('url') || '';
+    let targetUrlObj = null;
+    let displayDomain = raw; // 默认直接显示原文本
+
+    if (raw === '\\0' || raw === '%5C0' || !raw) {
+        displayDomain = 'Known Malicious Site';
+    } else {
+        try { 
+            // 尝试构造 URL 对象，用于后续的“继续访问”跳转
+            targetUrlObj = new URL(/^https?:\/\//i.test(raw) ? raw : `https://${raw}`); 
+            // 如果构造成功，显示 hostname（更干净）
+            displayDomain = targetUrlObj.hostname;
+        } catch (e) {
+            // 如果解析失败（比如传了空格等非法字符），直接保留原始字符串展示
+            displayDomain = raw;
+        }
     }
-    
-    // 解码域名
-    const displayDomain = targetDomain ? decodeURIComponent(targetDomain) : 'Unknown Malicious Site';
     console.log('🛡️ [Warning] 解析到的真实域名:', displayDomain);
 
     // 延迟 100ms，等 i18n 渲染完后，强行覆盖所有 "Unknown URL"
@@ -68,18 +78,15 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     if (btnContinue) {
         btnContinue.onclick = () => {
-            if (targetDomain && targetDomain !== 'Known Malicious Site') {
-                let pureDomain = targetDomain;
-                try {
-                    pureDomain = new URL(targetDomain.startsWith('http') ? targetDomain : `https://${targetDomain}`).hostname;
-                } catch(e) {}
-
-                // 🔒 H-3 修复：移除粗糙的 length < 4 判断，公共后缀交由后台 messageHandler 使用 tldts 严格校验
-                if (!pureDomain.includes('.') || pureDomain === 'Known Malicious Site') {
-                    alert('Invalid domain to whitelist.');
+            if (targetUrlObj && displayDomain !== 'Known Malicious Site') {
+                // 🛡️ 协议白名单，防止 javascript: 等 XSS 注入
+                if (!/^https?:$/i.test(targetUrlObj.protocol)) {
+                    alert('Invalid URL protocol.');
                     return;
                 }
-
+                
+                const pureDomain = targetUrlObj.hostname;
+                
                 // 禁用按钮防止重复点击
                 btnContinue.disabled = true;
                 btnContinue.textContent = "Bypassing...";
@@ -89,7 +96,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                     if (res && res.ok) {
                         // 加了 100ms 延迟，确保 Chrome 浏览器的 DNR 引擎加载了新的放行规则
                         setTimeout(() => {
-                            window.location.href = targetDomain.startsWith('http') ? targetDomain : `https://${targetDomain}`;
+                            window.location.href = targetUrlObj.href;
                         }, 100);
                     } else {
                         alert("放行失败，请重试！");
