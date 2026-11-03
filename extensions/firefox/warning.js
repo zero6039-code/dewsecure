@@ -74,8 +74,8 @@ document.addEventListener('DOMContentLoaded', async () => {
                     pureDomain = new URL(targetDomain.startsWith('http') ? targetDomain : `https://${targetDomain}`).hostname;
                 } catch(e) {}
 
-                // 🔒 H3 修复：本地拦截公共后缀和非法域名
-                if (!pureDomain.includes('.') || pureDomain.length < 4 || pureDomain === 'Known Malicious Site') {
+                // 🔒 H-3 修复：移除粗糙的 length < 4 判断，公共后缀交由后台 messageHandler 使用 tldts 严格校验
+                if (!pureDomain.includes('.') || pureDomain === 'Known Malicious Site') {
                     alert('Invalid domain to whitelist.');
                     return;
                 }
@@ -117,9 +117,6 @@ document.addEventListener('DOMContentLoaded', async () => {
         
         const proTip = document.getElementById('pro-tip');
         if (proTip) proTip.style.display = 'none';
-
-        // 🛡️ 修复：把选择权交给用户，保留“我是专家”按钮，不隐藏
-        // if (btnContinue) btnContinue.style.display = 'none';
 
         if (btnClose) {
             btnClose.textContent = "Close this page";
