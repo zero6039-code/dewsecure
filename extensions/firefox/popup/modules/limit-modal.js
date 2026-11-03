@@ -56,8 +56,8 @@ export function showDeviceLimitModal(t) {
                 const { dewsecure_user: user } = await chrome.storage.local.get('dewsecure_user');
                 if (user && user.token) {
                     const u = new URL(url);
-                    u.searchParams.set('token', user.token);
-                    if (user.refreshToken) u.searchParams.set('refresh', user.refreshToken);
+                    // 🔒 H4 修复：使用 Hash 传递 Token，避免被记录到服务器日志和 Referer 中
+                    u.hash = `token=${encodeURIComponent(user.token)}` + (user.refreshToken ? `&refresh=${encodeURIComponent(user.refreshToken)}` : '');
                     url = u.toString();
                 }
                 chrome.tabs.create({ url });

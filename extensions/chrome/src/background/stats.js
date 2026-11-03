@@ -1,60 +1,89 @@
 import { STATS_KEY, LOG_KEY } from './settings.js';
 
-// 恢复原版依赖本地调试的统计方式，避免 store 版报错
-export function initStatsListener() {
-    if (chrome.declarativeNetRequest && chrome.declarativeNetRequest.onRuleMatchedDebug) {
-        chrome.declarativeNetRequest.onRuleMatchedDebug.addListener(async (info) => {
-            try {
-                const { request } = info;
-                if (!request || !request.url) return;
-                const host = new URL(request.url).hostname;
-                await recordBlock(host + '/dnr', 'dnr');
-            } catch (e) {}
+// 内存缓存，避免 Service Worker 频繁休眠和读写存储导致的丢失
+let memoryStats = { totalBlocked: 0, todayBlocked: 0, date: '' };
+let memoryLogs = [];
+let isLoaded = false;
+let saveTimeout = null;
+
+// 启动时从本地加载一次
+async function ensureLoaded() {
+    if (isLoaded) return;
+    const res = await chrome.storage.local.get([STATS_KEY, LOG_KEY]);
+    if (res[STATS_KEY]) memoryStats = res[STATS_KEY];
+    if (res[LOG_KEY]) memoryLogs = res[LOG_KEY];
+    
+    const todayStr = new Date().toDateString();
+    if (memoryStats.date !== todayStr) {
+        memoryStats.todayBlocked = 0;
+        memoryStats.date = todayStr;
+    }
+    isLoaded = true;
+}
+
+// 批量写入防抖（每秒最多写一次）
+function scheduleSave() {
+    if (saveTimeout) return;
+    saveTimeout = setTimeout(async () => {
+        saveTimeout = null;
+        await chrome.storage.local.set({
+            [STATS_KEY]: memoryStats,
+            [LOG_KEY]: memoryLogs
         });
+    }, 1000);
+}
+
+export function initStatsListener() {
+    // 🛡️ Whale 等浏览器如果不支持 onRuleMatchedDebug 会自动跳过
+    if (chrome.declarativeNetRequest && chrome.declarativeNetRequest.onRuleMatchedDebug) {
+        try {
+            chrome.declarativeNetRequest.onRuleMatchedDebug.addListener(async (info) => {
+                try {
+                    const { request } = info;
+                    if (!request || !request.url) return;
+                    const host = new URL(request.url).hostname;
+                    await recordBlock(host + '/dnr', 'dnr');
+                } catch (e) {}
+            });
+        } catch(e) {
+            console.warn('onRuleMatchedDebug 不可用:', e);
+        }
     }
 }
 
 export async function getMatchedStats() {
-    let { [STATS_KEY]: stats } = await chrome.storage.local.get(STATS_KEY);
-    if (!stats || typeof stats !== 'object') stats = { totalBlocked: 0, todayBlocked: 0 };
-    
-    const todayStr = new Date().toDateString();
-    if (stats.date !== todayStr) {
-        stats.todayBlocked = 0;
-        stats.date = todayStr;
-    }
-    return stats;
+    await ensureLoaded();
+    return { 
+        totalBlocked: memoryStats.totalBlocked, 
+        todayBlocked: memoryStats.todayBlocked 
+    };
 }
 
 export async function recordBlock(url, type) {
-    const { [STATS_KEY]: stats = { totalBlocked: 0, todayBlocked: 0, date: '' } } = await chrome.storage.local.get(STATS_KEY);
-    const { [LOG_KEY]: logs = [] } = await chrome.storage.local.get(LOG_KEY);
+    await ensureLoaded();
     
     const todayStr = new Date().toDateString();
-    if (stats.date !== todayStr) {
-        stats.todayBlocked = 0;
-        stats.date = todayStr;
+    if (memoryStats.date !== todayStr) {
+        memoryStats.todayBlocked = 0;
+        memoryStats.date = todayStr;
     }
     
-    stats.totalBlocked = (stats.totalBlocked || 0) + 1;
-    stats.todayBlocked = (stats.todayBlocked || 0) + 1;
+    memoryStats.totalBlocked += 1;
+    memoryStats.todayBlocked += 1;
     
-    logs.push({
+    memoryLogs.push({
         url,
         type,
         date: todayStr,
         ts: Date.now()
     });
-    if (logs.length > 1000) logs.splice(0, logs.length - 1000);
+    if (memoryLogs.length > 1000) memoryLogs.shift();
     
-    await chrome.storage.local.set({
-        [STATS_KEY]: stats,
-        [LOG_KEY]: logs
-    });
+    scheduleSave();
     
-    // 更新图标角标
+    // 实时更新角标
     if (chrome.action && chrome.action.setBadgeText) {
-        chrome.action.setBadgeText({ text: stats.todayBlocked.toString() });
+        chrome.action.setBadgeText({ text: memoryStats.todayBlocked.toString() });
         chrome.action.setBadgeBackgroundColor({ color: '#3b82f6' });
     }
 }

@@ -3,7 +3,7 @@ import * as ed from '@noble/ed25519';
 import { sha512 } from '@noble/hashes/sha512';
 
 ed.etc.sha512Sync = (...m) => sha512(ed.etc.concatBytes(...m));
-const ED25519_PUBLIC_KEY_HEX = '259eab8b493845eb78e345a139584c6812272d7183c7da29f774dea2d443fe77';
+const ED25519_PUBLIC_KEY_HEX = 'a21b4c875ab246b58adc225ddf66a054cfa7b79ed2093fcc2f97598fd1197631';
 const CACHE_KEY = 'dewsecure_intel_cache';
 
 // 🌟 核心函数：只负责把规则应用到浏览器（不涉及网络）
@@ -13,44 +13,59 @@ async function applyRulesToDNR() {
     const { dewsecure_settings: settings } = await chrome.storage.local.get('dewsecure_settings');
     const isEnabled = settings?.intelEnabled !== false;
 
-    // 先清理现有的动态规则
     const existing = await chrome.declarativeNetRequest.getDynamicRules();
-    if (existing.length > 0) {
-        await chrome.declarativeNetRequest.updateDynamicRules({
-            removeRuleIds: existing.map(r => r.id)
-        });
-    }
+    const existingIds = existing.map(r => r.id);
 
-    // 如果未登录、非 PRO 或开关关闭，清空后直接返回（实现瞬间放行）
+    // 如果未登录、非 PRO 或开关关闭，清空后直接返回
     if (!isPro || !isEnabled) {
+        if (existingIds.length > 0) {
+            await chrome.declarativeNetRequest.updateDynamicRules({ removeRuleIds: existingIds });
+        }
         console.log('⏸️ [ThreatIntel] 开关已关闭或非 PRO，已清空拦截规则。');
         return;
     }
 
-    // 如果是打开的，从本地缓存读取规则并注入
     const { [CACHE_KEY]: cache } = await chrome.storage.local.get(CACHE_KEY);
     if (cache && cache.rulesData) {
-        // 将 block 改为 redirect
-        const processedRules = cache.rulesData.map(rule => {
-            if (rule.condition && rule.condition.resourceTypes) {
-                rule.condition.resourceTypes = ["main_frame", "sub_frame"];
-            }
-            const domain = rule.condition.requestDomains[0];
-            return {
-                ...rule,
-                action: {
-                    type: 'redirect',
-                    redirect: {
-                        extensionPath: `/warning.html?type=intel&domain=${encodeURIComponent(domain)}`
-                    }
-                }
-            };
-        });
+        const HARD_SAFE = [
+            'github.com', 'githubusercontent.com', 'github.io', 'gitlab.com', 
+            'npmjs.com', 'cloudflare.com', 'microsoft.com', 'apple.com', 
+            'dewsecure.com', 'google.com', 'youtube.com', 'facebook.com'
+        ];
 
+        const newRules = [];
+        for (const rule of cache.rulesData) {
+            try {
+                // 🛡️ M4 修复：安全提取 domain，防止 undefined 抛异常
+                const domain = rule.condition?.requestDomains?.[0];
+                if (!domain) continue; 
+                
+                if (HARD_SAFE.some(d => domain === d || domain.endsWith('.' + d))) continue;
+                
+                rule.condition.resourceTypes = ["main_frame", "sub_frame"];
+                newRules.push({
+                    ...rule,
+                    action: {
+                        type: 'redirect',
+                        redirect: {
+                            extensionPath: `/warning.html?type=intel&domain=${encodeURIComponent(domain)}`
+                        }
+                    }
+                });
+            } catch (e) {
+                console.warn('[ThreatIntel] 忽略一条异常规则:', e);
+            }
+        }
+
+        // 🛡️ M4 修复：原子替换规则，防清空
         await chrome.declarativeNetRequest.updateDynamicRules({
-            addRules: processedRules
+            removeRuleIds: existingIds,
+            addRules: newRules
         });
-        console.log(`✅ [ThreatIntel] 已从本地缓存恢复 ${processedRules.length} 条拦截规则！`);
+        console.log(`✅ [ThreatIntel] 已原子替换 ${newRules.length} 条拦截规则！`);
+    } else if (existingIds.length > 0) {
+        // 如果没有缓存但有旧规则，清空
+        await chrome.declarativeNetRequest.updateDynamicRules({ removeRuleIds: existingIds });
     }
 }
 
@@ -69,21 +84,21 @@ export async function updateThreatIntel() {
         }
 
         console.log('📡 [ThreatIntel] 正在拉取云端最新情报...');
-        const baseUrl = 'https://dewsecure-api.zero6039.workers.dev/api/intel';
+        const baseUrl = 'https://api.dewsecure.com/api/intel';
         
+        const headers = user?.token ? { 'Authorization': `Bearer ${user.token}` } : {};
         const [rulesRes, sigRes] = await Promise.all([
-            fetch(`${baseUrl}/threat-rules`, { cache: 'no-store' }),
-            fetch(`${baseUrl}/threat-rules.sig`, { cache: 'no-store' })
+            fetch(`${baseUrl}/threat-rules`, { cache: 'no-store', headers }),
+            fetch(`${baseUrl}/threat-rules.sig`, { cache: 'no-store', headers })
         ]);
 
         if (!rulesRes.ok || !sigRes.ok) throw new Error(`HTTP Error`);
 
-        const rulesData = await rulesRes.json();
+        // 🛡️ M4 修复：对原始 arrayBuffer 计算哈希，防止 JSON 重新序列化导致验签失败
+        const rulesBuffer = await rulesRes.arrayBuffer();
         const sigData = await sigRes.json();
-
-        // 验签
-        const rulesText = JSON.stringify(rulesData, null, 2);
-        const actualHash = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(rulesText))
+        
+        const actualHash = await crypto.subtle.digest('SHA-256', rulesBuffer)
             .then(buf => Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, '0')).join(''));
 
         if (actualHash !== sigData.sha256) throw new Error('SHA-256 mismatch');
@@ -97,6 +112,7 @@ export async function updateThreatIntel() {
         }
 
         console.log('✅ [ThreatIntel] 签名校验通过，写入本地缓存...');
+        const rulesData = JSON.parse(new TextDecoder().decode(rulesBuffer));
         // 🌟 缓存到本地
         await chrome.storage.local.set({ [CACHE_KEY]: { rulesData, sigData } });
         

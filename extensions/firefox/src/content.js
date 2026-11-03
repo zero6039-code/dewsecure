@@ -15,9 +15,11 @@
 
     if (window.__dewsecureInjected) return;
     
-    // ===== DewSecure Wired Bypass =====
-    if (window.location.hostname.includes('wired.com')) {
-        console.warn('🛡️ [DewSecure] 检测到 Wired，已自动豁免 DOM 清理以防止 React 水合失败。');
+    // ===== DewSecure 复杂 SPA 豁免名单 =====
+    // Forbes 拥有极其严格的 Datadome 反爬和 React 水合机制，任何 DOM 篡改都会导致白屏
+    const SPA_SAFE_LIST = ['wired.com', 'forbes.com'];
+    if (SPA_SAFE_LIST.some(d => window.location.hostname.includes(d))) {
+        console.warn('🛡️ [DewSecure] 检测到复杂 SPA 站点，已自动豁免 DOM 清理以防止白屏。');
         return; 
     }
 
@@ -26,8 +28,7 @@
     // ===== 调试开关 =====
     const DEBUG = false;
     const warn = DEBUG ? console.warn.bind(console) : () => {};
-    const log  = DEBUG ? console.log.bind(console, '[DewSecure]')  : () => {};
-
+    
     const AD_PATTERN      = /(^|[-_])(ad|ads|advert|banner|popup|sponsor|promo|cookie|consent|push|tracking|tracker|ad-slot|ad-box|ad-wrap|ad-frame|ad-banner)([-_]|$)/i;
     const CAPTCHA_PATTERN = /(verify|captcha|challenge|puzzle|recaptcha|hcaptcha|turnstile)/i;
 
@@ -39,6 +40,32 @@
             }
         } catch (e) {}
     }
+
+    // 🌟 F1 修复：监听页面发出的所有第三方网络请求（结合 AI 拦截广告）
+    try {
+        const seenThirdParty = new Set();
+        const observer = new PerformanceObserver((list) => {
+            const newHosts = [];
+            for (const entry of list.getEntries()) {
+                try {
+                    const urlObj = new URL(entry.name);
+                    const host = urlObj.hostname;
+                    // 提取主域进行比较，防止 recommendation.forbes.com 被当成第三方
+                    const getBaseDomain = (h) => h ? h.split('.').slice(-2).join('.') : '';
+                    if (host && getBaseDomain(host) !== getBaseDomain(window.location.hostname)) {
+                        if (!seenThirdParty.has(host)) {
+                            seenThirdParty.add(host);
+                            newHosts.push(host);
+                        }
+                    }
+                } catch (e) {}
+            }
+            if (newHosts.length > 0) {
+                safeSendMessage({ type: 'THIRD_PARTY_HOSTS', hosts: newHosts });
+            }
+        });
+        observer.observe({ type: 'resource', buffered: true });
+    } catch (e) {}
 
     // ===== DOM 净化统计上报 =====
     function reportDomHidden(element) {
@@ -68,108 +95,62 @@
         setTimeout(tryAppend, 100);
     }
 
-    // ===== 注入 CSS 1 =====
-    function injectBrutalCSS() {
+    // ===== 动态注入 CSS（根据真实开关生效） =====
+    function injectDynamicCSS(settings = {}) {
         const style = document.createElement('style');
-        style.id = '__dewsecure_style_1';
-        style.textContent = `
+        style.id = '__dewsecure_style_all';
+        
+        let css = `
+            /* 基础广告拦截 */
             .ad-banner, .ad-container, .ad-slot, .ad-wrapper, .ad-unit,
             .ad-panel, .ad-box, .ad-frame, .ad-iframe, .ad-sticky, .ad-overlay,
             [data-ad], [data-ad-slot], [data-ad-unit], [data-google-query-id],
             ins.adsbygoogle, iframe[src*="doubleclick"], iframe[id*="google_ads_iframe"],
-            .native-ad, .sponsored, .promoted, .advertisement {
-                display: none !important;
-                opacity: 0 !important;
-                pointer-events: none !important;
-                visibility: hidden !important;
-            }
-            #cookie-banner, .cookie-consent, [id*="cookie-notice"], [class*="cookie-banner"],
-            .gdpr-banner, #gdpr, [class*="gdpr"], .consent-bar, .cookie-snackbar, .cookie-toast,
-            #onetrust-consent-sdk, .optanon-alert-box-wrapper, #didomi-notice, #cookiebot,
-            .cc-window, .cli-modal, .moove-gdpr-infobar, .borlabs-cookie-box,
-            .exit-intent-popup, .exit-overlay, .newsletter-popup, .subscribe-box,
-            .notification-prompt, .push-notification-bar, .app-download-banner,
-            #onesignal-slidedown-container, .onesignal-slidedown-container,
-            #pushcrew-chrome-style-notification, #webpushr-prompt-wrapper,
-            #cleverpush-panel, .pushowl-notification-prompt, .fcm-notification-prompt,
-            .smart-banner, .promo-banner, .promo-widget, .welcome-mat,
-            .adblock-wall, .adblock-notice, .anti-adblock-overlay, .adblock-banner,
-            .adblock-warning, .adblock-detected-modal {
-                display: none !important;
-                pointer-events: none !important;
-            }
+            .native-ad, .sponsored, .promoted, .advertisement,
             .floating-ad, .video-ad, .google_ads_iframe, .OUTBRAIN, .taboola,
-            .in-article-ad, .dfp-ad, .gpt-ad {
-                display: none !important;
-                pointer-events: none !important;
-            }
-            .social-widget, .social-bar, .share-bar, .twitter-share-button,
-            .fb-like, .fb-share-button, .social-share-overlay {
-                display: none !important;
-            }
-        `;
-        appendStyleWhenReady(style, '__dewsecure_style_1');
-    }
-
-    // ===== 注入 CSS 2 =====
-    function injectExtraCSS() {
-        const style = document.createElement('style');
-        style.id = '__dewsecure_style_2';
-        style.textContent = `
+            .in-article-ad, .dfp-ad, .gpt-ad,
             #adLeaderboard, #adFrame, #ad-space, #ad-content, #ad-area, #ad-zone,
-            #ad-panel, #adUnit, #adSlot, #adBox, #div-gpt-ad, #google_ads_frame,
-            #adWrapper, #adBanner, #adContainer, #floating-ad, #popup-ad,
-            #in-article-ad, #middle-ad, #left-ad, #right-ad, #top-ad, #sidebar-ad,
-            #leaderboard-ad, #banner-ad, #ad-footer, #ad-header, #ad-sidebar,
-            #ad-bottom, #ad-top, #advertisement, #ad-wrapper, #ad-slot,
-            #ad-banner, #ad-container,
-            .text-ad, .textad, .advertorial, .branded-content, .content-recommendation,
-            .paid-content, .partner-content, .dianomi-ad, .adblade, .ntv-ad,
-            .zergnet-widget, .rc-widget, .mgid-widget, .amazon-adsystem,
-            .pubmatic-ad, .criteo-ad, .outbrain-widget, .trc_rbox,
-            .google-ads, .google-ad, .adsbygoogle,
-            .adverts, .advert, .adcontainer, .adslot, .adunit, .adblock,
-            .affiliate-link, .shopping-ad, .product-listing-ad, .companion-ad,
-            .postroll-ad, .midroll-ad, .preroll-ad,
-            .social-icons-bar, .follow-widget, .adsbox, .adzone,
-            [data-ad-source], [data-ad-provider], [data-adzone], [data-ad-placement],
-            [data-ad-manager], [data-adunit], [data-dfp-ad], [data-ad-zone],
-            [data-ad-id], [data-ad-network], [data-ad-format], [data-ad-size],
-            [data-ad-position], [data-ad-type],
-            [aria-label="sponsored"], [aria-label="ad"], [aria-label="advertisement"],
-            .osano-cm-window, #iubenda-cs-banner, .cky-consent-container,
-            #usercentrics-root, #truste-consent-track, #qc-cmp2-container,
-            #sd-cmp, #evidon-banner, .fc-consent-root, #consent_blackbar,
-            .securiti-cmp, .admiral-cmp, .sp_message_container,
-            .cookie-top-bar, .floating-cookie-notice, .privacy-banner,
-            #eu-cookie-law, .eu-cookie-law, .ccpa-banner, .generic-cookie-message,
-            .generic-cookie-bar, .pipl-banner, .appi-banner, .rgpd-banner,
-            .dsgvo-banner, .pdpa-banner, .popia-banner, .lgpd-banner,
-            .cookie-notice, .cookie-consent,
-            #pushowl-widget, #pushengage-subscribe, #aimtell-prompt,
-            #optimonk-popup, #optimonk-popup-container,
-            .notification-bell-widget, .push-bell, .push-notification-prompt,
-            .adblock-modal,
-            #ad-banner, #ad_banner, .ad_banner,
-            #popup-ad, .popup-ad, #popupAd, .popupAd,
-            #ad_overlay, .ad_overlay, #ad-overlay, .ad-overlay,
-            #interstitial-ad, .interstitial-ad, #interstitialAd, .interstitialAd,
-            #detected-popup, .detected-popup,
-            #adblock-popup, .adblock-popup,
-            #adblock-detected, .adblock-detected,
-            #anti-adblock, .anti-adblock,
-            #adexchanger, .adexchanger,
-            div[data-ad-id], div[data-adzone], div[data-ad-client],
-            iframe[src*="adexchangerapid"], iframe[src*="ntwkbc"], iframe[src*="usrpubtrk"],
-            body > div[style*="position:fixed"][style*="z-index:9"],
-            body > div[style*="position: fixed"][style*="z-index: 9"] {
+            .text-ad, .textad, .advertorial, .branded-content,
+            [data-ad-source], [data-ad-provider], [aria-label="sponsored"] {
                 display: none !important;
-                visibility: hidden !important;
                 opacity: 0 !important;
                 pointer-events: none !important;
+                visibility: hidden !important;
             }
         `;
-        appendStyleWhenReady(style, '__dewsecure_style_2');
+
+        // 根据开关判断是否追加 Cookie 相关规则
+        if (settings.hideCookieNotices !== false) {
+            css += `
+                /* Cookie 弹窗拦截 */
+                #cookie-banner, .cookie-consent, [id*="cookie-notice"], [class*="cookie-banner"],
+                .gdpr-banner, #gdpr, [class*="gdpr"], .consent-bar, .cookie-snackbar, .cookie-toast,
+                #onetrust-consent-sdk, .optanon-alert-box-wrapper, #didomi-notice, #cookiebot,
+                .cc-window, .cli-modal, .moove-gdpr-infobar, .borlabs-cookie-box,
+                .osano-cm-window, #iubenda-cs-banner, .cky-consent-container,
+                #usercentrics-root, #truste-consent-track, #qc-cmp2-container,
+                .cookie-top-bar, .floating-cookie-notice, .privacy-banner,
+                #eu-cookie-law, .eu-cookie-law, .ccpa-banner, .generic-cookie-message {
+                    display: none !important;
+                    pointer-events: none !important;
+                }
+            `;
+        }
+
+        // 根据开关判断是否追加 Social 相关规则
+        if (settings.blockSocialTrackers !== false) {
+            css += `
+                /* 社交追踪拦截 */
+                .social-widget, .social-bar, .share-bar, .twitter-share-button,
+                .fb-like, .fb-share-button, .social-share-overlay,
+                .social-icons-bar, .follow-widget {
+                    display: none !important;
+                }
+            `;
+        }
+
+        style.textContent = css;
+        appendStyleWhenReady(style, '__dewsecure_style_all');
     }
 
     // ===== 批处理：属性变化 =====
@@ -186,7 +167,7 @@
                 if (AD_PATTERN.test((el.className || '') + ' ' + (el.id || ''))) {
                     el.style.setProperty('display', 'none', 'important');
                     el.dataset.dwKilled = 'true';
-                    reportDomHidden(el); // 🌟 上报统计
+                    reportDomHidden(el);
                 }
             } catch (_) {}
         }
@@ -210,92 +191,6 @@
         checkTimer = setTimeout(flushCheck, 50);
     }
 
-    // ===== 初始化 =====
-    function init() {
-        // 🔒 F-01 终极豁免：不碰复杂的 SPA、地图与核心站点，防止白屏
-        const skipDomains = ['google.com', 'youtube.com', 'facebook.com', 'twitter.com', 'x.com', 'instagram.com', 'wired.com'];
-        if (skipDomains.some(d => window.location.hostname.endsWith(d))) {
-            console.log('🛡️ [DewSecure] 核心站点豁免 DOM 清理，防止 SPA 崩溃。');
-            return;
-        }
-
-        // 🔒 F-03: 初始化时拉取配置，如果是白名单，立刻彻底挂起
-        try {
-            chrome.runtime.sendMessage({ type: 'GET_SETTINGS' }, (settings) => {
-                if (chrome.runtime.lastError || !settings) return;
-                const host = window.location.hostname;
-                const m = d => host === d || host.endsWith('.' + d);
-                if ((settings.whitelist || []).some(m) || (settings.tempWhitelist || []).some(m)) {
-                    document.documentElement.setAttribute('data-dewsecure-paused', 'true');
-                    console.log('🛡️ [DewSecure] 命中白名单，已停止注入 CSS 与 Hook。');
-                }
-            });
-        } catch(e) {}
-
-        setTimeout(() => {
-            // 🔒 再次检查暂停状态（防止异步回调慢于 setTimeout）
-            if (document.documentElement.getAttribute('data-dewsecure-paused') === 'true') {
-                return;
-            }
-            injectBrutalCSS();
-            injectExtraCSS();
-
-            const observer = new MutationObserver((mutations) => {
-                for (const m of mutations) {
-                    if (m.type === 'childList') {
-                        for (const node of m.addedNodes) {
-                            if (node.nodeType === Node.ELEMENT_NODE) scheduleCheck(node);
-                        }
-                    } else if (m.type === 'attributes') {
-                        if (m.target.nodeType === Node.ELEMENT_NODE) {
-                            pendingAttr.add(m.target);
-                            if (!attrTimer) attrTimer = setTimeout(flushAttr, 80);
-                        }
-                    }
-                }
-            });
-            observer.observe(document.documentElement, {
-                childList: true, subtree: true,
-                attributes: true, attributeFilter: ['class', 'id'],
-            });
-            if (document.body) { scheduleCheck(document.body); }
-        }, 100);
-    }
-
-    // ===== Forbes 专项处理 =====
-    if (window.location.hostname.includes('forbes.com')) {
-        let attempts = 0;
-        const bypassForbes = setInterval(() => {
-            const skipSelectors = [
-                'a[href*="skip"]', 'button[class*="skip"]', 
-                '[class*="welcome"] a[class*="continue"]', '[id*="welcome"] a[class*="continue"]'
-            ];
-            for (const sel of skipSelectors) {
-                const btn = document.querySelector(sel);
-                if (btn && !btn.dataset.dwClicked) {
-                    btn.click();
-                    btn.dataset.dwClicked = 'true';
-                    break;
-                }
-            }
-            const overlays = document.querySelectorAll('[class*="welcome"], [class*="adblock"], [class*="overlay"], [id*="welcome"]');
-            overlays.forEach(el => {
-                if (!el.dataset.dwKilled) {
-                    el.style.setProperty('display', 'none', 'important');
-                    el.remove();
-                    el.dataset.dwKilled = 'true';
-                    reportDomHidden(el); // 🌟 上报统计
-                }
-            });
-            document.querySelectorAll('article, main, .article-body, [class*="content"]').forEach(el => {
-                if (el.style.display === 'none' || el.style.visibility === 'hidden') {
-                    el.style.setProperty('display', 'block', 'important');
-                    el.style.setProperty('visibility', 'visible', 'important');
-                }
-            });
-            if (++attempts > 20) clearInterval(bypassForbes);
-        }, 500);
-    }
 
     // ===== 节点扫描与击毙 =====
     function checkAndKill(root) {
@@ -317,11 +212,71 @@
                 el.style.setProperty('pointer-events', 'none', 'important');
                 el.style.setProperty('display', 'none', 'important');
                 el.dataset.dwKilled = 'true';
-                reportDomHidden(el); // 🌟 上报统计
+                reportDomHidden(el);
                 warn('killed overlay');
             } catch (_) {}
         }
         if (root.shadowRoot) checkAndKill(root.shadowRoot);
+    }
+
+    // ===== 核心初始化 =====
+    function init() {
+        // 🔒 F-01 终极豁免：不碰复杂的 SPA、地图与核心站点，防止白屏
+        const skipDomains = ['google.com', 'youtube.com', 'facebook.com', 'twitter.com', 'x.com', 'instagram.com', 'wired.com'];
+        if (skipDomains.some(d => window.location.hostname.endsWith(d))) {
+            console.log('🛡️ [DewSecure] 核心站点豁免 DOM 清理，防止 SPA 崩溃。');
+            return;
+        }
+
+        // 🌟 先获取设置，再决定后续操作（修复异步导致开关失效/白屏）
+        try {
+            chrome.runtime.sendMessage({ type: 'GET_SETTINGS' }, (settings) => {
+                if (chrome.runtime.lastError || !settings) return;
+                
+                const host = window.location.hostname;
+                const m = d => host === d || host.endsWith('.' + d);
+                if ((settings.whitelist || []).some(m) || (settings.tempWhitelist || []).some(m)) {
+                    document.documentElement.setAttribute('data-dewsecure-paused', 'true');
+                    console.log('🛡️ [DewSecure] 命中白名单，已停止注入 CSS 与 Hook。');
+                    window.postMessage({ type: 'DEWSECURE_PAUSE' }, '*');
+                    return;
+                }
+
+                // 推送设置给 inject.js
+                window.postMessage({ type: 'DEWSECURE_SETTINGS', settings }, '*');
+
+                // 等待 DOM 稍微稳定后再注入
+                setTimeout(() => {
+                    // 1. 根据开关动态注入 CSS
+                    if (settings.hideCookieNotices !== false || settings.hideAdPlaceholders !== false || settings.blockSocialTrackers !== false) {
+                        injectDynamicCSS(settings);
+                    }
+
+
+                    // 3. 启动 MutationObserver
+                    const observer = new MutationObserver((mutations) => {
+                        for (const m of mutations) {
+                            if (m.type === 'childList') {
+                                for (const node of m.addedNodes) {
+                                    if (node.nodeType === Node.ELEMENT_NODE) scheduleCheck(node);
+                                }
+                            } else if (m.type === 'attributes') {
+                                if (m.target.nodeType === Node.ELEMENT_NODE) {
+                                    pendingAttr.add(m.target);
+                                    if (!attrTimer) attrTimer = setTimeout(flushAttr, 80);
+                                }
+                            }
+                        }
+                    });
+                    observer.observe(document.documentElement, {
+                        childList: true, subtree: true,
+                        attributes: true, attributeFilter: ['class', 'id'],
+                    });
+                    if (document.body) { scheduleCheck(document.body); }
+                    
+                }, 100);
+            });
+        } catch(e) {}
     }
 
     init();
@@ -333,15 +288,12 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     if (msg.type === 'TOGGLE_PROTECTION') {
         if (msg.enabled === false) {
             document.documentElement.setAttribute('data-dewsecure-paused', 'true');
-            const s1 = document.getElementById('__dewsecure_style_1');
-            const s2 = document.getElementById('__dewsecure_style_2');
+            const s1 = document.getElementById('__dewsecure_style_all');
             if (s1) s1.remove();
-            if (s2) s2.remove();
             if (document.body) {
                 document.body.style.setProperty('overflow', 'auto', 'important');
                 document.documentElement.style.setProperty('overflow', 'auto', 'important');
             }
-            // 🔒 S-05: 主世界已不接收暂停信号，改为刷新页面
             console.warn('🛡️ [DewSecure] 已动态挂起，还原网页状态。');
         } else {
             location.reload();
@@ -355,34 +307,19 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
 // ==========================================
 chrome.runtime.onMessage.addListener((msg) => {
     if (msg.type === 'HIDE_AI_AD' && msg.domain) {
+        // 🛡️ 核心修复 1：如果页面处于暂停/白名单状态，直接无视 AI 消息
+        if (document.documentElement.getAttribute('data-dewsecure-paused') === 'true') return;
+
         const domain = msg.domain;
         console.log(`🛡️ [DewSecure] 正在执行 AI 软隐藏: ${domain}`);
         
-        // 隐藏所有指向该域名的 iframe
-        document.querySelectorAll('iframe').forEach(el => {
-            if (el.src && el.src.includes(domain)) {
+        // 🛡️ 核心修复 2：只隐藏极其明确的 1x1 追踪像素图，绝不碰页面正常的 img 和 iframe
+        document.querySelectorAll('img').forEach(el => {
+            if (el.src && el.src.includes(domain) && el.width <= 2 && el.height <= 2) {
                 el.style.setProperty('display', 'none', 'important');
             }
         });
-        
-        // 隐藏所有指向该域名的 script
-        document.querySelectorAll('script').forEach(el => {
-            if (el.src && el.src.includes(domain)) {
-                // 无法隐藏 script 的执行，但可以尝试隐藏它旁边可能由它生成的广告框
-                const parent = el.parentElement;
-                if (parent && (parent.id.includes('ad') || parent.className.includes('ad'))) {
-                    parent.style.setProperty('display', 'none', 'important');
-                }
-            }
-        });
 
-        // 隐藏所有指向该域名的 img (通常是无用的追踪像素或广告图片)
-        document.querySelectorAll('img').forEach(el => {
-            if (el.src && el.src.includes(domain)) {
-                el.style.setProperty('visibility', 'hidden', 'important');
-                el.style.setProperty('width', '0', 'important');
-                el.style.setProperty('height', '0', 'important');
-            }
-        });
+        // 🛡️ 核心修复 3：彻底放弃遍历 div。宁可漏掉一些广告，也绝不能把整个网页搞白屏！
     }
 });

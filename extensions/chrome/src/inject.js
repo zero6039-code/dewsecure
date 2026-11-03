@@ -1,8 +1,7 @@
 (function() {
-    // 🔒 F-03: 主世界无法调用 chrome.runtime，完全依赖 content.js 通过 postMessage 传递 DEWSECURE_PAUSE 信号
+    // F-03: 主世界无法调用 chrome.runtime，完全依赖 content.js 通过 postMessage 传递 DEWSECURE_PAUSE 信号
 
-
-// ===== 🌟 白名单热更新接管 =====
+// ===== 白名单热更新接管 =====
 let isPaused = false;
 // 备份原生方法
 const nativeWindowOpen = window.open;
@@ -12,10 +11,15 @@ let dwSettings = { antiHijackEnabled: true, antiBypassEnabled: true, blockSocial
 window.addEventListener('message', (e) => {
     if (e.data && e.data.type === 'DEWSECURE_PAUSE') {
         isPaused = true;
-        window.open = nativeWindowOpen;
-        console.log('🛡️ [DewSecure Inject] 主世界已挂起，恢复原生 API');
+        // M-15 修复：用 defineProperty 强制还原 window.open（需内层 configurable: true 配合）
+        try {
+            Object.defineProperty(window, 'open', { value: nativeWindowOpen, writable: true, configurable: true });
+        } catch (err) {
+            try { window.open = nativeWindowOpen; } catch (_) {}
+        }
+        console.log('[DewSecure Inject] 主世界已挂起，恢复原生 API');
     }
-    // 🔒 F2 修复：接收真实的设置状态
+    // F2 修复：接收真实的设置状态
     if (e.data && e.data.type === 'DEWSECURE_SETTINGS') {
         dwSettings = e.data.settings || {};
     }
@@ -26,7 +30,7 @@ window.addEventListener('message', (e) => {
 
 (function() {
     'use strict';
-    // 🌟 官网与本地开发环境白名单（彻底解决 F12 卡死）
+    // 官网与本地开发环境白名单（彻底解决 F12 卡死）
     if (window.location.hostname === 'dewsecure.com' || window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
         return;
     }
@@ -40,8 +44,24 @@ window.addEventListener('message', (e) => {
         return document.documentElement.getAttribute('data-dewsecure-paused') === 'true';
     }
 
-    const adPatterns = /(mmp_pid=|Allianceid=|from_affiliate=|affiliate_id=|uls_trackid=|utm_source=|aid=api%7C|1xlite|1xbet|omguk|tiktok\.com\/view|doubleclick|googlesyndication|propellerads|adsterra|a_aid=|a_bid=|gsid=|gsc=|track=|affiliate=|click_id=|sub_id=)/i;
-    const isAdUrl = (url) => url && typeof url === 'string' && adPatterns.test(url);
+    // H-1 修复：只拦第三方广告主机或已知联盟参数；同源与通用追踪参数一律放行；同时支持 URL 对象
+    // 移除了 utm_source= / track= / click_id= / sub_id= / affiliate= / gsc= / gsid= / aid= 等通用词
+    // 移除了 tiktok.com/view 路径规则（由 DNR 层接手，inject.js 不再拦截）
+    const AD_HOSTS = /(^|\.)(doubleclick\.net|googlesyndication\.com|propellerads\.com|adsterra\.com|1xbet\.com|1xlite\.com|omguk\.com)$/i;
+    const AFFILIATE_PARAMS = ['mmp_pid', 'Allianceid', 'uls_trackid', 'a_aid', 'a_bid', 'affiliate_id', 'from_affiliate'];
+
+    const isAdUrl = (raw) => {
+        if (dwSettings.antiHijackEnabled === false) return false;   // 尊重防劫持开关
+        if (raw == null || raw === '') return false;
+        try {
+            const u = new URL(String(raw), location.href);          // 接受 URL 对象与相对路径
+            if (u.origin === location.origin) return false;         // 绝不动同站链接
+            return AD_HOSTS.test(u.hostname) ||
+                   AFFILIATE_PARAMS.some((p) => u.searchParams.has(p));
+        } catch (_) {
+            return false;
+        }
+    };
 
     const _windowOpen = window.open;
     const _locationAssign = window.location.assign;
@@ -49,13 +69,20 @@ window.addEventListener('message', (e) => {
     const _anchorClick = HTMLAnchorElement.prototype.click;
     const _formSubmit = HTMLFormElement.prototype.submit;
 
-    // 0. 拦截系统通知请求 (图2 tiket.com 的原因)
+    // 0. 拦截系统通知请求 (M-15 修复：增加常用邮件/通讯站点白名单)
+    const NOTIFICATION_ALLOW_HOSTS = [
+        'mail.google.com', 'calendar.google.com',
+        'outlook.live.com', 'outlook.office.com',
+        'web.whatsapp.com', 'web.telegram.org'
+    ];
     try {
         if (window.Notification) {
             const _requestPermission = window.Notification.requestPermission;
             window.Notification.requestPermission = function(callback) {
-                if (!isPaused() && dwSettings.antiHijackEnabled !== false) {
-                    console.log('🛡️ [DewSecure] 已拦截系统通知请求');
+                const h = location.hostname;
+                const isAllowedHost = NOTIFICATION_ALLOW_HOSTS.some(d => h === d || h.endsWith('.' + d));
+                if (!isPaused() && dwSettings.antiHijackEnabled !== false && !isAllowedHost) {
+                    console.log('[DewSecure] 已拦截系统通知请求');
                     if (callback) callback('denied');
                     return Promise.resolve('denied');
                 }
@@ -74,8 +101,8 @@ window.addEventListener('message', (e) => {
             if (!isPaused() && isAdUrl(url)) {
                 // AdGuard 策略：如果没有用户真实交互（自动弹窗），直接抛弃
                 if (window.navigator && window.navigator.userActivation && !window.navigator.userActivation.isActive) {
-                    console.warn('🛡️ [DewSecure] 零闪烁拦截自动弹窗:', url);
-                    return null; 
+                    console.warn('[DewSecure] 零闪烁拦截自动弹窗:', url);
+                    return null;
                 }
             }
             return _windowOpen.apply(this, arguments);
@@ -85,25 +112,28 @@ window.addEventListener('message', (e) => {
         hookedOpen.toString = function() { return nativeOpenStr; };
 
         // 使用 defineProperty 防止被覆盖或删除
+        // M-15 修复：configurable: true 允许暂停消息到达时被 defineProperty 真正还原
         Object.defineProperty(window, 'open', {
             get: function() { return hookedOpen; },
             set: function() { /* 劫持赋值，保持静默 */ },
-            configurable: false,
+            configurable: true,
             enumerable: true
         });
     } catch (e) {
         // 降级策略：如果 defineProperty 失败，回退到普通赋值
+        // M-15 修复：保存当前引用避免 window.open.apply 自我递归
         try {
+            const _fallbackOpen = window.open;
             window.open = function(url, target, features) {
                 if (!isPaused() && isAdUrl(url) && window.navigator?.userActivation?.isActive === false) {
                     return null;
                 }
-                return window.open.apply(this, arguments);
+                return _fallbackOpen.apply(this, arguments);
             };
         } catch(err) {}
     }
 
-    // 2. location 跳转 (🛡️ F-07 修复：Chrome 禁止覆盖 location.assign/replace，直接移除)
+    // 2. location 跳转 (F-07 修复：Chrome 禁止覆盖 location.assign/replace，直接移除)
 
     // 3. A 标签点击
     try {
@@ -121,11 +151,11 @@ window.addEventListener('message', (e) => {
         };
     } catch (e) {}
 
-    // 5. 反反拦截欺骗 (只在开启时生效)
-    {
+    // 5. 反反拦截欺骗 (M-15 修复：只在开启且未暂停时生效，configurable 允许后续还原)
+    if (!isPaused() && dwSettings.antiBypassEnabled !== false) {
         try {
-            Object.defineProperty(window, 'adblock', { get: () => false });
-            Object.defineProperty(window, 'canRunAds', { get: () => true });
+            Object.defineProperty(window, 'adblock', { get: () => false, configurable: true });
+            Object.defineProperty(window, 'canRunAds', { get: () => true, configurable: true });
         } catch(e) {}
     }
 
@@ -154,17 +184,22 @@ window.addEventListener('message', (e) => {
     document.addEventListener('click', interceptClick, true);
 
     // 8. DOM 节点清理
+    const checkAndKillNode = (el) => {
+        if (el.dataset.dwKilled) return;
+        if (el.tagName === 'A' && el.href && isAdUrl(el.href)) {
+            el.removeAttribute('href'); el.style.setProperty('pointer-events', 'none', 'important'); el.dataset.dwKilled = 'true';
+        } else if (el.tagName === 'FORM' && el.action && isAdUrl(el.action)) {
+            el.removeAttribute('action'); el.style.setProperty('pointer-events', 'none', 'important'); el.dataset.dwKilled = 'true';
+        }
+    };
+
     const killMaliciousNodes = (root) => {
         if (isPaused() || !root) return;
+        // 核心修复：检查根节点自身
+        if (root.nodeType === Node.ELEMENT_NODE) checkAndKillNode(root);
+        // 检查子孙节点
         const links = root.querySelectorAll ? root.querySelectorAll('a, form') : [];
-        links.forEach(el => {
-            if (el.dataset.dwKilled) return;
-            if (el.tagName === 'A' && el.href && isAdUrl(el.href)) {
-                el.removeAttribute('href'); el.style.setProperty('pointer-events', 'none', 'important'); el.dataset.dwKilled = 'true';
-            } else if (el.tagName === 'FORM' && el.action && isAdUrl(el.action)) {
-                el.removeAttribute('action'); el.style.setProperty('pointer-events', 'none', 'important'); el.dataset.dwKilled = 'true';
-            }
-        });
+        links.forEach(checkAndKillNode);
     };
 
     const observer = new MutationObserver((mutations) => {
@@ -180,9 +215,19 @@ window.addEventListener('message', (e) => {
             }
         }
     });
-    if (document.documentElement) {
+    // 核心修复：防止 documentElement 尚未生成导致 Observer 挂载失败
+    const startObserver = () => {
+        if (!document.documentElement) return;
         observer.observe(document.documentElement, { childList: true, subtree: true });
         killMaliciousNodes(document.documentElement);
+    };
+
+    if (document.documentElement) {
+        startObserver();
+    } else if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', startObserver);
+    } else {
+        window.addEventListener('load', startObserver);
     }
 })();
 })();

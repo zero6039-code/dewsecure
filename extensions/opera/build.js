@@ -3,7 +3,7 @@ import fs from 'fs';
 import path from 'path';
 
 const buildOptions = {
-    entryPoints: ['src/background.js', 'src/content.js', 'src/inject.js', 'src/offscreen.js'],
+    entryPoints: ['src/background.js', 'src/content.js', 'src/inject.js'],
     outbase: '.',
     bundle: true,
     outdir: 'dist',
@@ -21,6 +21,8 @@ function syncFromChrome() {
     if (fs.existsSync('../chrome/popup')) fs.cpSync('../chrome/popup', 'popup', { recursive: true, force: true, filter: filterFn });
     if (fs.existsSync('../chrome/rules')) fs.cpSync('../chrome/rules', 'rules', { recursive: true, force: true, filter: filterFn });
     if (fs.existsSync('../chrome/icons')) fs.cpSync('../chrome/icons', 'icons', { recursive: true, force: true, filter: filterFn });
+    if (fs.existsSync('../chrome/warning.html')) fs.copyFileSync('../chrome/warning.html', 'warning.html');
+    if (fs.existsSync('../chrome/warning.js'))   fs.copyFileSync('../chrome/warning.js',   'warning.js');
 }
 
 async function build() {
@@ -56,6 +58,8 @@ function copyStatic() {
     if (fs.existsSync('popup')) fs.cpSync('popup', 'dist/popup', { recursive: true, force: true });
     if (fs.existsSync('icons')) fs.cpSync('icons', 'dist/icons', { recursive: true, force: true });
     if (fs.existsSync('rules')) fs.cpSync('rules', 'dist/rules', { recursive: true, force: true });
+    if (fs.existsSync('warning.html')) fs.copyFileSync('warning.html', 'dist/warning.html');
+    if (fs.existsSync('warning.js'))   fs.copyFileSync('warning.js',   'dist/warning.js');
     
     if (fs.existsSync('src')) {
         const srcFiles = fs.readdirSync('src');

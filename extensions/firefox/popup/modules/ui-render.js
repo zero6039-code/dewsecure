@@ -179,7 +179,7 @@ export async function updateUserUI(user) {
         
         if (!isPremium) {
             switchEl.checked = false;
-            switchEl.disabled = true;
+            switchEl.disabled = true; // 🔒 F3 确保免费用户强制关闭
             if (container) {
                 container.style.opacity = '0.4';
                 container.style.pointerEvents = 'none';

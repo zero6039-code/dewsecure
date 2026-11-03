@@ -121,5 +121,6 @@
   "footer_privacy": "隐私政策",
   "footer_terms": "服务条款",
   "footer_link": "在 GitHub 上查看开源代码",
-  "footer_text": "核心引擎开源，数据绝不出户。"
+  "footer_text": "核心引擎开源，数据绝不出户。",
+  "feedback_login_required": "请登录后再提交反馈。"
 }

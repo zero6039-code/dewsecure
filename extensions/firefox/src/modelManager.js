@@ -17,7 +17,7 @@ const DB_VERSION = 1;
 const STORE_NAME = 'models';
 const CACHE_META_KEY = 'latest_meta';
 
-const WORKER_API_URL = 'https://dewsecure-api.zero6039.workers.dev/api';
+const WORKER_API_URL = 'https://api.dewsecure.com/api';
 
 let dbPromise = null;
 
@@ -83,6 +83,13 @@ export async function clearModelCache() {
     } catch (e) {}
 }
 
+
+function parseVer(v) {
+    if (!v) return 0;
+    const m = String(v).match(/V?(\d+)/i);
+    return m ? parseInt(m[1], 10) : 0;
+}
+
 export async function checkAndUpdateModel() {
     try {
         console.log('[ModelManager] 🔍 检查模型更新...');
@@ -139,8 +146,10 @@ export async function checkAndUpdateModel() {
         // 🔒 S-03 修复 B：版本单调性检查（防降级攻击）
         const localMeta = await dbGet(CACHE_META_KEY);
         if (localMeta && localMeta.trainedAt) {
-            // 简单的字符串/数字比较。如果是纯数字时间戳，直接比较大小；如果是版本字符串，确保严格递增
-            if (remoteVersion <= localMeta.trainedAt) {
+            // 🔒 H5 修复：提取版本号中的数字部分进行整数比较，防止 'V100' < 'V99' 的字符串比较错误
+            const remoteSeq = parseVer(remoteVersion);
+            const localSeq = parseVer(localMeta.trainedAt);
+            if (remoteSeq <= localSeq) {
                 console.log(`[ModelManager] 🛡️ 拒绝降级：本地 (${localMeta.trainedAt}) >= 远程 (${remoteVersion})`);
                 return { updated: false, meta: localMeta };
             }

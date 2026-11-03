@@ -13,7 +13,6 @@ const AD_KEYS = [
     'utm_source=adcash', 'trip_sub1=', 'ud1=', 'laz_trackid=', 'mkttid=', 'exlaz=',
 ];
 
-
 function isSafeNavigation(url) {
     if (!url) return true;
     if (url.startsWith('chrome://') || url.startsWith('chrome-extension://') || url.startsWith('about:') || url.startsWith('edge://')) return true;
@@ -37,20 +36,21 @@ async function checkIsWhitelisted(host) {
 export function initSecurityListeners() {
     const shouldBlock = async (url) => {
         if (!url || isSafeNavigation(url)) return false;
+        // 🛡️ 修复：绝不对扩展自身的页面进行重定向，否则会导致 ERR_BLOCKED_BY_CLIENT 死循环
+        if (url.startsWith('chrome-extension://') || url.startsWith('moz-extension://')) return false;
+        
         let hostname = '';
         try { hostname = new URL(url).hostname; } catch(e) { return false; }
         
-        // 🔒 F-02 修复：只对特定的域名，且带有明确的广告参数才进行拦截
-        // 绝不再使用宽泛的子串匹配
-        const isTargetDomain = hostname.endsWith('trip.com') || hostname.endsWith('shopee.com.my') || 
-                               hostname.endsWith('kkday.com') || hostname.endsWith('klook.com') || 
-                               hostname.endsWith('lazada.com.my') || hostname.endsWith('traveloka.com') || 
-                               hostname.endsWith('omguk.com');
-                               
+        const TARGET_DOMAINS = [
+            'trip.com', 'shopee.com.my', 'kkday.com', 'klook.com', 
+            'lazada.com.my', 'traveloka.com', 'omguk.com'
+        ];
+        const isTargetDomain = TARGET_DOMAINS.some(d => hostname === d || hostname.endsWith('.' + d));
+                                 
         if (!isTargetDomain) return false;
         if (await checkIsWhitelisted(hostname)) return false;
 
-        // 检查 URL search 参数中是否包含高危推广参数
         try {
             const u = new URL(url);
             const hasAdParam = AD_KEYS.some(k => u.search.includes(k));
@@ -58,12 +58,14 @@ export function initSecurityListeners() {
         } catch(e) { return false; }
     };
 
+    // 🚀 1.2.6 原版体验：新弹窗秒关，绝不产生任何标签页
     if (chrome.webNavigation && chrome.webNavigation.onCreatedNavigationTarget) chrome.webNavigation.onCreatedNavigationTarget.addListener(async (info) => {
         if (await shouldBlock(info.url)) {
             chrome.tabs.remove(info.tabId, () => { if (chrome.runtime.lastError) {} });
         }
     });
 
+    // 🚀 1.2.6 原版体验：主页面跳转秒关，绝不用警告页拦截（防止 my.trip.com 误杀）
     chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
         const url = changeInfo.url || tab.url || '';
         if (await shouldBlock(url)) {

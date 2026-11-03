@@ -121,5 +121,6 @@
   "footer_privacy": "Datenschutzrichtlinie",
   "footer_terms": "Nutzungsbedingungen",
   "footer_link": "Quellcode auf GitHub ansehen",
-  "footer_text": "Kern-Engine Open Source, Daten verlassen niemals das Haus."
+  "footer_text": "Kern-Engine Open Source, Daten verlassen niemals das Haus.",
+  "feedback_login_required": "Bitte melden Sie sich an, um Feedback zu senden."
 }

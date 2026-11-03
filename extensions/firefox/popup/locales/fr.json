@@ -121,5 +121,6 @@
   "footer_privacy": "Politique de confidentialité",
   "footer_terms": "Conditions d'utilisation",
   "footer_link": "Voir le code sur GitHub",
-  "footer_text": "Moteur principal open source, les données ne quittent jamais la maison."
+  "footer_text": "Moteur principal open source, les données ne quittent jamais la maison.",
+  "feedback_login_required": "Veuillez vous connecter pour envoyer des commentaires."
 }

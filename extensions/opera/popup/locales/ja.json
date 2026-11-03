@@ -121,5 +121,6 @@
   "footer_privacy": "プライバシーポリシー",
   "footer_terms": "利用規約",
   "footer_link": "GitHubでソースを見る",
-  "footer_text": "コアエンジンはオープンソース、データは絶対に外部に漏れません。"
+  "footer_text": "コアエンジンはオープンソース、データは絶対に外部に漏れません。",
+  "feedback_login_required": "フィードバックを送信するにはログインしてください。"
 }

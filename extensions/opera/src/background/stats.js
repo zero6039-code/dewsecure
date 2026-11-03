@@ -1,69 +1,89 @@
-import { getSettings, STATS_KEY, LOG_KEY } from './settings.js';
+import { STATS_KEY, LOG_KEY } from './settings.js';
 
-export async function recordDetailedBlock(url, type) {
-    try {
-        let safeUrl = url.substring(0, 100);
-        let domain = '未知';
-        try {
-            const urlObj = new URL(url.startsWith('http') ? url : 'https://' + url);
-            safeUrl = `${urlObj.hostname}${urlObj.pathname}`;
-            domain = urlObj.hostname;
-        } catch (e) {}
-        let { [LOG_KEY]: logs } = await chrome.storage.local.get(LOG_KEY);
-        if (!Array.isArray(logs)) logs = [];
-        logs.push({ url: safeUrl, domain: domain, type: type, ts: Date.now(), date: new Date().toDateString() });
-        if (logs.length > 1000) logs.shift();
-        await chrome.storage.local.set({ [LOG_KEY]: logs });
-    } catch (e) {}
+// 内存缓存，避免 Service Worker 频繁休眠和读写存储导致的丢失
+let memoryStats = { totalBlocked: 0, todayBlocked: 0, date: '' };
+let memoryLogs = [];
+let isLoaded = false;
+let saveTimeout = null;
+
+// 启动时从本地加载一次
+async function ensureLoaded() {
+    if (isLoaded) return;
+    const res = await chrome.storage.local.get([STATS_KEY, LOG_KEY]);
+    if (res[STATS_KEY]) memoryStats = res[STATS_KEY];
+    if (res[LOG_KEY]) memoryLogs = res[LOG_KEY];
+    
+    const todayStr = new Date().toDateString();
+    if (memoryStats.date !== todayStr) {
+        memoryStats.todayBlocked = 0;
+        memoryStats.date = todayStr;
+    }
+    isLoaded = true;
 }
 
-export async function recordBlock(url, type = 'dnr') {
-    await recordDetailedBlock(url, type);
-    let { [STATS_KEY]: stats } = await chrome.storage.local.get(STATS_KEY);
-    let safeStats = (stats && typeof stats === 'object') ? stats : {};
-    safeStats.totalBlocked = Number(safeStats.totalBlocked) || 0;
-    safeStats.todayBlocked = Number(safeStats.todayBlocked) || 0;
-    const today = new Date().toDateString();
-    if (safeStats.lastReset !== today) {
-        safeStats.todayBlocked = 0;
-        safeStats.lastReset = today;
-    }
-    safeStats.totalBlocked += 1;
-    safeStats.todayBlocked += 1;
-    await chrome.storage.local.set({ [STATS_KEY]: safeStats });
-    
-    if (chrome.action) {
-        const text = safeStats.todayBlocked > 999 ? '999+' : safeStats.todayBlocked.toString();
-        chrome.action.setBadgeText({ text });
-        chrome.action.setBadgeBackgroundColor({ color: '#4CAF50' });
-    }
+// 批量写入防抖（每秒最多写一次）
+function scheduleSave() {
+    if (saveTimeout) return;
+    saveTimeout = setTimeout(async () => {
+        saveTimeout = null;
+        await chrome.storage.local.set({
+            [STATS_KEY]: memoryStats,
+            [LOG_KEY]: memoryLogs
+        });
+    }, 1000);
 }
 
 export function initStatsListener() {
+    // 🛡️ Whale 等浏览器如果不支持 onRuleMatchedDebug 会自动跳过
     if (chrome.declarativeNetRequest && chrome.declarativeNetRequest.onRuleMatchedDebug) {
-        chrome.declarativeNetRequest.onRuleMatchedDebug.addListener(async (info) => {
-            try {
-                const urlObj = new URL(info.request.url);
-                const host = urlObj.hostname;
-                const settings = await getSettings();
-                if ((settings.whitelist || []).some(d => host === d || host.endsWith('.' + d)) ||
-                    (settings.tempWhitelist || []).some(d => host === d || host.endsWith('.' + d))) return;
-                let type = 'dnr';
-                if (info.rule && info.rule.rulesetId && info.rule.rulesetId.includes('tracker')) type = 'tracker';
-                else if (info.rule && info.rule.rulesetId && info.rule.rulesetId.includes('ads')) type = 'ad';
-                await recordBlock(info.request.url, type);
-            } catch(e) {}
-        });
+        try {
+            chrome.declarativeNetRequest.onRuleMatchedDebug.addListener(async (info) => {
+                try {
+                    const { request } = info;
+                    if (!request || !request.url) return;
+                    const host = new URL(request.url).hostname;
+                    await recordBlock(host + '/dnr', 'dnr');
+                } catch (e) {}
+            });
+        } catch(e) {
+            console.warn('onRuleMatchedDebug 不可用:', e);
+        }
     }
 }
 
-// 🌟 终极兜底：数据只看 LocalStorage，完全放弃在 Firefox 下查 API
 export async function getMatchedStats() {
-    // 直接读取我们在 DOM 上报和 Chrome Debug 上报时写入的本地数据
-    const { [STATS_KEY]: stats } = await chrome.storage.local.get(STATS_KEY);
-    
-    return {
-        todayBlocked: stats?.todayBlocked || 0,
-        totalBlocked: stats?.totalBlocked || 0
+    await ensureLoaded();
+    return { 
+        totalBlocked: memoryStats.totalBlocked, 
+        todayBlocked: memoryStats.todayBlocked 
     };
+}
+
+export async function recordBlock(url, type) {
+    await ensureLoaded();
+    
+    const todayStr = new Date().toDateString();
+    if (memoryStats.date !== todayStr) {
+        memoryStats.todayBlocked = 0;
+        memoryStats.date = todayStr;
+    }
+    
+    memoryStats.totalBlocked += 1;
+    memoryStats.todayBlocked += 1;
+    
+    memoryLogs.push({
+        url,
+        type,
+        date: todayStr,
+        ts: Date.now()
+    });
+    if (memoryLogs.length > 1000) memoryLogs.shift();
+    
+    scheduleSave();
+    
+    // 实时更新角标
+    if (chrome.action && chrome.action.setBadgeText) {
+        chrome.action.setBadgeText({ text: memoryStats.todayBlocked.toString() });
+        chrome.action.setBadgeBackgroundColor({ color: '#3b82f6' });
+    }
 }

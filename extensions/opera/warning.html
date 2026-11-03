@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DewSecure - Phishing Warning</title>
+    <style>
+        /* 深度复刻官网的暗黑主题 */
+        :root {
+            --bg-color: #0b1120;
+            --card-bg: rgba(30, 41, 59, 0.7);
+            --text-main: #f8fafc;
+            --text-muted: #94a3b8;
+            --danger: #ef4444;
+            --danger-glow: rgba(239, 68, 68, 0.2);
+            --border-color: rgba(255, 255, 255, 0.1);
+            --accent: #3b82f6;
+        }
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            background-color: var(--bg-color);
+            background-image: radial-gradient(circle at 50% -20%, #1e293b, transparent 60%);
+            color: var(--text-main);
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+        
+        /* Header 风格 */
+        header {
+            padding: 20px 40px;
+            display: flex;
+            align-items: center;
+            border-bottom: 1px solid var(--border-color);
+            background: rgba(11, 17, 32, 0.8);
+            backdrop-filter: blur(10px);
+        }
+        .logo { display: flex; align-items: center; gap: 12px; font-size: 20px; font-weight: 700; color: var(--text-main); text-decoration: none; }
+        .logo img { width: 32px; height: 32px; border-radius: 8px; }
+
+        /* Main 核心区域 */
+        main {
+            flex: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 40px 20px;
+        }
+        .warning-card {
+            background: var(--card-bg);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            border: 1px solid var(--border-color);
+            border-radius: 24px;
+            padding: 48px;
+            max-width: 640px;
+            width: 100%;
+            text-align: center;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5), 0 0 40px var(--danger-glow);
+        }
+        
+        .icon-box {
+            width: 88px; height: 88px;
+            background: var(--danger-glow);
+            border-radius: 50%;
+            display: flex; align-items: center; justify-content: center;
+            margin: 0 auto 24px;
+            font-size: 44px;
+            border: 1px solid rgba(239, 68, 68, 0.3);
+        }
+        h1 { color: var(--danger); font-size: 28px; font-weight: 800; margin-bottom: 16px; letter-spacing: -0.5px; }
+        p { color: var(--text-muted); font-size: 15px; line-height: 1.6; margin-bottom: 28px; }
+        
+        .url-display {
+            background: rgba(0, 0, 0, 0.4);
+            border: 1px solid var(--border-color);
+            padding: 14px;
+            border-radius: 12px;
+            font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+            font-size: 13px;
+            color: #fca5a5;
+            word-break: break-all;
+            margin-bottom: 32px;
+        }
+
+        .actions { display: flex; gap: 16px; justify-content: center; }
+        .btn {
+            padding: 14px 28px;
+            border-radius: 12px;
+            font-size: 15px;
+            font-weight: 600;
+            cursor: pointer;
+            border: none;
+            transition: all 0.2s ease;
+        }
+        .btn-danger { background: var(--danger); color: white; box-shadow: 0 4px 14px rgba(239, 68, 68, 0.4); }
+        .btn-danger:hover { background: #dc2626; transform: translateY(-2px); }
+        .btn-secondary { background: rgba(255, 255, 255, 0.05); color: var(--text-main); border: 1px solid var(--border-color); }
+        .btn-secondary:hover { background: rgba(255, 255, 255, 0.1); }
+
+        #pro-tip {
+            display: none; margin-top: 24px; padding: 16px;
+            background: rgba(245, 158, 11, 0.1); border: 1px solid rgba(245, 158, 11, 0.3);
+            border-radius: 12px; color: #fbbf24; font-size: 14px; font-weight: 500;
+        }
+
+        /* Footer 风格 */
+        footer {
+            padding: 24px 40px;
+            border-top: 1px solid var(--border-color);
+            text-align: center;
+            font-size: 13px;
+            color: var(--text-muted);
+            background: rgba(11, 17, 32, 0.8);
+        }
+        footer a { color: var(--text-muted); text-decoration: none; transition: color 0.2s; }
+        footer a:hover { color: var(--accent); }
+        .footer-links { margin-bottom: 8px; }
+        .footer-sep { margin: 0 8px; opacity: 0.5; }
+    </style>
+</head>
+<body>
+    <header>
+        <a href="https://dewsecure.com" class="logo" target="_blank">
+            <img src="icons/icon-128.png" alt="DewSecure">
+            DewSecure
+        </a>
+    </header>
+
+    <main>
+        <div class="warning-card">
+            <div class="icon-box">⚠️</div>
+            <h1 data-i18n="phish_title">Danger: Phishing Site Detected</h1>
+            <p data-i18n="phish_desc">DewSecure detected that this website is trying to impersonate a legitimate organization to steal your passwords, credit cards, or personal information. The page has been locked to protect your property.</p>
+            
+            <div class="url-display" id="danger-url">Loading...</div>
+            
+            <div class="actions">
+                <button class="btn btn-danger" id="btn-close" data-i18n="phish_close">Close this page</button>
+                <button class="btn btn-secondary" id="btn-continue" data-i18n="phish_continue">I am an expert, ignore risk</button>
+            </div>
+            
+            <div id="pro-tip" data-i18n="phish_pro_tip">🔒 This feature is PRO exclusive. Upgrade to block new phishing sites.</div>
+        </div>
+    </main>
+
+    <footer>
+        <div class="footer-links">
+            <a href="https://github.com/zero6039-code/dewsecure-web" target="_blank" data-i18n="footer_link">View source on GitHub</a>
+            <span class="footer-sep">·</span>
+            <a href="https://dewsecure.com/privacy.html" target="_blank" data-i18n="footer_privacy">Privacy Policy</a>
+            <span class="footer-sep">·</span>
+            <a href="https://dewsecure.com/terms.html" target="_blank" data-i18n="footer_terms">Terms of Service</a>
+        </div>
+        <p><span data-i18n="footer_text">Core engine open source, data never leaves home.</span> © 2026 DewSecure.</p>
+    </footer>
+
+    <script src="warning.js"></script>
+</body>
+</html>

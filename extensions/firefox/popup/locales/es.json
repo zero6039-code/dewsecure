@@ -121,5 +121,6 @@
   "footer_privacy": "Política de privacidad",
   "footer_terms": "Términos de servicio",
   "footer_link": "Ver código en GitHub",
-  "footer_text": "Motor principal de código abierto, los datos nunca salen de casa."
+  "footer_text": "Motor principal de código abierto, los datos nunca salen de casa.",
+  "feedback_login_required": "Inicie sesión para enviar comentarios."
 }

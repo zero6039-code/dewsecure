@@ -107,9 +107,9 @@ export function extractFeaturesFromUrl(url) {
 }
 
 const AI_CHECKED_DOMAINS = new Set();
-export async function runAICheck(url, tabId = null) {
+export async function runAICheck(url, tabId = null, isThirdParty = false) {
     try {
-        const domain = new URL(url).hostname;
+        const domain = isThirdParty ? url : new URL(url).hostname;
         if (AI_CHECKED_DOMAINS.has(domain)) return;
         // 🔧 防御性微调：防止 Set 无限膨胀导致内存泄漏
         if (AI_CHECKED_DOMAINS.size > 5000) {
@@ -167,40 +167,39 @@ export async function runAICheck(url, tabId = null) {
         const classes = ['Normal', 'Ad', 'Tracker']; // 🔒 P-01 修复：模型只有 3 类
         const classification = classes[maxIdx];
         
-        // 🔒 安全网 1：如果网站在白名单里，直接放行
+        // 🔒 安全网 1：如果开关关闭或网站在白名单里，直接放行
         const settings = await chrome.storage.local.get('dewsecure_settings').then(r => r.dewsecure_settings || {});
+        if (settings.aiEnabled === false) return; // 尊重前端开关
         const isWhitelisted = (settings.whitelist || []).some(d => domain === d || domain.endsWith('.' + d)) ||
                               (settings.tempWhitelist || []).some(d => domain === d || domain.endsWith('.' + d));
         if (isWhitelisted) {
-            console.log(`🛡️ [AI安全网] ${domain} 在白名单中，跳过拦截。`);
             return;
         }
 
         // 🔒 P-01: 暂时移除 Phishing 分支，等待未来加入钓鱼训练数据
         if (classification === 'Ad' || classification === 'Tracker') {
             // 🔒 安全网 2：严禁拦截 main_frame (防止网页白屏死锁)
-            // 只拦截高危子资源，且降低拦截概率，仅当置信度极高（>80%）时才拦截子资源
             const confidence = probs[maxIdx];
             if (confidence < 0.8) {
-                console.log(`[AI] 置信度不足 (${confidence.toFixed(2)})，放弃拦截: ${domain}`);
+                // console.log(`[AI] 置信度不足 (${confidence.toFixed(2)})，放弃拦截: ${domain}`);
                 return;
             }
             
             // 🌟 防线 1：AI 拦截前置豁免检查 (绝对白名单)
-            const HARD_SAFE_DOMAINS = ['github.com', 'cloudflare.com', 'apple.com', 'microsoft.com', 'google.com'];
-            if (HARD_SAFE_DOMAINS.some(d => domain === d || domain.endsWith('.' + d))) {
-                console.log(`🛡️ [AI] 拦截命中绝对白名单 (${domain})，已强制放行。`);
-                return;
-            }
-            if (domain === 'dewsecure.com' || domain.endsWith('.dewsecure.com') || domain.includes('zero6039')) {
-                console.log('🛡️ [AI] 拦截命中官方域名，已强制放行。');
+            const HARD_SAFE_DOMAINS = ['github.com', 'cloudflare.com', 'apple.com', 'microsoft.com', 'google.com', 'gstatic.com', 'googleapis.com', 'forbes.com', 'forbesimg.com', 'cloudflareinsights.com', 'cnn.io', 'discomax.com', 'max.com'];
+            if (HARD_SAFE_DOMAINS.some(d => domain === d || domain.endsWith('.' + d))) return;
+            if (domain === 'dewsecure.com' || domain.endsWith('.dewsecure.com')) return;
+
+            // 🛡️ F1 修复：只对第三方请求执行 HIDE_AI_AD。
+            // 如果这是用户访问的页面本身，绝不隐藏页面自身元素（那会导致网页变成空白）。
+            if (!isThirdParty) {
+                console.log(`🛡️ [AI] 发现可疑主页 (${domain})，但为防白屏，不执行 DOM 隐藏。`);
                 return;
             }
             
             // 🌟 修复 S-08：通过传入的 tabId 精确投递，防止多标签并发时误杀
             let targetTabId = tabId;
             if (!targetTabId) {
-                // 兜底：如果没有传 tabId，才去查 active tab
                 const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
                 if (tabs[0] && tabs[0].id) targetTabId = tabs[0].id;
             }
@@ -211,7 +210,7 @@ export async function runAICheck(url, tabId = null) {
                     domain: domain 
                 }).catch(() => {});
             }
-            console.log(`🛡️ [AI] 已触发 DOM 软隐藏: ${domain} (绝不阻断网络)`);
+            console.log(`🛡️ [AI] 已精准隐藏第三方恶意元素: ${domain}`);
         }
     } catch(e) {}
 }

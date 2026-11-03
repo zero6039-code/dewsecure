@@ -2,21 +2,29 @@ import { getSettings, SETTINGS_KEY, STATS_KEY, LOG_KEY } from './settings.js';
 import { getInstallationId } from '../deviceManager.js';
 import { recordBlock, getMatchedStats } from './stats.js';
 
-// 🔒 正确的 DNR 规则集列表（必须与 manifest.json 完全一致）
-const ALL_DNR_RULESETS = [
-    'ads_1a', 'ads_1b', 'ads_2', 'ads_3', 'ads_4',
-    'trackers_1a', 'trackers_1b', 'trackers_2a', 'trackers_2b',
-    'anti_affiliate', 'annoyances'
-];
+// 🔒 分离广告与追踪器规则集，实现独立开关
+const ADS_RULESETS = ['ads_1a', 'ads_1b', 'ads_2', 'ads_3', 'ads_4', 'anti_affiliate'];
+const TRACKER_RULESETS = ['trackers_1a', 'trackers_1b', 'trackers_2a', 'trackers_2b'];
+const EXTRA_RULESETS = ['annoyances'];
 
-// 🔒 辅助函数：统一处理 DNR 规则的开启/关闭
-async function updateDNRRulesets(isEnabled) {
+export async function updateDNRRulesets(dnrEnabled, blockTrackers) {
     try {
+        const enable = [];
+        const disable = [];
+        
+        // 处理广告和额外规则
+        if (dnrEnabled) enable.push(...ADS_RULESETS, ...EXTRA_RULESETS);
+        else disable.push(...ADS_RULESETS, ...EXTRA_RULESETS);
+
+        // 处理追踪器规则 (必须总开关开启且追踪器开关开启)
+        if (dnrEnabled && blockTrackers) enable.push(...TRACKER_RULESETS);
+        else disable.push(...TRACKER_RULESETS);
+
         await chrome.declarativeNetRequest.updateEnabledRulesets({
-            enableRulesetIds: isEnabled ? ALL_DNR_RULESETS : [],
-            disableRulesetIds: isEnabled ? [] : ALL_DNR_RULESETS
+            enableRulesetIds: enable,
+            disableRulesetIds: disable
         });
-        console.log(`✅ [DNR] 规则集已${isEnabled ? '启用' : '禁用'}`);
+        console.log(`✅ [DNR] 规则集已更新 (广告:${dnrEnabled}, 追踪器:${blockTrackers})`);
     } catch (e) {
         console.warn('❌ [DNR] 规则集更新失败:', e);
     }
@@ -30,16 +38,80 @@ const ALLOWED_SETTING_KEYS = new Set([
     'dailyLimit', 'dailyUsed', 'lastResetDate'
 ]);
 
+
+// 🔒 H3 修复：白名单域名格式与公共后缀严格校验
+function isValidWhitelistDomain(domain) {
+    if (typeof domain !== 'string' || !/^[a-z0-9.-]+$/i.test(domain)) return false;
+    if (/^\d{1,3}(\.\d{1,3}){3}$/.test(domain)) return false; // 拒绝 IP
+    const parts = domain.split('.');
+    if (parts.length < 2 || parts.some(p => p === '')) return false; // 拒绝单段、a..b
+    const PUBLIC_SUFFIXES = new Set(['com','net','org','edu','gov','mil','int','io','co','ai','app','dev','xyz','info','biz','me','tv','cc','so','uk','cn','jp','de','fr','ru','br','au','ca','it','nl','se','no','es','mx','ch','at','be','dk','fi','gr','hk','hu','ie','il','in','kr','lt','lv','nz','pl','pt','ro','sg','sk','th','tr','tw','ua','za','co.uk','com.cn','net.cn','org.cn','gov.cn','edu.cn','co.jp','ne.jp','or.jp','com.au','net.au','org.au','co.nz','net.nz','org.nz','co.za','com.br','net.br','org.br']);
+    if (PUBLIC_SUFFIXES.has(domain.toLowerCase())) return false;
+    return true;
+}
+
+
+// 🔒 M2 修复：特权消息必须来自扩展内部页面（Popup / Sidepanel），不能来自内容脚本
+function isPrivilegedSender(sender) {
+    if (!sender) return false;
+    const extUrl = chrome.runtime.getURL('');
+    // 🔒 修复：去掉 !sender.tab 限制，因为 warning.html 也是以标签页打开的。
+    // 只要是从扩展内部页面发出的消息即可信任；内容脚本的 URL 是 http/https 开头的，会被拦截。
+    return !!(sender.url && sender.url.startsWith(extUrl));
+}
+
+function isExtensionSender(sender) {
+    if (!sender) return false;
+    if (sender.id === chrome.runtime.id) return true;
+    if (sender.url && (sender.url.startsWith('chrome-extension://') || sender.url.startsWith('moz-extension://'))) return true;
+    return false;
+}
+
+// 🔒 M1 修复：精准提取 eTLD+1（处理 .com.my 等多级后缀）
+const MULTI_LEVEL_SUFFIXES = new Set([
+    'com.cn', 'net.cn', 'org.cn', 'gov.cn', 'edu.cn',
+    'co.uk', 'org.uk', 'me.uk', 'ltd.uk',
+    'com.my', 'net.my', 'org.my', 'gov.my', 'edu.my',
+    'com.au', 'net.au', 'org.au',
+    'co.jp', 'ne.jp', 'or.jp',
+    'co.nz', 'net.nz', 'org.nz',
+    'com.br', 'net.br', 'org.br',
+    'com.sg', 'net.sg', 'org.sg', 'edu.sg',
+    'com.hk', 'net.hk', 'org.hk', 'edu.hk'
+]);
+
+function getETLD1(host) {
+    if (!host) return host;
+    if (/^\d{1,3}(\.\d{1,3}){3}$/.test(host)) return host; // IP 直接返回
+    const parts = host.split('.');
+    if (parts.length <= 2) return host;
+    const lastTwo = parts.slice(-2).join('.');
+    if (MULTI_LEVEL_SUFFIXES.has(lastTwo) && parts.length >= 3) {
+        return parts.slice(-3).join('.');
+    }
+    return lastTwo;
+}
+
 export async function handleMessage(message, sender) {
-    // 🔒 S-07: 拒绝非扩展内部发出的消息，防止恶意网页通过 content.js 篡改内部状态
-    const isExtensionSender = sender?.id === chrome.runtime.id || 
-                              (sender?.url && (sender.url.startsWith('chrome-extension://') || sender.url.startsWith('moz-extension://')));
-    if (!isExtensionSender) {
+    // 🔒 S-07: 拒绝非扩展内部发出的消息
+    if (!isExtensionSender(sender)) {
         console.warn('❌ [拦截] 拒绝非扩展来源的消息:', message?.type, 'Sender:', sender?.url || sender?.id);
         return { error: 'Unauthorized sender' };
     }
 
+    // 🔒 M2 修复：特权消息分级校验
+    const privilegedTypes = [
+        'UPDATE_SETTING_KEY', 'UPDATE_SETTINGS', 
+        'ADD_WHITELIST', 'REMOVE_WHITELIST', 
+        'ADD_TEMP_WHITELIST', 'REMOVE_TEMP_WHITELIST'
+    ];
+    if (privilegedTypes.includes(message.type) && !isPrivilegedSender(sender)) {
+        console.warn('❌ [拦截] 拒绝非特权页面调用:', message.type);
+        return { error: 'Privileged sender required' };
+    }
+
     switch (message.type) {
+
         case 'DOM_AD_HIDDEN':
             try {
                 const host = new URL(message.url).hostname;
@@ -54,8 +126,8 @@ export async function handleMessage(message, sender) {
             return Array.isArray(rawLogs) ? rawLogs : [];
         case 'ADD_TEMP_WHITELIST':
             // 🔒 S-07: 补全域名格式校验
-            if (typeof message.domain !== 'string' || !/^[a-z0-9.-]+$/i.test(message.domain)) {
-                return { ok: false, error: '格式非法' };
+            if (!isValidWhitelistDomain(message.domain)) {
+                return { ok: false, error: '格式非法或公共后缀' };
             }
             try {
                 const settings = await getSettings();
@@ -101,6 +173,12 @@ export async function handleMessage(message, sender) {
             return { stats: stats, settings: await getSettings() };
         case 'REPORT_FEEDBACK':
             try {
+                // 🔒 M1 修复：强制要求登录，阻断匿名刷接口
+                const { dewsecure_user: user } = await chrome.storage.local.get('dewsecure_user');
+                if (!user || !user.token) {
+                    return { ok: false, error: 'Please login to report false positives/negatives' };
+                }
+
                 let host = message.domain;
                 if (!host) {
                     const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
@@ -127,21 +205,11 @@ export async function handleMessage(message, sender) {
                     return { ok: false, error: 'Invalid domain' };
                 }
 
-                // 🔒 S-02 隐私修复：提取 eTLD+1（注册域）
-                let domainOnly = host;
-                // 🛡️ 如果是 IP 地址，直接使用 IP，绝对不能切割
-                const isIP = /^\d{1,3}(\.\d{1,3}){3}$/.test(host);
-                if (!isIP) {
-                    const hostParts = host.split('.');
-                    // 只对普通域名切割（如 a.b.com -> b.com），保留双后缀（如 .co.uk）
-                    if (hostParts.length > 2 && !host.endsWith('.co.uk') && !host.endsWith('.com.cn')) {
-                        domainOnly = hostParts.slice(-2).join('.');
-                    }
-                }
+                // 🔒 M1 修复：使用 getETLD1 精准提取，防止 shopee.com.my 被截断为 com.my
+                const domainOnly = getETLD1(host);
                 
                 // 🔒 修复外键冲突：恢复真实的 userId 以便通过外键和 RLS 鉴权
                 let userId = null;
-                const { dewsecure_user: user } = await chrome.storage.local.get('dewsecure_user');
                 if (user && user.token) {
                     try { const payload = JSON.parse(atob(user.token.split('.')[1])); userId = payload.sub; } catch (e) {}
                 }
@@ -178,9 +246,9 @@ export async function handleMessage(message, sender) {
             s[message.key] = message.value;
             await chrome.storage.local.set({ [SETTINGS_KEY]: s });
             
-            // 如果修改的是总开关，同步更新 DNR 规则
-            if (message.key === 'dnrEnabled') {
-                await updateDNRRulesets(message.value);
+            // 如果修改的是总开关或追踪器开关，同步更新 DNR 规则
+            if (message.key === 'dnrEnabled' || message.key === 'blockTrackers') {
+                await updateDNRRulesets(s.dnrEnabled, s.blockTrackers);
             }
             return { ok: true };
         case 'UPDATE_SETTINGS':
@@ -192,13 +260,13 @@ export async function handleMessage(message, sender) {
                 }
             }
             await chrome.storage.local.set({ [SETTINGS_KEY]: currentSettings });
-            if (message.settings.dnrEnabled !== undefined) {
-                await updateDNRRulesets(message.settings.dnrEnabled);
+            if (message.settings.dnrEnabled !== undefined || message.settings.blockTrackers !== undefined) {
+                await updateDNRRulesets(currentSettings.dnrEnabled, currentSettings.blockTrackers);
             }
             return { ok: true };
         case 'ADD_WHITELIST':
             let curSettings = await getSettings();
-            if (!/^[a-z0-9.-]+$/i.test(message.domain)) return { ok: false, error: '格式非法' };
+            if (!isValidWhitelistDomain(message.domain)) return { ok: false, error: '格式非法或公共后缀' };
             if (!curSettings.whitelist.includes(message.domain)) {
                 curSettings.whitelist.push(message.domain);
                 await chrome.storage.local.set({ [SETTINGS_KEY]: curSettings });

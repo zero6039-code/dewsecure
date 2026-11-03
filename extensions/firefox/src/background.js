@@ -15,6 +15,7 @@ import { reportDeviceSilently } from './deviceManager.js';
 import { saveExternalAuth, logoutUser, getCurrentUser } from './authManager.js';
 
 import { initSettings, getSettings, SETTINGS_KEY } from './background/settings.js';
+import { updateDNRRulesets } from './background/messageHandler.js';
 import { initSecurityListeners } from './background/security.js';
 import { initStatsListener } from './background/stats.js';
 import { restoreSessionRules } from './background/dnr.js';
@@ -26,7 +27,11 @@ import { updateThreatIntel } from './background/threatIntel.js';
 // 🚀 AI 已改为纯 JS 推理，无需创建 Offscreen 页面
 
 // 初始化
-initSettings();
+initSettings().then(async () => {
+    // 🛡️ 修复：冷启动时同步 DNR 规则状态，防止重启浏览器后规则又默认开启
+    const s = await getSettings();
+    updateDNRRulesets(s.dnrEnabled, s.blockTrackers);
+});
 chrome.action.setBadgeText({ text: '' });
 initSecurityListeners();
 initStatsListener();
@@ -40,6 +45,22 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
 // AI 通信
 chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
+    // 🔒 F1 修复：接收 content.js 收集的第三方请求域名，调用 AI 进行判定
+    if (msg.type === 'THIRD_PARTY_HOSTS' && sender.tab) {
+        chrome.storage.local.get('dewsecure_settings').then(res => {
+            const settings = res.dewsecure_settings || {};
+            // 如果 AI 开关关着，直接不加载 ai.js，彻底闭嘴！
+            if (settings.aiFourEnabled === false || settings.aiEnabled === false) return;
+            
+            import('./background/ai.js').then(({ runAICheck }) => {
+                for (const host of msg.hosts) {
+                    runAICheck(host, sender.tab.id, true); // 传入 true 表示这是第三方资源
+                }
+            });
+        });
+        sendResponse({ ok: true });
+        return true;
+    }
     if (msg.type === 'CHECK_URL_AI') {
         runAICheck(msg.url, sender?.tab?.id);
         sendResponse({ ok: true });
@@ -152,17 +173,26 @@ chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
 });
 
 // 🌟 P-01 硬核钓鱼拦截：在页面加载前抢占并重定向
+// 🔒 H1 修复：使用扩展自身 URL 前缀判断，不再用子串匹配（防止 ?warning.html / #warning.html 绕过）
+const OWN_WARNING_URL = chrome.runtime.getURL('warning.html');
+const isOwnWarningPage = (u) => {
+    if (typeof u !== 'string') return false;
+    return u === OWN_WARNING_URL ||
+           u.startsWith(OWN_WARNING_URL + '?') ||
+           u.startsWith(OWN_WARNING_URL + '#');
+};
+
 if (chrome.webNavigation && chrome.webNavigation.onBeforeNavigate) {
-    const blockedTabs = new Set();
+    const blockedTabs = new Map(); // 🔒 M6 修复：改用 Map 记录 tabId -> 上次拦截的 URL
 
     chrome.webNavigation.onBeforeNavigate.addListener(async (details) => {
         // 如果是警告页，记录一下真实被拦截的 URL，供 warning.js 使用
-        if (details.url.includes('warning.html') && details.frameId === 0) {
+        if (isOwnWarningPage(details.url) && details.frameId === 0) {
             // 🛡️ 核弹级防线：强行拦截对核心大厂的误跳转
             try {
                 const urlParams = new URL(details.url).searchParams;
                 const domain = urlParams.get('domain') || urlParams.get('url') || '';
-                const HARD_SAFE = ['github.com', 'githubusercontent.com', 'gitlab.com', 'dewsecure.com', 'npmjs.com', 'cloudflare.com', 'microsoft.com', 'apple.com'];
+                const HARD_SAFE = ['github.com', 'gitlab.com', 'dewsecure.com', 'npmjs.com', 'cloudflare.com', 'microsoft.com', 'apple.com', 'trip.com', 'shopee.com.my', 'tiktok.com'];
                 
                 if (domain && HARD_SAFE.some(d => domain === d || domain.endsWith('.' + d))) {
                     console.warn('🛡️ [Security] 强行拦下对核心大厂的警告页跳转，放行！', domain);
@@ -174,7 +204,7 @@ if (chrome.webNavigation && chrome.webNavigation.onBeforeNavigate) {
             }
 
             chrome.tabs.get(details.tabId, (tab) => {
-                if (tab && tab.url && !tab.url.includes('warning.html')) {
+                if (tab && tab.url && !isOwnWarningPage(tab.url)) {
                     chrome.storage.local.set({ last_blocked_url: tab.url });
                 }
             });
@@ -184,11 +214,17 @@ if (chrome.webNavigation && chrome.webNavigation.onBeforeNavigate) {
         // 只拦截主框架的真实网页
         if (details.frameId !== 0 || !details.url.startsWith('http')) return;
 
-        // 🔒 防循环
+        // 🔒 M6 修复：防循环逻辑改为比对 URL
         if (blockedTabs.has(details.tabId)) {
-            console.log('[DEBUG] 标签页已拦截过，本次放行:', details.tabId);
-            blockedTabs.delete(details.tabId);
-            return;
+            const lastUrl = blockedTabs.get(details.tabId);
+            if (lastUrl === details.url) {
+                console.log('[DEBUG] 用户主动放行同一 URL，解除防循环:', details.url);
+                blockedTabs.delete(details.tabId);
+                return;
+            } else {
+                console.log('[DEBUG] 发现该标签页产生新恶意跳转，重新执行拦截:', details.url);
+                // 继续往下走，重新拦截
+            }
         }
 
         try {
@@ -196,12 +232,19 @@ if (chrome.webNavigation && chrome.webNavigation.onBeforeNavigate) {
             const urlObj = new URL(details.url);
             const host = urlObj.hostname;
             
+            // 🔒 H2 修复：移除 github.io / githubusercontent.com；删除 includes('zero6039') 子串豁免
+            // 官方 Worker 用 zero6039.workers.dev 精确放行（点分隔，不误放 evil-zero6039.workers.dev）
             const HARD_SAFE_DOMAINS = [
-                'dewsecure.com', 'github.com', 'githubusercontent.com', 'github.io', 
-                'gitlab.com', 'npmjs.com', 'cloudflare.com', 'microsoft.com', 'apple.com'
+                'dewsecure.com', 'zero6039.workers.dev', 'github.com',
+                'gitlab.com', 'npmjs.com', 'cloudflare.com', 'microsoft.com', 'apple.com',
+                'trip.com', 'shopee.com.my', 'tiktok.com', 'kkday.com', 'klook.com',
+                'lazada.com.my', 'traveloka.com', 'omguk.com', 'google.com', 'youtube.com',
+                'facebook.com', 'x.com', 'instagram.com', 'wired.com'
             ];
+            const isHardSafeDomain = (h) =>
+                HARD_SAFE_DOMAINS.some(d => h === d || h.endsWith('.' + d));
             
-            if (HARD_SAFE_DOMAINS.some(d => host === d || host.endsWith('.' + d)) || host.includes('zero6039')) {
+            if (isHardSafeDomain(host)) {
                 // 豁免核心站点，直接放行，绝不拦截
                 return;
             }
@@ -215,11 +258,13 @@ if (chrome.webNavigation && chrome.webNavigation.onBeforeNavigate) {
                 return; // 命中白名单，绝不拦截
             }
 
-            // 🛡️ 拦截前置检查 3：彻底修复开关失效问题！
-            // 因为 UI 里的 phishingEnabled 可能没写进 storage（undefined），导致一直拦截。
-            // 只要不是明确的 true（比如是 false 或者 undefined），就默认不拦截！
-            if (s.phishingEnabled !== true && s.aiEnabled !== true) {
-                console.log('🛡️ [Security] 检测开关未开启，放行该网页:', host);
+            // 🛡️ F3 修复：只有 PRO 用户且明确开启了 phishingEnabled 才拦截
+            const user = await getCurrentUser();
+            const isPro = user && ['pro', 'trial', 'family', 'premium'].includes(user.tier);
+            if (!isPro) { // 🔒 F3 强制拦截：非 PRO 用户绝对不允许执行钓鱼检测
+                return;
+            }
+            if (s.phishingEnabled !== true) {
                 return; 
             }
 
@@ -227,7 +272,7 @@ if (chrome.webNavigation && chrome.webNavigation.onBeforeNavigate) {
             if (detectBrandPhishing(details.url)) {
                 console.log('🚨 [Security] 检测到品牌钓鱼，执行强制拦截:', details.url);
                 const warningUrl = chrome.runtime.getURL(`warning.html?url=${encodeURIComponent(details.url)}&isPro=false`);
-                blockedTabs.add(details.tabId);
+                blockedTabs.set(details.tabId, details.url);
                 chrome.tabs.update(details.tabId, { url: warningUrl });
             }
         } catch (e) {
