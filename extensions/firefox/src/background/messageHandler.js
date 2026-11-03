@@ -42,8 +42,11 @@ function isValidWhitelistDomain(domain) {
     if (typeof domain !== 'string' || domain.length > 253 || !/^[a-z0-9.-]+$/i.test(domain)) return false;
     if (/^\d{1,3}(\.\d{1,3}){3}$/.test(domain)) return false; // 拒绝 IP
     
+    const parts = domain.split('.');
+    // 拒绝单段域名，且 TLD 长度必须至少为 2（过滤掉 a.b 这种非法域名）
+    if (parts.length < 2 || parts[parts.length - 1].length < 2) return false; 
+
     const reg = getDomain(domain.toLowerCase(), { allowPrivateDomains: true });
-    // 如果 reg 为 null（说明是 com.my 这种公共后缀），或者域名不完全匹配注册域及其子域，则拒绝
     return reg !== null && (domain === reg || domain.endsWith('.' + reg));
 }
 
@@ -185,8 +188,73 @@ export async function handleMessage(message, sender) {
             sStats = await cleanExpiredTempWhitelist(sStats);
             return { stats: stats, settings: sStats };
         case 'REPORT_FEEDBACK':
-            // ... [保持原代码不变，为节省篇幅此处省略，执行命令会保留] ...
-            break;
+            try {
+                // 🔒 M1 修复：强制要求登录，阻断匿名刷接口
+                const { dewsecure_user: user } = await chrome.storage.local.get('dewsecure_user');
+                if (!user || !user.token) {
+                    return { ok: false, error: 'Please login to report false positives/negatives' };
+                }
+
+                let host = message.domain;
+                if (!host) {
+                    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+                    if (!tab || !tab.url) return { ok: false };
+                    host = new URL(tab.url).hostname;
+                }
+                
+                // 🛡️ 修复误报逻辑：如果是在警告页（被拦截页面）触发的上报，必须提取真实的被拦截域名
+                if (!message.domain && tab.url && tab.url.includes('warning.html')) {
+                    const urlParams = new URL(tab.url).searchParams;
+                    const realDomain = urlParams.get('domain') || urlParams.get('url');
+                    if (realDomain && realDomain !== 'Known Malicious Site') {
+                        try {
+                            host = new URL(realDomain.startsWith('http') ? realDomain : `https://${realDomain}`).hostname;
+                        } catch(e) {
+                            host = realDomain;
+                        }
+                    }
+                }
+
+                // 禁止上报扩展自身的 ID
+                if (host === chrome.runtime.id || !host.includes('.')) {
+                    console.warn('❌ [Report] 拒绝上报无效或扩展自身域名:', host);
+                    return { ok: false, error: 'Invalid domain' };
+                }
+
+                // 🔒 M1 修复：使用 getETLD1 精准提取，防止 shopee.com.my 被截断为 com.my
+                const domainOnly = getETLD1(host);
+                
+                // 🔒 M-3 修复：安全的 JWT 解码，修复 atob 无法处理 base64url 的抛错
+                let userId = null;
+                if (user && user.token) {
+                    try {
+                        const b64 = user.token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/');
+                        const bin = atob(b64.padEnd(Math.ceil(b64.length / 4) * 4, '='));
+                        const payload = JSON.parse(new TextDecoder().decode(Uint8Array.from(bin, (c) => c.charCodeAt(0))));
+                        userId = payload.sub;
+                    } catch (e) {}
+                }
+
+                const SUPABASE_URL = 'https://uvbaioqqjqseapcancvi.supabase.co';
+                const SUPABASE_ANON_KEY = 'sb_publishable_xiiA-yt_jRKkzRdkYkoWJA_CVZjNjq8';
+                
+                // 🔒 如果用户已登录，使用用户 Token；如果未登录，使用纯匿名 Key
+                const authHeader = user?.token ? `Bearer ${user.token}` : `Bearer ${SUPABASE_ANON_KEY}`;
+
+                const res = await fetch(`${SUPABASE_URL}/rest/v1/reports`, {
+                    method: 'POST',
+                    headers: { 'apikey': SUPABASE_ANON_KEY, 'Authorization': authHeader, 'Content-Type': 'application/json', 'Prefer': 'return=minimal' },
+                    body: JSON.stringify({ 
+                        user_id: userId, // 恢复真实 ID（如果没登录则为 null）
+                        report_type: message.feedbackType === 'missed' ? 'false_negative' : 'false_positive', 
+                        url: `https://${domainOnly}`, // 🔒 仅上报注册域（已脱敏）
+                        domain: domainOnly, 
+                        description: domainOnly, 
+                        category: 'ai_feedback' 
+                    })
+                });
+                return { ok: res.ok };
+            } catch (err) { return { ok: false }; }
         case 'GET_SETTINGS':
             let sGet = await getSettings();
             sGet = await cleanExpiredTempWhitelist(sGet);
