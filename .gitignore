@@ -82,3 +82,7 @@ extensions/*/dist/
 extensions/*/releases/
 models/weights/*.onnx
 _metadata/
+models/extensions/
+extensions/firefox/rules/allowlist.json
+extensions/opera/rules/allowlist.json
+extensions/*/manifest.json

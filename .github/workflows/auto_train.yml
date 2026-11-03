@@ -100,17 +100,19 @@ jobs:
           echo "VERSION=$VERSION" >> $GITHUB_ENV
           python training/sign_model.py
 
-      - name: 安装 rclone (安全校验版)
-        run: |
-          wget https://downloads.rclone.org/v1.68.1/rclone-v1.68.1-linux-amd64.deb
-          # 🔒 M-14 修复：校验和硬编码，防止同源篡改
-          EXPECTED_SHA="d84e2e78d6a28fbda4ba06c40c8566b8b58f84f79918e173b16186d2071c8547"
-          ACTUAL_SHA=$(sha256sum rclone-v1.68.1-linux-amd64.deb | awk '{print $1}')
-          if [ "$EXPECTED_SHA" != "$ACTUAL_SHA" ]; then
-            echo "❌ SHA256 mismatch! Security risk."
-            exit 1
-          fi
-          sudo dpkg -i rclone-v1.68.1-linux-amd64.deb
+        - name: 安装 rclone (安全校验版)
+          run: |
+            wget https://downloads.rclone.org/v1.68.1/rclone-v1.68.1-linux-amd64.zip
+            # 🔒 M-14 修复：校验和硬编码，防止同源篡改
+            EXPECTED_SHA="34f34743b1831523cd2e0aff74447b717e2d62fe1b598e91703899e0c0689568"
+            ACTUAL_SHA=$(sha256sum rclone-v1.68.1-linux-amd64.zip | awk '{print $1}')
+            if [ "$EXPECTED_SHA" != "$ACTUAL_SHA" ]; then
+              echo "❌ SHA256 mismatch! Security risk."
+              exit 1
+            fi
+            unzip -q rclone-v1.68.1-linux-amd64.zip
+            sudo cp rclone-v1.68.1-linux-amd64/rclone /usr/local/bin/
+            sudo chmod +x /usr/local/bin/rclone
 
       - name: 配置 rclone
         run: |
