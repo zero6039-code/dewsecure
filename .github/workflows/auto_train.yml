@@ -52,8 +52,16 @@ jobs:
           VERSION="V${{ github.run_number }}.$(date -u +%y%m%d)"
           echo "macro_f1=$MACRO_F1" >> $GITHUB_OUTPUT
           echo "version=$VERSION" >> $GITHUB_OUTPUT
+        - name: 🛡️ 回归与质量门禁校验
+          working-directory: models
+          run: |
+            if [ ! -f "weights/baseline_meta.json" ]; then
+              echo "⚠️ 缺少 baseline_meta.json，跳过对比，仅校验绝对阈值"
+              echo '{"macroF1": 0.0}' > weights/baseline_meta.json
+            fi
+            python training/gate.py --meta weights/model_meta.json --baseline weights/baseline_meta.json --min-macro-f1 0.85
 
-      - name: 将模型产物上传为 Artifact
+        - name: 将模型产物上传为 Artifact
         uses: actions/upload-artifact@v4
         with:
           name: trained-model
@@ -68,7 +76,7 @@ jobs:
     needs: train
     runs-on: ubuntu-latest
     # 🔒 这里可以配置 GitHub Environment 保护，要求人工审批
-    # environment: production 
+    environment: production 
     steps:
       - uses: actions/checkout@v4
       
