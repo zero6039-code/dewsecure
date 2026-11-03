@@ -74,3 +74,11 @@ extensions/*/dist/
 /playwright-report/
 releases/
 releases/
+extensions/chrome/whale_dist/
+
+# 🔒 M-14: 忽略构建产物与依赖缓存
+extensions/*/node_modules/
+extensions/*/dist/
+extensions/*/releases/
+models/weights/*.onnx
+_metadata/

@@ -103,7 +103,8 @@ jobs:
       - name: 安装 rclone (安全校验版)
         run: |
           wget https://downloads.rclone.org/v1.68.1/rclone-v1.68.1-linux-amd64.deb
-          EXPECTED_SHA="$(wget -qO- https://downloads.rclone.org/v1.68.1/SHA256SUMS | grep 'rclone-v1.68.1-linux-amd64.deb' | awk '{print $1}')"
+          # 🔒 M-14 修复：校验和硬编码，防止同源篡改
+          EXPECTED_SHA="e38618e0578da7b1ae8f2b752e553c90b47ef6e8a82df2e41328658ba6ee66a1"
           ACTUAL_SHA=$(sha256sum rclone-v1.68.1-linux-amd64.deb | awk '{print $1}')
           if [ "$EXPECTED_SHA" != "$ACTUAL_SHA" ]; then
             echo "❌ SHA256 mismatch! Security risk."
