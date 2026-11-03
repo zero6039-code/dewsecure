@@ -180,12 +180,11 @@ chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
 
 // 🌟 P-01 硬核钓鱼拦截：在页面加载前抢占并重定向
 // 🔒 H1 修复：使用扩展自身 URL 前缀判断，不再用子串匹配（防止 ?warning.html / #warning.html 绕过）
-const OWN_WARNING_URL = chrome.runtime.getURL('warning.html');
+const EXT_ORIGIN = chrome.runtime.getURL('');
 const isOwnWarningPage = (u) => {
     if (typeof u !== 'string') return false;
-    return u === OWN_WARNING_URL ||
-           u.startsWith(OWN_WARNING_URL + '?') ||
-           u.startsWith(OWN_WARNING_URL + '#');
+    // 基于扩展 origin 匹配，兼容 use_dynamic_url 动态改写
+    return u.startsWith(EXT_ORIGIN) && u.includes('/warning.html');
 };
 
 if (chrome.webNavigation && chrome.webNavigation.onBeforeNavigate) {

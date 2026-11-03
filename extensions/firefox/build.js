@@ -43,6 +43,13 @@ function generateFirefoxManifest() {
     delete chrome.offscreen; 
     delete chrome.side_panel;
     delete chrome.externally_connectable;
+    delete chrome.key; // Firefox 通过 gecko.id 识别，不支持 key
+    if (chrome.web_accessible_resources) {
+        chrome.web_accessible_resources = chrome.web_accessible_resources.map(r => {
+            delete r.use_dynamic_url; // Chrome 专属，Firefox 不支持会报警告
+            return r;
+        });
+    }
     if (chrome.permissions) {
         chrome.permissions = chrome.permissions.filter(p => p !== 'offscreen' && p !== 'sidePanel');
     }
