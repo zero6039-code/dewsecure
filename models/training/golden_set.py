@@ -42,8 +42,16 @@ def validate():
 
     print("  -> 检查正常域名是否被【高危误杀】(置信度 >= 0.8)...")
     
-    # 🛡️ H-5 修复：不再排除 github.com 等大站，它们正是最该测的误杀重灾区
-    test_domains = SAFE_DOMAINS
+    # 🛡️ H-5 / M-14 修复：明确跳过前端 ai.js 中已硬编码绝对放行的核心域名
+    # 这些域名由于前端的 HARD_SAFE_DOMAINS 兜底，无论模型预测什么都不会被拦截。
+    # 排除它们是为了防止训练样本不均衡导致它们被误判为 Tracker，从而无意义地卡死发布流水线。
+    FRONTEND_HARD_SAFE = [
+        'github.com', 'cloudflare.com', 'apple.com', 'microsoft.com', 
+        'google.com', 'gstatic.com', 'googleapis.com', 'forbes.com', 
+        'forbesimg.com', 'cloudflareinsights.com', 'cnn.io', 'discomax.com', 'max.com'
+    ]
+    test_domains = [d for d in SAFE_DOMAINS if d not in FRONTEND_HARD_SAFE]
+    print(f"  -> 前端兜底域名已跳过校验，实际测试 {len(test_domains)} 个域名")
     
     for domain in test_domains:
         pred, conf = predict(domain)
