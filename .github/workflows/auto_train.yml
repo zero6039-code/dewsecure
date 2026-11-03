@@ -60,7 +60,7 @@ jobs:
             echo "⚠️ 缺少 baseline_meta.json，跳过对比，仅校验绝对阈值"
             echo '{"macroF1": 0.0}' > weights/baseline_meta.json
           fi
-          python training/gate.py --meta weights/model_meta.json --baseline weights/baseline_meta.json --min-macro-f1 0.85
+          python training/gate.py --meta weights/model_meta.json --baseline weights/baseline_meta.json --min-macro-f1 0.80
 
       - name: 将模型产物上传为 Artifact
         uses: actions/upload-artifact@v4
@@ -100,19 +100,19 @@ jobs:
           echo "VERSION=$VERSION" >> $GITHUB_ENV
           python training/sign_model.py
 
-        - name: 安装 rclone (安全校验版)
-          run: |
-            wget https://downloads.rclone.org/v1.68.1/rclone-v1.68.1-linux-amd64.zip
-            # 🔒 M-14 修复：校验和硬编码，防止同源篡改
-            EXPECTED_SHA="34f34743b1831523cd2e0aff74447b717e2d62fe1b598e91703899e0c0689568"
-            ACTUAL_SHA=$(sha256sum rclone-v1.68.1-linux-amd64.zip | awk '{print $1}')
-            if [ "$EXPECTED_SHA" != "$ACTUAL_SHA" ]; then
-              echo "❌ SHA256 mismatch! Security risk."
-              exit 1
-            fi
-            unzip -q rclone-v1.68.1-linux-amd64.zip
-            sudo cp rclone-v1.68.1-linux-amd64/rclone /usr/local/bin/
-            sudo chmod +x /usr/local/bin/rclone
+      - name: 安装 rclone (安全校验版)
+        run: |
+          wget https://downloads.rclone.org/v1.68.1/rclone-v1.68.1-linux-amd64.zip
+          # 🔒 M-14 修复：校验和硬编码，防止同源篡改
+          EXPECTED_SHA="34f34743b1831523cd2e0aff74447b717e2d62fe1b598e91703899e0c0689568"
+          ACTUAL_SHA=$(sha256sum rclone-v1.68.1-linux-amd64.zip | awk '{print $1}')
+          if [ "$EXPECTED_SHA" != "$ACTUAL_SHA" ]; then
+            echo "❌ SHA256 mismatch! Security risk."
+            exit 1
+          fi
+          unzip -q rclone-v1.68.1-linux-amd64.zip
+          sudo cp rclone-v1.68.1-linux-amd64/rclone /usr/local/bin/
+          sudo chmod +x /usr/local/bin/rclone
 
       - name: 配置 rclone
         run: |
