@@ -27,6 +27,7 @@ import { HARD_SAFE_DOMAINS, MINING_DOMAINS } from './background/aiConfig.js';
 import { initIntelReporter } from './background/intelReporter.js';
 import { ensureAlarm, due } from './background/alarmHelper.js';
 import { syncRules, RANGE } from './background/dnrOwner.js';
+import { TARGET_DOMAINS, TRACKING_KEYS } from './background/security.js';
 
 // 🛡️ N-4 修复：记录用户强制放行的下载 URL
 const forceDownloadUrls = new Set();
@@ -516,6 +517,24 @@ const privacyRules = [
         "condition": { 
             "resourceTypes": ["main_frame", "sub_frame", "xmlhttprequest", "script", "image", "stylesheet", "font", "media", "websocket", "other"],
             "regexFilter": "^http://(localhost|127\\.[0-9.]+|10\\.[0-9.]+|192\\.168\\.[0-9.]+|172\\.(1[6-9]|2[0-9]|3[01])\\.[0-9.]+|[^/:]+\\.(local|lan|internal|home)|[^/.:]+)(:[0-9]+)?(/|$)" 
+        }
+    },
+    // 🛡️ N-15 优化：网络层联盟参数净化 (优先级 12，高于 HTTPS 升级)
+    {
+        "id": 10005, "priority": 12,
+        "action": {
+            "type": "redirect",
+            "redirect": {
+                "transform": {
+                    "queryTransform": {
+                        "removeParams": TRACKING_KEYS
+                    }
+                }
+            }
+        },
+        "condition": {
+            "requestDomains": TARGET_DOMAINS,
+            "resourceTypes": ["main_frame", "sub_frame", "xmlhttprequest"]
         }
     },
     // 3. 注入 Sec-GPC 隐私信号 (优先级 1)

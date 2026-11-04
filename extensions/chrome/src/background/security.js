@@ -5,14 +5,14 @@ const SAFE_OFFICIAL_DOMAINS = [
     'lazada.com.my', 'opera.com', 'traveloka.com', 'shein.com'
 ];
 
-const TARGET_DOMAINS = [
+export const TARGET_DOMAINS = [
     'trip.com', 'shopee.com.my', 'kkday.com', 'klook.com', 
     'lazada.com.my', 'traveloka.com', 'omguk.com', 
     'tiktok.com', 'ticket.com' // 👈 补充新的恶意重定向常客
 ];
 
 // 需要移除的广告追踪参数名
-const TRACKING_KEYS = [
+export const TRACKING_KEYS = [
     'a_aid', 'a_bid', 'gsid', 'gsc', 'data1', 'data2',
     'mmp_pid', 'Allianceid', 'clickref', 'partner_id',
     'banid', 'campid', 'affiliate_id', 'sub_id',
@@ -86,25 +86,7 @@ export function initSecurityListeners() {
         });
     }
 
-    // 主页面跳转：继续使用去参重定向（不关页面）
-    chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
-        const url = changeInfo.url;
-        if (url) {
-            const cleanedUrl = await getCleanedUrl(url);
-            if (cleanedUrl) {
-                chrome.tabs.update(tabId, { url: cleanedUrl });
-            }
-        }
-    });
+    // 🛡️ N-15 优化：DNR 已在网络层完成去参，移除冗余的 tabs.update 刷新
+    // 保留 onCreatedNavigationTarget 的 tabs.remove 逻辑，应对恶意弹窗
 
-    // 新建标签页：继续使用去参重定向
-    chrome.tabs.onCreated.addListener(async (tab) => {
-        const url = tab.pendingUrl || tab.url;
-        if (url) {
-            const cleanedUrl = await getCleanedUrl(url);
-            if (cleanedUrl) {
-                chrome.tabs.update(tab.id, { url: cleanedUrl });
-            }
-        }
-    });
 }
