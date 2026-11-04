@@ -138,5 +138,11 @@
   "warn_reason_brand_token": "Jeton de marque dans le domaine : {arg}",
   "warn_reason_brand_wrong_suffix": "Suffixe de marque incorrect : {arg}",
   "warn_reason_lookalike": "Domaine similaire détecté : {arg}",
-  "warn_reason_risky_tld_keyword_in_host": "TLD risqué avec mots-clés de phishing"
+  "warn_reason_risky_tld_keyword_in_host": "TLD risqué avec mots-clés de phishing",
+  "mining_title": "Avertissement d'abus de ressources : Script de minage",
+  "mining_desc": "Cette page exécute des tâches de calcul intensif en arrière-plan, essayant peut-être de miner des cryptomonnaies. DewSecure a automatiquement mis fin à ces tâches.",
+  "mining_btn": "Compris",
+  "clipboard_title": "Alerte de sécurité : Action de presse-papiers dangereuse bloquée.",
+  "clipboard_desc": "Ce contenu contient des commandes suspectes (ex. PowerShell/CMD). Ne le collez pas dans la fenêtre d'exécution.",
+  "clipboard_btn": "Je suis sûr, continuer"
 }

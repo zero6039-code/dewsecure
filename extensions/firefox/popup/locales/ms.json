@@ -138,5 +138,11 @@
   "warn_reason_brand_token": "Token jenama dalam domain: {arg}",
   "warn_reason_brand_wrong_suffix": "Akhiran jenama yang salah: {arg}",
   "warn_reason_lookalike": "Domain serupa dikesan: {arg}",
-  "warn_reason_risky_tld_keyword_in_host": "TLD berisiko dengan kata kunci phishing"
+  "warn_reason_risky_tld_keyword_in_host": "TLD berisiko dengan kata kunci phishing",
+  "mining_title": "Amaran Penyalahgunaan Sumber: Skrip Perlombongan",
+  "mining_desc": "Halaman ini menjalankan tugas pengiraan berintensiti tinggi di latar belakang, mungkin cuba melombong mata wang kripto. DewSecure telah menamatkan tugas ini secara automatik.",
+  "mining_btn": "Faham",
+  "clipboard_title": "Amaran Keselamatan: Tindakan papan keratan berbahaya disekat.",
+  "clipboard_desc": "Kandungan ini mengandungi arahan yang mencurigakan (cth. PowerShell/CMD). Jangan tampal ke tetingkap larian.",
+  "clipboard_btn": "Saya pasti selamat, teruskan"
 }

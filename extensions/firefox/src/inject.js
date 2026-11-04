@@ -1,3 +1,4 @@
+window.__dewsecureDict = window.__dewsecureDict || {};
 (function() {
 
     // 11. 挖矿与资源滥用检测 (Worker + WASM + LongTask)
@@ -8,21 +9,14 @@
         let isMiningDetected = false;
         const activeWorkers = new Set();
 
-        const MINING_I18N = {
-            'zh': { title: '资源滥用警告：检测到疑似挖矿脚本', desc: '该页面正在后台运行高强度的计算任务（消耗大量 CPU），可能试图挖掘加密货币。DewSecure 已自动终止了这些任务。', btn: '我知道了' },
-            'en': { title: 'Resource Abuse Warning: Suspected Mining Script', desc: 'This page is running high-intensity computational tasks in the background (consuming CPU), possibly trying to mine cryptocurrency. DewSecure has automatically terminated these tasks.', btn: 'Got it' },
-            'de': { title: 'Ressourcenmissbrauch: Verdächtiges Mining-Skript', desc: 'Diese Seite führt im Hintergrund rechenintensive Aufgaben aus (CPU-Verbrauch), möglicherweise um Kryptowährungen zu schürfen. DewSecure hat diese Aufgaben automatisch beendet.', btn: 'Verstanden' },
-            'es': { title: 'Advertencia de abuso de recursos: Script de minería', desc: 'Esta página está ejecutando tareas computacionales de alta intensidad en segundo plano, posiblemente para minar criptomonedas. DewSecure ha terminado estas tareas automáticamente.', btn: 'Entendido' },
-            'fr': { title: 'Avertissement d\'abus de ressources : Script de minage', desc: 'Cette page exécute des tâches de calcul intensif en arrière-plan, essayant peut-être de miner des cryptomonnaies. DewSecure a automatiquement mis fin à ces tâches.', btn: 'Compris' },
-            'ja': { title: 'リソース乱用警告：マイニングスクリプトの疑い', desc: 'このページはバックグラウンドで高負荷な計算タスクを実行しており、暗号通貨をマイニングしようとしている可能性があります。DewSecureはこれらのタスクを自動的に終了しました。', btn: '了解' },
-            'ko': { title: '리소스 남용 경고: 채굴 스크립트 의심', desc: '이 페이지는 백그라운드에서 고강도 컴퓨팅 작업을 실행하고 있으며, 암호화폐를 채굴하려는 것일 수 있습니다. DewSecure가 이 작업을 자동으로 종료했습니다.', btn: '확인' },
-            'ms': { title: 'Amaran Penyalahgunaan Sumber: Skrip Perlombongan', desc: 'Halaman ini menjalankan tugas pengiraan berintensiti tinggi di latar belakang, mungkin cuba melombong mata wang kripto. DewSecure telah menamatkan tugas ini secara automatik.', btn: 'Faham' },
-            'pt': { title: 'Aviso de Abuso de Recursos: Script de Mineração', desc: 'Esta página está executando tarefas computacionais de alta intensidade em segundo plano, possivelmente para minerar criptomoedas. O DewSecure encerrou essas tarefas automaticamente.', btn: 'Entendi' }
-        };
+        
 
         function getMiningI18n() {
-            const lang = (navigator.language || 'en').split('-')[0].toLowerCase();
-            return MINING_I18N[lang] || MINING_I18N['en'];
+            return {
+                title: window.__dewsecureDict['mining_title'] || 'Resource Abuse Warning',
+                desc: window.__dewsecureDict['mining_desc'] || 'This page is running high-intensity computational tasks...',
+                btn: window.__dewsecureDict['mining_btn'] || 'Got it'
+            };
         }
 
         function showMiningWarning() {
@@ -106,38 +100,16 @@
 
 (function() {
     'use strict';
-    // 🚀 ClickFix 剪贴板防护 (提升至最顶层，确保绝对执行)
+    // 🚀 ClickFix 剪贴板防护与诱导语检测 (N-14 升级)
     try {
-        const DANGEROUS_CLIPBOARD_PATTERNS = [
-            /powershell/i, /mshta/i, /cmd\s*\/c/i, /curl/i, /wget/i,
-            /Invoke-WebRequest/i, /Start-Process/i, /base64/i, /\bbash\b/i, /\.ps1/i, /\.bat/i, /\.vbs/i
-        ];
-        const LONG_BASE64_PATTERN = /^[A-Za-z0-9+/]{100,}={0,2}$/;
-
-        function isDangerousClipboard(text) {
-            if (!text) return false;
-            const str = String(text);
-            if (DANGEROUS_CLIPBOARD_PATTERNS.some(regex => regex.test(str))) return true;
-            if (LONG_BASE64_PATTERN.test(str.replace(/\s/g, ''))) return true;
-            return false;
-        }
-
-
-        const CLIPBOARD_I18N = {
-            'zh': { title: '安全警告：DewSecure 拦截了一次危险的剪贴板复制。', desc: '该内容包含可疑指令（如 PowerShell/CMD），请勿将其粘贴到运行窗口。', btn: '我确定安全，继续' },
-            'en': { title: 'Security Alert: DewSecure blocked a dangerous clipboard copy.', desc: 'This content contains suspicious commands (e.g., PowerShell/CMD). Do not paste it into the run window.', btn: 'I am sure it\'s safe, continue' },
-            'de': { title: 'Sicherheitswarnung: DewSecure hat eine gefährliche Zwischenablage-Kopie blockiert.', desc: 'Dieser Inhalt enthält verdächtige Befehle (z. B. PowerShell/CMD). Fügen Sie ihn nicht in das Ausführungsfenster ein.', btn: 'Ich bin sicher, fortfahren' },
-            'es': { title: 'Alerta de seguridad: DewSecure bloqueó una copia peligrosa en el portapapeles.', desc: 'Este contenido contiene comandos sospechosos (ej. PowerShell/CMD). No lo pegues en la ventana de ejecución.', btn: 'Estoy seguro, continuar' },
-            'fr': { title: 'Alerte de sécurité : DewSecure a bloqué une copie de presse-papiers dangereuse.', desc: 'Ce contenu contient des commandes suspectes (ex. PowerShell/CMD). Ne le collez pas dans la fenêtre d\'exécution.', btn: 'Je suis sûr, continuer' },
-            'ja': { title: 'セキュリティ警告：DewSecureが危険なクリップボードのコピーをブロックしました。', desc: 'このコンテンツには疑わしいコマンド（PowerShell/CMDなど）が含まれています。実行ウィンドウに貼り付けないでください。', btn: '安全です、続行します' },
-            'ko': { title: '보안 경고: DewSecure가 위험한 클립보드 복사를 차단했습니다.', desc: '이 콘텐츠에는 의심스러운 명령(PowerShell/CMD 등)이 포함되어 있습니다. 실행 창에 붙여넣지 마십시오.', btn: '안전합니다, 계속' },
-            'ms': { title: 'Amaran Keselamatan: DewSecure menyekat salinan papan keratan yang berbahaya.', desc: 'Kandungan ini mengandungi arahan yang mencurigakan (cth. PowerShell/CMD). Jangan tampal ke tetingkap larian.', btn: 'Saya pasti selamat, teruskan' },
-            'pt': { title: 'Alerta de Segurança: O DewSecure bloqueou uma cópia perigosa da área de transferência.', desc: 'Este conteúdo contém comandos suspeitos (ex. PowerShell/CMD). Não o cole na janela de execução.', btn: 'Tenho certeza, continuar' }
-        };
+        
 
         function getI18nText() {
-            const lang = (navigator.language || 'en').split('-')[0].toLowerCase();
-            return CLIPBOARD_I18N[lang] || CLIPBOARD_I18N['en'];
+            return {
+                title: window.__dewsecureDict['clipboard_title'] || 'Security Alert: Dangerous Clipboard Action',
+                desc: window.__dewsecureDict['clipboard_desc'] || 'This content contains suspicious commands...',
+                btn: window.__dewsecureDict['clipboard_btn'] || 'I am sure it\'s safe, continue'
+            };
         }
 
         function showClipboardWarning() {
@@ -165,7 +137,27 @@
             setTimeout(() => { if (banner.parentNode) banner.remove(); }, 10000);
         }
 
-        // 拦截 navigator.clipboard.writeText
+        // 🛡️ N-14 优化：计分制判断，降低误报
+        function isDangerousClipboard(text) {
+            if (!text) return false;
+            const str = String(text);
+            let score = 0;
+
+            // 极高危（直接拦截）
+            if (/powershell/i.test(str) || /mshta/i.test(str) || /cmd\s*\/c/i.test(str) || /Invoke-WebRequest/i.test(str) || /Start-Process/i.test(str)) score += 50;
+            
+            // 高危组合
+            if (/curl/i.test(str) || /wget/i.test(str)) score += 20;
+            if (/\bbash\b/i.test(str) || /\.ps1/i.test(str) || /\.bat/i.test(str) || /\.vbs/i.test(str)) score += 20;
+            if (/base64/i.test(str)) score += 20;
+            
+            // 长 Base64 串
+            if (/^[A-Za-z0-9+/]{100,}={0,2}$/.test(str.replace(/\s/g, ''))) score += 40;
+
+            return score >= 50;
+        }
+
+        // 1. 拦截脚本静默写入 clipboard.writeText
         if (navigator.clipboard) {
             const originalWriteText = navigator.clipboard.writeText;
             Object.defineProperty(navigator.clipboard, 'writeText', {
@@ -183,7 +175,7 @@
             });
         }
 
-        // 拦截 document.execCommand('copy')
+        // 2. 拦截 execCommand('copy')
         const nativeExecCommand = document.execCommand;
         Object.defineProperty(document, 'execCommand', {
             value: function(command, showUI, value) {
@@ -201,7 +193,58 @@
             writable: true,
             configurable: true
         });
-        console.log('🛡️ [DewSecure Inject] 剪贴板防护装甲已加载');
+
+        // 3. 🛡️ N-14 修复：拦截用户手动按 Ctrl+C 或右键复制
+        document.addEventListener('copy', (e) => {
+            const isPaused = document.documentElement.getAttribute('data-dewsecure-paused') === 'true';
+            if (isPaused) return;
+
+            let text = '';
+            if (e.clipboardData) {
+                text = e.clipboardData.getData('text/plain');
+            }
+            if (!text) {
+                const selection = document.getSelection();
+                text = selection ? selection.toString() : '';
+            }
+
+            if (isDangerousClipboard(text)) {
+                console.warn('[DewSecure] 已拦截手动复制的危险内容:', text.substring(0, 50) + '...');
+                e.preventDefault();
+                e.stopPropagation();
+                showClipboardWarning();
+            }
+        }, true);
+
+        // 4. 🛡️ N-14 优化：检测页面上的诱导语 (ClickFix)
+        function checkFixInducement() {
+            if (document.documentElement.getAttribute('data-dewsecure-paused') === 'true') return;
+            const bodyText = document.body ? document.body.innerText.toLowerCase() : '';
+            if (!bodyText) return;
+
+            // 多语言特征：按 Win+R / 运行 / 粘贴 / 命令行等
+            const indicators = ['win+r', 'win + r', 'windows + r', 'windows+r', 'paste', '粘贴', '貼り付け', '붙여넣기', 'tampal', 'pegar', 'coller', 'einfügen'];
+            const isRunDialog = bodyText.includes('run') || bodyText.includes('运行') || bodyText.includes('執行') || bodyText.includes('실행') || bodyText.includes('lari') || bodyText.includes('ejecutar') || bodyText.includes('executar') || bodyText.includes('ausführen') || bodyText.includes('exécuter');
+            
+            let hitCount = 0;
+            for (const word of indicators) {
+                if (bodyText.includes(word)) hitCount++;
+            }
+
+            // 如果同时提到了“运行”和“粘贴”，且页面没有大量代码块（防误伤文档站）
+            if (hitCount >= 1 && isRunDialog) {
+                const codeBlocks = document.querySelectorAll('pre, code').length;
+                if (codeBlocks < 5) { // 简单粗暴地豁免代码站
+                    console.warn('[DewSecure] 检测到 ClickFix 诱导语');
+                    showClipboardWarning();
+                }
+            }
+        }
+
+        // 延迟执行一次诱导语检测
+        setTimeout(checkFixInducement, 2000);
+
+        console.log('🛡️ [DewSecure Inject] 剪贴板防护与 ClickFix 拦截装甲已加载');
     } catch (e) {
         console.error('[DewSecure Inject] 剪贴板防护初始化失败:', e);
     }

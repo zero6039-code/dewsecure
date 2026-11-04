@@ -138,5 +138,11 @@
   "warn_reason_brand_token": "ドメインにブランド名の組み合わせ: {arg}",
   "warn_reason_brand_wrong_suffix": "誤ったブランドのサフィックス: {arg}",
   "warn_reason_lookalike": "類似ドメインを検出: {arg}",
-  "warn_reason_risky_tld_keyword_in_host": "リスクの高いTLDとフィッシングキーワード"
+  "warn_reason_risky_tld_keyword_in_host": "リスクの高いTLDとフィッシングキーワード",
+  "mining_title": "リソース乱用警告：マイニングスクリプトの疑い",
+  "mining_desc": "このページはバックグラウンドで高負荷な計算タスクを実行しており、暗号通貨をマイニングしようとしている可能性があります。DewSecureはこれらのタスクを自動的に終了しました。",
+  "mining_btn": "了解",
+  "clipboard_title": "セキュリティ警告：危険なクリップボード操作をブロックしました。",
+  "clipboard_desc": "このコンテンツには疑わしいコマンド（PowerShell/CMDなど）が含まれています。実行ウィンドウに貼り付けないでください。",
+  "clipboard_btn": "安全です、続行します"
 }

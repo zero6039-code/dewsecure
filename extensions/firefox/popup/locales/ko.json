@@ -138,5 +138,11 @@
   "warn_reason_brand_token": "도메인에 브랜드 토큰 포함: {arg}",
   "warn_reason_brand_wrong_suffix": "잘못된 브랜드 접미사: {arg}",
   "warn_reason_lookalike": "유사 도메인 탐지됨: {arg}",
-  "warn_reason_risky_tld_keyword_in_host": "위험한 TLD 및 피싱 키워드"
+  "warn_reason_risky_tld_keyword_in_host": "위험한 TLD 및 피싱 키워드",
+  "mining_title": "리소스 남용 경고: 채굴 스크립트 의심",
+  "mining_desc": "이 페이지는 백그라운드에서 고강도 컴퓨팅 작업을 실행하고 있으며, 암호화폐를 채굴하려는 것일 수 있습니다. DewSecure가 이 작업을 자동으로 종료했습니다.",
+  "mining_btn": "확인",
+  "clipboard_title": "보안 경고: 위험한 클립보드 작업을 차단했습니다.",
+  "clipboard_desc": "이 콘텐츠에는 의심스러운 명령(PowerShell/CMD 등)이 포함되어 있습니다. 실행 창에 붙여넣지 마십시오.",
+  "clipboard_btn": "안전합니다, 계속"
 }

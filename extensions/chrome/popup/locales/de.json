@@ -138,5 +138,11 @@
   "warn_reason_brand_token": "Marken-Token in Domain: {arg}",
   "warn_reason_brand_wrong_suffix": "Falsches Marken-Suffix: {arg}",
   "warn_reason_lookalike": "Ähnliche Domain erkannt: {arg}",
-  "warn_reason_risky_tld_keyword_in_host": "Riskante TLD mit Phishing-Schlüsselwörtern"
+  "warn_reason_risky_tld_keyword_in_host": "Riskante TLD mit Phishing-Schlüsselwörtern",
+  "mining_title": "Ressourcenmissbrauch: Verdächtiges Mining-Skript",
+  "mining_desc": "Diese Seite führt im Hintergrund rechenintensive Aufgaben aus (CPU-Verbrauch), möglicherweise um Kryptowährungen zu schürfen. DewSecure hat diese Aufgaben automatisch beendet.",
+  "mining_btn": "Verstanden",
+  "clipboard_title": "Sicherheitswarnung: Gefährliche Zwischenablage-Aktion blockiert.",
+  "clipboard_desc": "Dieser Inhalt enthält verdächtige Befehle (z. B. PowerShell/CMD). Fügen Sie ihn nicht in das Ausführungsfenster ein.",
+  "clipboard_btn": "Ich bin sicher, fortfahren"
 }

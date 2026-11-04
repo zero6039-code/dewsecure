@@ -138,5 +138,11 @@
   "warn_reason_brand_token": "Brand token in domain: {arg}",
   "warn_reason_brand_wrong_suffix": "Incorrect brand suffix: {arg}",
   "warn_reason_lookalike": "Lookalike domain detected: {arg}",
-  "warn_reason_risky_tld_keyword_in_host": "Risky TLD with phishing keywords"
+  "warn_reason_risky_tld_keyword_in_host": "Risky TLD with phishing keywords",
+  "mining_title": "Resource Abuse Warning: Suspected Mining Script",
+  "mining_desc": "This page is running high-intensity computational tasks in the background (consuming CPU), possibly trying to mine cryptocurrency. DewSecure has automatically terminated these tasks.",
+  "mining_btn": "Got it",
+  "clipboard_title": "Security Alert: DewSecure blocked a dangerous clipboard action.",
+  "clipboard_desc": "This content contains suspicious commands (e.g., PowerShell/CMD). Do not paste it into the run window.",
+  "clipboard_btn": "I am sure it's safe, continue"
 }

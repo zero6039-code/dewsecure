@@ -201,7 +201,7 @@
         }
 
         try {
-            chrome.runtime.sendMessage({ type: 'GET_SETTINGS' }, (settings) => {
+            chrome.runtime.sendMessage({ type: 'GET_SETTINGS' }, async (settings) => {
                 if (chrome.runtime.lastError || !settings) return;
                 
                 const host = window.location.hostname;
@@ -220,6 +220,17 @@
                     blockSocialTrackers: settings.blockSocialTrackers
                 };
                 window.postMessage({ type: 'DEWSECURE_SETTINGS', settings: safeSettings }, location.origin);
+
+                // 🛡️ 读取语言包并发送给主世界 (inject.js)
+                try {
+                    let lang = (await chrome.storage.local.get('preferred_lang')).preferred_lang || 'en';
+                    if (lang === 'zh_CN') lang = 'zh';
+                    const res = await fetch(chrome.runtime.getURL(`popup/locales/${lang}.json`));
+                    if (res.ok) {
+                        const dict = await res.json();
+                        window.postMessage({ type: 'DEWSECURE_I18N', dict: dict }, location.origin);
+                    }
+                } catch (e) {}
 
                 // 🚀 启动页面级钓鱼检测（动态监听）
                 setTimeout(() => {
