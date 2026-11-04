@@ -28,6 +28,9 @@ import { initIntelReporter } from './background/intelReporter.js';
 import { ensureAlarm, due } from './background/alarmHelper.js';
 import { syncRules, RANGE } from './background/dnrOwner.js';
 
+// 🛡️ N-4 修复：记录用户强制放行的下载 URL
+const forceDownloadUrls = new Set();
+
 // 🚀 AI 已改为纯 JS 推理，无需创建 Offscreen 页面
 
 // 初始化
@@ -73,6 +76,22 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         // --- 2. 登录/模型状态同步 ---
         case 'MODEL_UPDATED':
             import('./background/ai.js').then(m => m.invalidateAIModelCache()).catch(() => {});
+            sendResponse({ ok: true });
+            return false;
+
+        case 'FORCE_DOWNLOAD':
+            // 🛡️ 用户确认后强制下载
+            if (message.url) {
+                forceDownloadUrls.add(message.url);
+                chrome.downloads.download({
+                    url: message.url,
+                    filename: message.filename,
+                    conflictAction: 'uniquify'
+                }).catch(e => {
+                    forceDownloadUrls.delete(message.url);
+                    console.warn('[DewSecure] 强制下载失败:', e);
+                });
+            }
             sendResponse({ ok: true });
             return false;
 
@@ -391,58 +410,71 @@ loadBgI18n(); // 启动时异步加载
 
 
 chrome.downloads.onDeterminingFilename.addListener((item, suggest) => {
-    const fullName = (item.filename || item.suggestedFilename || '').toLowerCase();
-    console.log('[DewSecure] 拦截下载检查:', fullName);
+    // 🛡️ N-4 修复：检查是否为用户强制放行的下载
+    const rawUrl = item.finalUrl || item.url || '';
+    if (forceDownloadUrls.has(rawUrl)) {
+        forceDownloadUrls.delete(rawUrl); // 一次性通行证
+        suggest();
+        return;
+    }
 
-    if (!fullName) {
+    // 🛡️ N-4 修复：提取真正的文件名（取路径最后一段）
+    const rawName = (item.filename || item.suggestedFilename || '');
+    const name = rawName.split(/[\\/]/).pop().toLowerCase();
+    console.log('[DewSecure] 拦截下载检查:', name);
+
+    if (!name) {
         suggest();
         return;
     }
 
     // 2. 检查双扩展名 (如 invoice.pdf.exe)
-    const doubleExtRegex = /\.(pdf|docx?|xlsx?|pptx?|jpg|jpeg|png|gif|txt|csv|zip|rar)\.(exe|scr|js|vbs|bat|cmd|lnk|hta|msi|jar)$/i;
-    const isDoubleExt = doubleExtRegex.test(fullName);
+    const doubleExtRegex = /\.(pdf|docx?|xlsx?|pptx?|jpg|jpeg|png|gif|txt|csv|zip|rar)\.(exe|scr|js|vbs|bat|cmd|lnk|hta|msi|jar|ps1)$/i;
+    const isDoubleExt = doubleExtRegex.test(name);
 
     // 3. 检查高危可执行后缀
-    const highRiskExts = ['.exe', '.msi', '.vbs', '.hta', '.lnk', '.scr', '.iso'];
-    const isHighRisk = highRiskExts.some(ext => fullName.endsWith(ext));
+    const highRiskExts = ['.exe', '.msi', '.msix', '.appx', '.vbs', '.vbe', '.wsf', '.hta', '.lnk', '.scr', '.iso', '.img', '.vhd', '.chm', '.jar', '.ps1', '.bat', '.cmd', '.reg', '.apk'];
+    const isHighRisk = highRiskExts.some(ext => name.endsWith(ext));
 
-    // 4. 检查脚本后缀
-    const scriptExts = ['.js', '.bat', '.cmd', '.ps1'];
-    const isScript = scriptExts.some(ext => fullName.endsWith(ext));
-
-    if (!isDoubleExt && !isHighRisk && !isScript) {
+    if (!isDoubleExt && !isHighRisk) {
         suggest();
         return;
     }
 
-    // 5. 判断来源是否安全
-    let isSafeOrigin = false;
+    // 🛡️ N-4 修复：仅豁免官方更新域名，移除 github.com 等第三方豁免
+    const OFFICIAL_UPDATE_DOMAINS = ['dewsecure.com', 'api.dewsecure.com'];
+    let isOfficialOrigin = false;
     try {
         const originUrl = item.referrer || item.url || '';
         if (originUrl && originUrl.startsWith('http')) {
             const host = new URL(originUrl).hostname;
-            isSafeOrigin = HARD_SAFE_DOMAINS.some(d => host === d || host.endsWith('.' + d));
+            isOfficialOrigin = OFFICIAL_UPDATE_DOMAINS.some(d => host === d || host.endsWith('.' + d));
         }
     } catch (e) {}
 
-    if (isSafeOrigin) {
+    if (isOfficialOrigin) {
         suggest();
         return;
     }
 
     // 6. 处置逻辑
     if (isDoubleExt) {
-        // 🛡️ 双扩展名：零容忍，直接阻断
-        const warningUrl = chrome.runtime.getURL(`warning.html?type=download&filename=${encodeURIComponent(fullName)}`);
-        chrome.tabs.create({ url: warningUrl });
-        showDownloadNotification('danger', fullName, bgDict.phish_download_danger_title || '🚨 High-Risk Download Blocked', (bgDict.phish_download_danger_desc || 'A double extension file ({filename}) was detected.').replace('{filename}', fullName));
-        return;
-    } else if (isHighRisk || isScript) {
-        // 普通高危后缀：弹窗警告，允许用户继续下载
-        showDownloadNotification('warning', fullName, bgDict.phish_download_warn_title || '⚠️ Security Risk', (bgDict.phish_download_warn_desc || 'You are downloading an executable from an unknown source ({filename}).').replace('{filename}', fullName));
+        // 🛡️ 双扩展名：真拦截
+        // 必须先调用 suggest()，使下载进入"进行中"状态，否则 cancel() 会报错 "Download must be in progress"
         suggest();
-    } else {
+        chrome.downloads.cancel(item.id)
+            .catch(() => { /* 静默忽略极速下载已完成等边界情况下的错误 */ })
+            .finally(() => {
+                chrome.downloads.erase({ id: item.id }).catch(() => {});
+            });
+        const realUrl = item.finalUrl || item.url || '';
+        const warningUrl = chrome.runtime.getURL(`warning.html?type=download&filename=${encodeURIComponent(name)}&url=${encodeURIComponent(realUrl)}`);
+        chrome.tabs.create({ url: warningUrl });
+        showDownloadNotification('danger', name, bgDict.phish_download_danger_title || '🚨 High-Risk Download Blocked', (bgDict.phish_download_danger_desc || 'A double extension file ({filename}) was detected.').replace('{filename}', name));
+        return; // 阻断，不调用 suggest()
+    } else if (isHighRisk) {
+        // 普通高危后缀：弹窗警告，允许用户继续下载
+        showDownloadNotification('warning', name, bgDict.phish_download_warn_title || '⚠️ Security Risk', (bgDict.phish_download_warn_desc || 'You are downloading an executable from an unknown source ({filename}).').replace('{filename}', name));
         suggest();
     }
 });

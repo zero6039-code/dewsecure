@@ -54,7 +54,13 @@ document.addEventListener('DOMContentLoaded', async () => {
         
         const descEl = document.querySelector('p');
         if (descEl) {
-            descEl.innerHTML = t.desc.replace('{filename}', filename);
+            // 🛡️ N-4 修复：改用 textContent，彻底杜绝 XSS 注入
+            descEl.style.whiteSpace = 'pre-line';
+            descEl.textContent = t.desc
+                .replaceAll('<br>', '\n')
+                .replaceAll('<strong>', '')
+                .replaceAll('</strong>', '')
+                .replace('{filename}', filename);
             descEl.removeAttribute('data-i18n');
         }
         
@@ -68,13 +74,29 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
         
         const btnContinue = document.getElementById('btn-continue');
-        if (btnContinue) btnContinue.style.display = 'none';
+        if (btnContinue) {
+            btnContinue.textContent = '我已知晓风险，强制下载';
+            btnContinue.removeAttribute('data-i18n');
+            btnContinue.onclick = () => {
+                const fileUrl = params.get('url');
+                if (fileUrl) {
+                    // 🛡️ 防抖：点击后立刻禁用按钮，防止用户狂点导致后台逻辑并发
+                    btnContinue.disabled = true;
+                    btnContinue.textContent = '正在启动下载...';
+                    
+                    // 通知后台强制下载
+                    chrome.runtime.sendMessage({ type: 'FORCE_DOWNLOAD', url: fileUrl, filename }, () => {
+                        setTimeout(() => window.close(), 100); // 给消息传递留出一点时间
+                    });
+                }
+            };
+        }
         
         const btnClose = document.getElementById('btn-close');
         if (btnClose) {
             btnClose.textContent = t.btn;
             btnClose.removeAttribute('data-i18n');
-            btnClose.style.background = '#3b82f6';
+            btnClose.style.background = '#ef4444';
             btnClose.onclick = () => window.close();
         }
         
