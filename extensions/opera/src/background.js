@@ -335,20 +335,11 @@ if (chrome.webNavigation && chrome.webNavigation.onBeforeNavigate) {
 } // 🌟 这里补上了缺失的大括号！
 
 
-// 🛡️ 核心修复：清理 AI 之前注入且可能导致误杀的 sessionRules
-chrome.declarativeNetRequest.getSessionRules().then(rules => {
-    const aiRules = rules.filter(r => r.id >= 8000000);
-    if (aiRules.length > 0) {
-        console.warn(`[DNR] 清理了 ${aiRules.length} 条 AI 误杀历史规则，页面将恢复正常加载。`);
-        chrome.declarativeNetRequest.updateSessionRules({
-            removeRuleIds: aiRules.map(r => r.id)
-        });
-        // 同时清空可能污染的持久化缓存
-        if (chrome.storage.session) {
-            chrome.storage.session.remove('ai_checked_domains');
-        }
-    }
-});
+// 🛡️ N-12 修复：移除每次 SW 启动都强删 AI 规则的逻辑
+// sessionRules 本身只在当前浏览器会话存活，无需每次唤醒都删。
+// 允许 AI 规则在会话期间持续生效。
+// (如果未来需要清理，可通过设置面板的手动清理按钮触发)
+
 
 // 🌟 防线 3：全局最高优先级豁免 (防止未来任何新模块误伤官方)
 // 改用 DynamicRules 并设置最高优先级，确保在 DNR 底层绝对放行

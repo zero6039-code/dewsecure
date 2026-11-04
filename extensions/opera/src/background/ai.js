@@ -1,5 +1,6 @@
 import { getCachedModel } from '../modelManager.js';
 import { HARD_SAFE_DOMAINS, HARD_BLOCK_DOMAINS, AI_BLOCK_RESOURCE_TYPES } from './aiConfig.js';
+import { checkThreatFilter } from './threatIntel.js'; // 🛡️ N-12 修复：引入威胁情报作为真实信号
 
 // 辅助函数：FNV-1a 哈希
 function fnv1a(str) {
@@ -238,12 +239,13 @@ export async function runAICheck(url, tabId = null, isThirdParty = false) {
         await loadCheckedDomains(); // 🚀 恢复休眠前的状态
         const domain = isThirdParty ? url : new URL(url).hostname;
         if (AI_CHECKED_DOMAINS.has(domain)) return;
+        
         // 🔧 防御性微调：防止 Set 无限膨胀导致内存泄漏
         if (AI_CHECKED_DOMAINS.size > 5000) {
             AI_CHECKED_DOMAINS.clear();
         }
-        AI_CHECKED_DOMAINS.add(domain);
-        scheduleSaveDomains(); // 🚀 异步落盘
+        // 🛡️ N-12 修复：不在这里立刻加入去重集合，等确认需要拦截或信号达到 3 时再加
+        // 这样可以允许第三方请求多次进入，累积 HOST_REF_COUNT
 
         // 🛑 防线 0：前端硬拦截 (与规则层对齐，命中直接拦截，不消耗 AI 算力)
         
@@ -329,18 +331,25 @@ export async function runAICheck(url, tabId = null, isThirdParty = false) {
                 finalConfidence = Math.min(1.0, finalConfidence + 0.05);
             }
 
-            // 信号 3：威胁情报匹配 (如果在本地情报缓存中)
-            // 由于这里没有直接的同步查库方法，暂时用简单的域名长度/特征做示意。
-            // 实际落地可在此调用本地查表接口。
-            if (domain.length > 15 && domain.includes('-')) { 
-                signals.push('可疑特征匹配');
-                finalConfidence = Math.min(1.0, finalConfidence + 0.05);
+            // 🛡️ N-12 修复：信号 3：真实调用本地威胁情报库
+            if (checkThreatFilter(domain)) { 
+                signals.push('命中本地威胁情报');
+                finalConfidence = 1.0; // 直接最高置信度
+            }
+
+            // 🛡️ N-12 修复：现在才加入去重集合
+            // 如果是第三方且信号不足（如 refCount 只有 1），允许后续再次评估
+            if (!isThirdParty || (HOST_REF_COUNT.get(domain) || 0) >= 3 || finalConfidence >= 0.95) {
+                AI_CHECKED_DOMAINS.add(domain);
+                scheduleSaveDomains();
             }
 
             if (signals.length >= 3 && finalConfidence >= 0.95) {
                 // 🛡️ 满足三信号交叉验证，执行硬拦截
-                const hash = domain.split('').reduce((a, b) => ((a << 5) - a) + b.charCodeAt(0), 0);
-                const ruleId = 8000000 + Math.abs(hash % 100000);
+                // 🛡️ N-12 修复：使用递增计数器分配 ID，避免碰撞
+                const { nextAIRuleId = 8000000 } = await chrome.storage.session.get('nextAIRuleId');
+                const ruleId = nextAIRuleId;
+                await chrome.storage.session.set({ nextAIRuleId: ruleId + 1 });
 
                 await chrome.declarativeNetRequest.updateSessionRules({
                     removeRuleIds: [ruleId],
