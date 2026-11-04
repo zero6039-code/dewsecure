@@ -38,37 +38,55 @@ initSecurityListeners();
 initStatsListener();
 restoreSessionRules();
 
-// 消息中心
+// 🚀 性能优化：合并消息分发，消除多个监听器竞争和无效的 return true
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
-    // 🛡️ L-4 修复：只有明确的异步消息才返回 true
-    handleMessage(message, sender).then(sendResponse).catch(() => sendResponse({ ok: false }));
-    return true;
+    switch (message.type) {
+        // --- 1. AI 异步处理 ---
+        case 'THIRD_PARTY_HOSTS':
+            if (!sender.tab) return false;
+            chrome.storage.local.get('dewsecure_settings').then(res => {
+                const settings = res.dewsecure_settings || {};
+                if (settings.aiFourEnabled === false || settings.aiEnabled === false) {
+                    sendResponse({ ok: true });
+                    return;
+                }
+                import('./background/ai.js').then(({ runAICheck }) => {
+                    for (const host of message.hosts) {
+                        runAICheck(host, sender.tab.id, true);
+                    }
+                    sendResponse({ ok: true });
+                }).catch(() => sendResponse({ ok: false }));
+            });
+            return true; // 异步，保持信道
+
+        case 'CHECK_URL_AI':
+            runAICheck(message.url, sender?.tab?.id);
+            sendResponse({ ok: true });
+            return false; // 同步结束，无需 hold
+
+        // --- 2. 登录/模型状态同步 ---
+        case 'MODEL_UPDATED':
+            import('./background/ai.js').then(m => m.invalidateAIModelCache()).catch(() => {});
+            sendResponse({ ok: true });
+            return false;
+
+        case 'AUTH_STATE_CHANGED':
+            setTimeout(updateThreatIntel, 1000);
+            checkAndUpdateModel().catch(console.warn);
+            (async () => {
+                const user = await getCurrentUser();
+                if (user && user.token) reportDeviceSilently(user.token);
+            })().catch(e => console.warn(e));
+            sendResponse({ ok: true });
+            return false;
+
+        // --- 3. 其余核心业务全部交由 handleMessage 处理 ---
+        default:
+            handleMessage(message, sender).then(sendResponse).catch(() => sendResponse({ ok: false }));
+            return true; // handleMessage 是异步 Promise
+    }
 });
 
-// AI 通信
-chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
-    // 🔒 F1 修复：接收 content.js 收集的第三方请求域名，调用 AI 进行判定
-    if (msg.type === 'THIRD_PARTY_HOSTS' && sender.tab) {
-        chrome.storage.local.get('dewsecure_settings').then(res => {
-            const settings = res.dewsecure_settings || {};
-            // 如果 AI 开关关着，直接不加载 ai.js，彻底闭嘴！
-            if (settings.aiFourEnabled === false || settings.aiEnabled === false) return;
-            
-            import('./background/ai.js').then(({ runAICheck }) => {
-                for (const host of msg.hosts) {
-                    runAICheck(host, sender.tab.id, true); // 传入 true 表示这是第三方资源
-                }
-            });
-        });
-        sendResponse({ ok: true });
-        return true;
-    }
-    if (msg.type === 'CHECK_URL_AI') {
-        runAICheck(msg.url, sender?.tab?.id);
-        sendResponse({ ok: true });
-        return false; // 🛡️ L-4 修复：同步处理完毕，无需返回 true 抢占信道
-    }
-});
 
 // 威胁情报同步 (URLhaus等)
 setTimeout(updateThreatIntel, 3000);
@@ -84,25 +102,6 @@ chrome.alarms.onAlarm.addListener((alarm) => {
     if (alarm.name === 'dewsecure_model_update') checkAndUpdateModel().catch(console.warn);
 });
 
-// 登录/登出监听 & 模型更新监听
-chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
-    if (msg.type === 'MODEL_UPDATED') {
-        import('./background/ai.js').then(m => m.invalidateAIModelCache()).catch(() => {});
-        sendResponse({ ok: true });
-        return false;
-    }
-    if (msg.type === 'AUTH_STATE_CHANGED') {
-        // 🌟 核心修复：用户登录或状态改变时，立刻尝试拉取一次威胁情报
-        setTimeout(updateThreatIntel, 1000);
-        checkAndUpdateModel().catch(console.warn);
-        (async () => {
-            const user = await getCurrentUser();
-            if (user && user.token) reportDeviceSilently(user.token);
-        })().catch(e => console.warn(e));
-        sendResponse({ ok: true });
-        return false; // 🛡️ L-4 修复：同步处理完毕
-    }
-});
 
 // 🔒 S-01: 外部消息来源白名单（生产域名）
 const ALLOWED_EXTERNAL_ORIGINS = new Set([

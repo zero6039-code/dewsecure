@@ -23,6 +23,7 @@ import { runAICheck } from './background/ai.js';
 import { detectBrandPhishing } from './background/phishingDetector.js';
 import { handleMessage } from './background/messageHandler.js';
 import { updateThreatIntel } from './background/threatIntel.js';
+import { HARD_SAFE_DOMAINS } from './background/aiConfig.js';
 
 // 🚀 AI 已改为纯 JS 推理，无需创建 Offscreen 页面
 
@@ -37,37 +38,55 @@ initSecurityListeners();
 initStatsListener();
 restoreSessionRules();
 
-// 消息中心
+// 🚀 性能优化：合并消息分发，消除多个监听器竞争和无效的 return true
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
-    // 🛡️ L-4 修复：只有明确的异步消息才返回 true
-    handleMessage(message, sender).then(sendResponse).catch(() => sendResponse({ ok: false }));
-    return true;
+    switch (message.type) {
+        // --- 1. AI 异步处理 ---
+        case 'THIRD_PARTY_HOSTS':
+            if (!sender.tab) return false;
+            chrome.storage.local.get('dewsecure_settings').then(res => {
+                const settings = res.dewsecure_settings || {};
+                if (settings.aiFourEnabled === false || settings.aiEnabled === false) {
+                    sendResponse({ ok: true });
+                    return;
+                }
+                import('./background/ai.js').then(({ runAICheck }) => {
+                    for (const host of message.hosts) {
+                        runAICheck(host, sender.tab.id, true);
+                    }
+                    sendResponse({ ok: true });
+                }).catch(() => sendResponse({ ok: false }));
+            });
+            return true; // 异步，保持信道
+
+        case 'CHECK_URL_AI':
+            runAICheck(message.url, sender?.tab?.id);
+            sendResponse({ ok: true });
+            return false; // 同步结束，无需 hold
+
+        // --- 2. 登录/模型状态同步 ---
+        case 'MODEL_UPDATED':
+            import('./background/ai.js').then(m => m.invalidateAIModelCache()).catch(() => {});
+            sendResponse({ ok: true });
+            return false;
+
+        case 'AUTH_STATE_CHANGED':
+            setTimeout(updateThreatIntel, 1000);
+            checkAndUpdateModel().catch(console.warn);
+            (async () => {
+                const user = await getCurrentUser();
+                if (user && user.token) reportDeviceSilently(user.token);
+            })().catch(e => console.warn(e));
+            sendResponse({ ok: true });
+            return false;
+
+        // --- 3. 其余核心业务全部交由 handleMessage 处理 ---
+        default:
+            handleMessage(message, sender).then(sendResponse).catch(() => sendResponse({ ok: false }));
+            return true; // handleMessage 是异步 Promise
+    }
 });
 
-// AI 通信
-chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
-    // 🔒 F1 修复：接收 content.js 收集的第三方请求域名，调用 AI 进行判定
-    if (msg.type === 'THIRD_PARTY_HOSTS' && sender.tab) {
-        chrome.storage.local.get('dewsecure_settings').then(res => {
-            const settings = res.dewsecure_settings || {};
-            // 如果 AI 开关关着，直接不加载 ai.js，彻底闭嘴！
-            if (settings.aiFourEnabled === false || settings.aiEnabled === false) return;
-            
-            import('./background/ai.js').then(({ runAICheck }) => {
-                for (const host of msg.hosts) {
-                    runAICheck(host, sender.tab.id, true); // 传入 true 表示这是第三方资源
-                }
-            });
-        });
-        sendResponse({ ok: true });
-        return true;
-    }
-    if (msg.type === 'CHECK_URL_AI') {
-        runAICheck(msg.url, sender?.tab?.id);
-        sendResponse({ ok: true });
-        return false; // 🛡️ L-4 修复：同步处理完毕，无需返回 true 抢占信道
-    }
-});
 
 // 威胁情报同步 (URLhaus等)
 setTimeout(updateThreatIntel, 3000);
@@ -83,20 +102,6 @@ chrome.alarms.onAlarm.addListener((alarm) => {
     if (alarm.name === 'dewsecure_model_update') checkAndUpdateModel().catch(console.warn);
 });
 
-// 登录/登出监听
-chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
-    if (msg.type === 'AUTH_STATE_CHANGED') {
-        // 🌟 核心修复：用户登录或状态改变时，立刻尝试拉取一次威胁情报
-        setTimeout(updateThreatIntel, 1000);
-        checkAndUpdateModel().catch(console.warn);
-        (async () => {
-            const user = await getCurrentUser();
-            if (user && user.token) reportDeviceSilently(user.token);
-        })().catch(e => console.warn(e));
-        sendResponse({ ok: true });
-        return false; // 🛡️ L-4 修复：同步处理完毕
-    }
-});
 
 // 🔒 S-01: 外部消息来源白名单（生产域名）
 const ALLOWED_EXTERNAL_ORIGINS = new Set([
@@ -180,12 +185,11 @@ chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
 
 // 🌟 P-01 硬核钓鱼拦截：在页面加载前抢占并重定向
 // 🔒 H1 修复：使用扩展自身 URL 前缀判断，不再用子串匹配（防止 ?warning.html / #warning.html 绕过）
-const OWN_WARNING_URL = chrome.runtime.getURL('warning.html');
+const EXT_ORIGIN = chrome.runtime.getURL('');
 const isOwnWarningPage = (u) => {
     if (typeof u !== 'string') return false;
-    return u === OWN_WARNING_URL ||
-           u.startsWith(OWN_WARNING_URL + '?') ||
-           u.startsWith(OWN_WARNING_URL + '#');
+    // 基于扩展 origin 匹配，兼容 use_dynamic_url 动态改写
+    return u.startsWith(EXT_ORIGIN) && u.includes('/warning.html');
 };
 
 if (chrome.webNavigation && chrome.webNavigation.onBeforeNavigate) {
@@ -204,9 +208,9 @@ if (chrome.webNavigation && chrome.webNavigation.onBeforeNavigate) {
                     parsedHost = new URL(rawDomain.startsWith('http') ? rawDomain : `https://${rawDomain}`).hostname;
                 } catch(e) {}
 
-                const HARD_SAFE = ['github.com', 'gitlab.com', 'dewsecure.com', 'npmjs.com', 'cloudflare.com', 'microsoft.com', 'apple.com', 'trip.com', 'shopee.com.my', 'tiktok.com'];
                 
-                if (parsedHost && HARD_SAFE.some(d => parsedHost === d || parsedHost.endsWith('.' + d))) {
+                
+                if (parsedHost && HARD_SAFE_DOMAINS.some(d => parsedHost === d || parsedHost.endsWith('.' + d))) {
                     console.warn('🛡️ [Security] 强行拦下对核心大厂的警告页跳转，放行！', parsedHost);
                     // 强制只用提取出的 hostname 跳转，绝不带路径
                     chrome.tabs.update(details.tabId, { url: `https://${parsedHost}` });
@@ -247,14 +251,7 @@ if (chrome.webNavigation && chrome.webNavigation.onBeforeNavigate) {
             
             // 🔒 H2 修复：移除 github.io / githubusercontent.com；删除 includes('zero6039') 子串豁免
             // 官方 Worker 用 zero6039.workers.dev 精确放行（点分隔，不误放 evil-zero6039.workers.dev）
-            const HARD_SAFE_DOMAINS = [
-                'dewsecure.com', 'zero6039.workers.dev', 'github.com',
-                'gitlab.com', 'npmjs.com', 'cloudflare.com', 'microsoft.com', 'apple.com',
-                'trip.com', 'shopee.com.my', 'tiktok.com', 'kkday.com', 'klook.com',
-                'lazada.com.my', 'traveloka.com', 'omguk.com', 'google.com', 'youtube.com',
-                'facebook.com', 'x.com', 'instagram.com', 'wired.com',
-                'dropbox.com', 'dropboxusercontent.com'
-            ];
+            
             const isHardSafeDomain = (h) =>
                 HARD_SAFE_DOMAINS.some(d => h === d || h.endsWith('.' + d));
             
@@ -302,6 +299,36 @@ chrome.declarativeNetRequest.getDynamicRules().then(rules => {
         chrome.declarativeNetRequest.updateDynamicRules({
             removeRuleIds: badRules.map(r => r.id)
         });
+    }
+});
+
+// 🛡️ 核心修复：清理 AI 之前注入且可能导致误杀的 sessionRules
+chrome.declarativeNetRequest.getSessionRules().then(rules => {
+    const aiRules = rules.filter(r => r.id >= 8000000);
+    if (aiRules.length > 0) {
+        console.warn(`[DNR] 清理了 ${aiRules.length} 条 AI 误杀历史规则，页面将恢复正常加载。`);
+        chrome.declarativeNetRequest.updateSessionRules({
+            removeRuleIds: aiRules.map(r => r.id)
+        });
+        // 同时清空可能污染的持久化缓存
+        if (chrome.storage.session) {
+            chrome.storage.session.remove('ai_checked_domains');
+        }
+    }
+});
+
+// 🛡️ 核心修复：清理 AI 之前注入且可能导致误杀的 sessionRules
+chrome.declarativeNetRequest.getSessionRules().then(rules => {
+    const aiRules = rules.filter(r => r.id >= 8000000);
+    if (aiRules.length > 0) {
+        console.warn(`[DNR] 清理了 ${aiRules.length} 条 AI 误杀历史规则，页面将恢复正常加载。`);
+        chrome.declarativeNetRequest.updateSessionRules({
+            removeRuleIds: aiRules.map(r => r.id)
+        });
+        // 同时清空可能污染的持久化缓存
+        if (chrome.storage.session) {
+            chrome.storage.session.remove('ai_checked_domains');
+        }
     }
 });
 
