@@ -218,6 +218,9 @@ const nativeLocationAssign = window.location.assign;
 
 let dwSettings = { antiHijackEnabled: true, antiBypassEnabled: true, blockSocialTrackers: true };
 window.addEventListener('message', (e) => {
+    // 🛡️ N-10 修复：严格校验消息来源，防止恶意页面伪造消息关闭防护
+    if (e.source !== window || e.origin !== location.origin) return;
+
     if (e.data && e.data.type === 'DEWSECURE_PAUSE') {
         isPaused = true;
         // M-15 修复：用 defineProperty 强制还原 window.open
