@@ -144,5 +144,6 @@
   "mining_btn": "Got it",
   "clipboard_title": "Security Alert: DewSecure blocked a dangerous clipboard action.",
   "clipboard_desc": "This content contains suspicious commands (e.g., PowerShell/CMD). Do not paste it into the run window.",
-  "clipboard_btn": "I am sure it's safe, continue"
+  "clipboard_btn": "I am sure it's safe, continue",
+  "phish_passkey_tip": "Security Tip: This site is trying to steal your password. Use Passkey to log in; it binds to the real domain and is immune to clone pages."
 }

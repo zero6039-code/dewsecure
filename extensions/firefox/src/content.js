@@ -24,6 +24,8 @@
     }
 
     window.__dewsecureInjected = true;
+    let phishingIgnored = false; // 🛡️ 用户点击“继续”后的免死金牌
+    let contentDict = {};        // 🛡️ 缓存语言包
 
     // ===== 统一封装安全的消息发送 =====
     function safeSendMessage(msg) {
@@ -86,7 +88,15 @@
                 const actionUrl = new URL(action, window.location.href);
                 if (actionUrl.protocol === 'data:' || actionUrl.protocol === 'blob:' || getBaseDomain(actionUrl.hostname) !== getBaseDomain(hostname)) {
                     score += 40;
-                    reasons.push(`表单跨站提交至 ${actionUrl.hostname}`);
+                    reasons.push({ key: 'reason_cross_site_form', arg: actionUrl.hostname });
+                    
+                    // 🛡️ 强化：检测高价值凭证收集 (+30分)
+                    const hasPassword = form.querySelector('input[type="password"]');
+                    const hasEmail = form.querySelector('input[type="email"], input[name*="email" i], input[name*="user" i], input[name*="login" i]');
+                    if (hasPassword || hasEmail) {
+                        score += 30;
+                        reasons.push({ key: 'reason_credential_form' });
+                    }
                     break;
                 }
             } catch (e) {}
@@ -98,7 +108,7 @@
         for (const brand of BRANDS) {
             if (title.includes(brand) && !hostname.includes(brand)) {
                 score += 25;
-                reasons.push(`页面标题包含品牌词 [${brand}] 但域名不匹配`);
+                reasons.push({ key: 'reason_brand_title', arg: brand });
                 break;
             }
         }
@@ -114,7 +124,7 @@
                         const style = window.getComputedStyle(iframe);
                         if (style.display === 'none' || style.visibility === 'hidden' || parseInt(style.width) <= 1) {
                             score += 15;
-                            reasons.push('检测到隐藏的跨域 iframe');
+                            reasons.push({ key: 'reason_hidden_iframe' });
                             break;
                         }
                     }
@@ -126,6 +136,7 @@
     }
 
     function analyzePageForPhishing() {
+        if (phishingIgnored) return; // 🛡️ 用户已忽略，不再重复弹窗
         const passwordInputs = document.querySelectorAll('input[type="password"]');
         if (passwordInputs.length === 0) return;
 
@@ -142,7 +153,7 @@
             input.disabled = true;
             input.style.backgroundColor = '#ffebee';
             input.style.border = '2px solid #ef4444';
-            input.placeholder = '⚠️ DewSecure 已锁定该输入框';
+            input.placeholder = '⚠️ DewSecure Locked';
         });
         document.querySelectorAll('form button[type="submit"], form input[type="submit"]').forEach(btn => {
             btn.disabled = true;
@@ -151,6 +162,17 @@
         });
 
         if (document.getElementById('dewsecure-phishing-warning-host')) return;
+
+        // 🛡️ 从字典获取翻译
+        const tTitle = contentDict['phish_title'] || '🚨 Security Warning: Phishing Detected';
+        const tDesc = contentDict['phish_desc'] || 'This page is trying to steal your password.';
+        const tBtn = contentDict['phish_continue'] || 'I am sure it\'s safe, continue';
+        
+        // 翻译 reasons
+        const reasonText = reasons.map(r => {
+            let text = contentDict[r.key] || r.key;
+            return text.replace('{arg}', r.arg || '');
+        }).join(', ');
 
         // 使用 closed Shadow DOM 防止页面脚本篡改或直接点击按钮
         const host = document.createElement('div');
@@ -167,15 +189,16 @@
         `;
         banner.innerHTML = `
             <div>
-                <strong>🚨 安全警告：</strong>此页面疑似钓鱼网站，您的密码可能会被窃取。
-                <div style="font-size: 12px; opacity: 0.8; margin-top: 4px;">原因: ${reasons.join(', ')}</div>
+                <strong>${tTitle}</strong> ${tDesc}
+                <div style="font-size: 12px; opacity: 0.8; margin-top: 4px;">${reasonText}</div>
             </div>
-            <button id="dewsecure-phishing-ignore" style="background: transparent; border: 1px solid white; color: white; padding: 4px 12px; border-radius: 4px; cursor: pointer;">我确定安全，继续</button>
+            <button id="dewsecure-phishing-ignore" style="background: transparent; border: 1px solid white; color: white; padding: 4px 12px; border-radius: 4px; cursor: pointer;">${tBtn}</button>
         `;
         shadow.appendChild(banner);
         document.body.appendChild(host);
 
         shadow.getElementById('dewsecure-phishing-ignore').addEventListener('click', () => {
+            phishingIgnored = true; // 🛡️ 激活免死金牌
             host.remove();
             passwordInputs.forEach(input => {
                 input.disabled = false;
@@ -188,7 +211,7 @@
                 btn.style.opacity = '';
                 btn.style.cursor = '';
             });
-            console.warn('🛡️ [DewSecure] 用户选择了忽略警告，已恢复表单输入。');
+            console.warn('🛡️ [DewSecure] 用户选择了忽略警告，已恢复表单输入，并停止后续检测。');
         });
     }
 

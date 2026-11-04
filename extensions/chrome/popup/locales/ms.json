@@ -144,5 +144,6 @@
   "mining_btn": "Faham",
   "clipboard_title": "Amaran Keselamatan: Tindakan papan keratan berbahaya disekat.",
   "clipboard_desc": "Kandungan ini mengandungi arahan yang mencurigakan (cth. PowerShell/CMD). Jangan tampal ke tetingkap larian.",
-  "clipboard_btn": "Saya pasti selamat, teruskan"
+  "clipboard_btn": "Saya pasti selamat, teruskan",
+  "phish_passkey_tip": "Petua Keselamatan: Laman ini cuba mencuri kata laluan anda. Gunakan Passkey untuk log masuk; ia terikat pada domain sebenar dan kebal terhadap halaman klon."
 }

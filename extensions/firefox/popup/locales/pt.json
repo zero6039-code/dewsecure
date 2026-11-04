@@ -144,5 +144,6 @@
   "mining_btn": "Entendi",
   "clipboard_title": "Alerta de Segurança: Ação perigosa da área de transferência bloqueada.",
   "clipboard_desc": "Este conteúdo contém comandos suspeitos (ex. PowerShell/CMD). Não o cole na janela de execução.",
-  "clipboard_btn": "Tenho certeza, continuar"
+  "clipboard_btn": "Tenho certeza, continuar",
+  "phish_passkey_tip": "Dica de segurança: Este site está tentando roubar sua senha. Use o Passkey para fazer login; ele está vinculado ao domínio real e é imune a páginas clonadas."
 }

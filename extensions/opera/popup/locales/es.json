@@ -144,5 +144,6 @@
   "mining_btn": "Entendido",
   "clipboard_title": "Alerta de seguridad: Acción peligrosa en el portapapeles bloqueada.",
   "clipboard_desc": "Este contenido contiene comandos sospechosos (ej. PowerShell/CMD). No lo pegues en la ventana de ejecución.",
-  "clipboard_btn": "Estoy seguro, continuar"
+  "clipboard_btn": "Estoy seguro, continuar",
+  "phish_passkey_tip": "Consejo de seguridad: Este sitio intenta robar su contraseña. Use Passkey para iniciar sesión; se vincula al dominio real y es inmune a las páginas clonadas."
 }
