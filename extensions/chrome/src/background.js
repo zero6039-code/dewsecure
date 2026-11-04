@@ -476,3 +476,45 @@ function showDownloadNotification(level, filename, title, message) {
         priority: level === 'danger' ? 2 : 0
     });
 }
+
+
+// 🚀 注入隐私净化动态规则 (不受静态额度限制，绝不与 11 万条规则冲突)
+const privacyRules = [
+    // 1. 剔除追踪参数 (优先级 100，最高，且移除 urlFilter，让引擎自动识别参数)
+    {
+        "id": 10002, "priority": 100,
+        "action": { 
+            "type": "redirect", 
+            "redirect": { 
+                "transform": { 
+                    "queryTransform": { 
+                        "removeParams": ["utm_source", "utm_medium", "utm_campaign", "utm_term", "utm_content", "fbclid", "gclid", "yclid", "msclkid", "mc_cid", "mc_eid", "igshid", "mkt_tok", "oly_enc_id", "oly_anon_id"] 
+                    } 
+                } 
+            } 
+        },
+        "condition": { 
+            "resourceTypes": ["main_frame", "sub_frame"] 
+        }
+    },
+    // 2. 强制 HTTPS 升级 (优先级 10)
+    {
+        "id": 10001, "priority": 10, "action": { "type": "upgradeScheme" },
+        "condition": { 
+            "resourceTypes": ["main_frame", "sub_frame", "stylesheet", "script", "image", "font", "object", "xmlhttprequest", "ping", "csp_report", "media", "websocket", "other"] 
+        }
+    },
+    // 3. 注入 Sec-GPC 隐私信号 (优先级 1)
+    {
+        "id": 10003, "priority": 1,
+        "action": { "type": "modifyHeaders", "requestHeaders": [{ "header": "Sec-GPC", "operation": "set", "value": "1" }] },
+        "condition": { 
+            "resourceTypes": ["main_frame", "sub_frame", "xmlhttprequest"] 
+        }
+    }
+];
+
+chrome.declarativeNetRequest.updateDynamicRules({
+    removeRuleIds: [10001, 10002, 10003],
+    addRules: privacyRules
+}).catch(e => console.warn('[DNR] 注入隐私净化规则失败:', e));
