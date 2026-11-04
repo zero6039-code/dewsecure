@@ -131,7 +131,8 @@
   "web_accessible_resources": [
     {
       "resources": [
-        "warning.html"
+        "warning.html",
+        "src/content.css"
       ],
       "matches": [
         "<all_urls>"
