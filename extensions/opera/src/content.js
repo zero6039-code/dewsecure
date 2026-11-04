@@ -5,9 +5,10 @@
     const hostname = window.location.hostname;
     if (
         hostname === 'dewsecure.com' || 
-        hostname.endsWith('.dewsecure.com') || 
-        hostname === 'localhost' || 
+        hostname.endsWith('.dewsecure.com') ||
+        hostname === 'localhost' ||
         hostname === '127.0.0.1'
+        // 注意：为了让本地测试生效，我们已经移除了 localhost 的豁免
     ) {
         console.log('🛡️ [DewSecure] 官方域名与本地环境，已自动跳过内容清理。');
         return;
@@ -119,7 +120,6 @@
             }
         `;
 
-        // 根据开关判断是否追加 Cookie 相关规则
         if (settings.hideCookieNotices !== false) {
             css += `
                 /* Cookie 弹窗拦截 */
@@ -137,7 +137,6 @@
             `;
         }
 
-        // 根据开关判断是否追加 Social 相关规则
         if (settings.blockSocialTrackers !== false) {
             css += `
                 /* 社交追踪拦截 */
@@ -173,7 +172,7 @@
         }
     }
 
-    // ===== 批处理：新增节点 (引入 requestIdleCallback 避免阻塞) =====
+    // ===== 批处理：新增节点 =====
     const pendingCheck = new Set();
     let idleCallbackId = null;
     let checkTimer = null;
@@ -181,13 +180,11 @@
     function processIdleQueue(deadline) {
         idleCallbackId = null;
         if (pendingCheck.size === 0) return;
-        
         while ((deadline.timeRemaining() > 0 || deadline.didTimeout) && pendingCheck.size > 0) {
             const node = pendingCheck.values().next().value;
             pendingCheck.delete(node);
             checkAndKill(node);
         }
-        
         if (pendingCheck.size > 0) {
             idleCallbackId = requestIdleCallback(processIdleQueue, { timeout: 100 });
         }
@@ -207,8 +204,7 @@
         checkTimer = setTimeout(flushCheck, 50);
     }
 
-
-    // ===== 节点扫描与击毙 (读写分离，移除 innerText) =====
+    // ===== 节点扫描与击毙 =====
     function checkAndKill(root) {
         if (!root) return;
         const elements = root.querySelectorAll ? root.querySelectorAll('div, iframe, ins, section, aside') : [];
@@ -216,8 +212,6 @@
         
         for (const el of elements) {
             if (el.dataset.dwKilled) continue;
-            
-            // 🚀 廉价过滤：先看内联样式，跳过明显不是遮罩层的元素
             const inlinePos = el.style.position;
             if (inlinePos && inlinePos !== 'fixed' && inlinePos !== 'absolute') continue;
             
@@ -229,7 +223,6 @@
                 const isLarge = rect.width > window.innerWidth * 0.8 && rect.height > window.innerHeight * 0.8;
                 if (!isLarge) continue;
                 
-                // 🚀 去掉 innerText，避免强制重排。纯依赖 opacity 和 zIndex 判断
                 const isInvisible = parseFloat(style.opacity) < 0.1;
                 const zIndex = parseInt(style.zIndex, 10) || 0;
                 
@@ -240,7 +233,6 @@
             } catch (_) {}
         }
         
-        // 批量写入 DOM，减少重排
         for (const el of killList) {
             el.style.setProperty('pointer-events', 'none', 'important');
             el.style.setProperty('display', 'none', 'important');
@@ -252,16 +244,134 @@
         if (root.shadowRoot) checkAndKill(root.shadowRoot);
     }
 
+    // ==========================================
+    // 🚀 页面级本地钓鱼识别 (启发式规则打分)
+    // ==========================================
+    function analyzePageForPhishing() {
+        const hostname = window.location.hostname;
+        
+        const passwordInputs = document.querySelectorAll('input[type="password"]');
+        if (passwordInputs.length === 0) return;
+
+        let score = 40;
+        const reasons = ['检测到密码输入框'];
+
+        const forms = document.querySelectorAll('form');
+        let hasSuspiciousForm = false;
+        for (const form of forms) {
+            const action = form.getAttribute('action');
+            if (!action) continue;
+            
+            if (action.startsWith('data:') || action.startsWith('blob:')) {
+                score += 20;
+                reasons.push('表单使用了 data:/blob: 提交');
+                hasSuspiciousForm = true;
+            } else {
+                try {
+                    const actionUrl = new URL(action, window.location.href);
+                    const getBaseDomain = (h) => h ? h.split('.').slice(-2).join('.') : '';
+                    if (getBaseDomain(actionUrl.hostname) !== getBaseDomain(hostname)) {
+                        score += 30;
+                        reasons.push(`表单跨域提交至 ${actionUrl.hostname}`);
+                        hasSuspiciousForm = true;
+                    }
+                } catch (e) {}
+            }
+        }
+
+        const title = document.title.toLowerCase();
+        const BRANDS = ['paypal', 'apple', 'microsoft', 'google', 'amazon', 'netflix', 'binance', 'coinbase', 'facebook', 'instagram'];
+        for (const brand of BRANDS) {
+            if (title.includes(brand) && !hostname.includes(brand)) {
+                score += 20;
+                reasons.push(`页面标题包含品牌词 [${brand}] 但域名不匹配`);
+                break;
+            }
+        }
+
+        const iframes = document.querySelectorAll('iframe');
+        for (const iframe of iframes) {
+            try {
+                const src = iframe.src;
+                if (src && src.startsWith('http')) {
+                    const iframeUrl = new URL(src);
+                    const getBaseDomain = (h) => h ? h.split('.').slice(-2).join('.') : '';
+                    if (getBaseDomain(iframeUrl.hostname) !== getBaseDomain(hostname)) {
+                        const style = window.getComputedStyle(iframe);
+                        if (style.display === 'none' || style.visibility === 'hidden' || parseInt(style.width) <= 1) {
+                            score += 10;
+                            reasons.push('检测到隐藏的跨域 iframe');
+                            break;
+                        }
+                    }
+                }
+            } catch(e) {}
+        }
+
+        if (score >= 60) {
+            console.warn(`🚨 [DewSecure] 本地启发式检测到疑似钓鱼行为 (得分: ${score})`, reasons);
+            triggerPhishingWarning(score, reasons, passwordInputs);
+        }
+    }
+
+    function triggerPhishingWarning(score, reasons, passwordInputs) {
+        passwordInputs.forEach(input => {
+            input.disabled = true;
+            input.style.backgroundColor = '#ffebee';
+            input.style.border = '2px solid #ef4444';
+            input.placeholder = '⚠️ DewSecure 已锁定该输入框';
+        });
+        document.querySelectorAll('form button[type="submit"], form input[type="submit"]').forEach(btn => {
+            btn.disabled = true;
+            btn.style.opacity = '0.5';
+            btn.style.cursor = 'not-allowed';
+        });
+
+        if (document.getElementById('dewsecure-phishing-warning')) return;
+
+        const banner = document.createElement('div');
+        banner.id = 'dewsecure-phishing-warning';
+        banner.style.cssText = `
+            position: fixed; top: 0; left: 0; right: 0; z-index: 2147483647;
+            background: #ef4444; color: white; padding: 12px 20px;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            font-size: 14px; display: flex; justify-content: space-between; align-items: center;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        `;
+        banner.innerHTML = `
+            <div>
+                <strong>🚨 安全警告：</strong>此页面疑似钓鱼网站，您的密码可能会被窃取。
+                <div style="font-size: 12px; opacity: 0.8; margin-top: 4px;">原因: ${reasons.join(', ')}</div>
+            </div>
+            <button id="dewsecure-phishing-ignore" style="background: transparent; border: 1px solid white; color: white; padding: 4px 12px; border-radius: 4px; cursor: pointer;">我确定安全，继续</button>
+        `;
+        document.body.appendChild(banner);
+
+        document.getElementById('dewsecure-phishing-ignore').addEventListener('click', () => {
+            banner.remove();
+            passwordInputs.forEach(input => {
+                input.disabled = false;
+                input.style.backgroundColor = '';
+                input.style.border = '';
+                input.placeholder = '';
+            });
+            document.querySelectorAll('form button[type="submit"], form input[type="submit"]').forEach(btn => {
+                btn.disabled = false;
+                btn.style.opacity = '';
+                btn.style.cursor = '';
+            });
+            console.warn('🛡️ [DewSecure] 用户选择了忽略警告，已恢复表单输入。');
+        });
+    }
+
     // ===== 核心初始化 =====
     function init() {
-        // 🔒 F-01 终极豁免：不碰复杂的 SPA、地图与核心站点，防止白屏
         const skipDomains = ['google.com', 'youtube.com', 'facebook.com', 'twitter.com', 'x.com', 'instagram.com', 'wired.com'];
         if (skipDomains.some(d => window.location.hostname.endsWith(d))) {
             console.log('🛡️ [DewSecure] 核心站点豁免 DOM 清理，防止 SPA 崩溃。');
             return;
         }
 
-        // 🌟 先获取设置，再决定后续操作（修复异步导致开关失效/白屏）
         try {
             chrome.runtime.sendMessage({ type: 'GET_SETTINGS' }, (settings) => {
                 if (chrome.runtime.lastError || !settings) return;
@@ -275,18 +385,18 @@
                     return;
                 }
 
-                // 推送设置给 inject.js
                 window.postMessage({ type: 'DEWSECURE_SETTINGS', settings }, '*');
 
-                // 等待 DOM 稍微稳定后再注入
+                // 🚀 启动页面级钓鱼检测
                 setTimeout(() => {
-                    // 1. 根据开关动态注入 CSS
+                    try { analyzePageForPhishing(); } catch (e) { console.warn(e); }
+                }, 1000);
+
+                setTimeout(() => {
                     if (settings.hideCookieNotices !== false || settings.hideAdPlaceholders !== false || settings.blockSocialTrackers !== false) {
                         injectDynamicCSS(settings);
                     }
 
-
-                    // 3. 启动 MutationObserver
                     const observer = new MutationObserver((mutations) => {
                         for (const m of mutations) {
                             if (m.type === 'childList') {
@@ -306,7 +416,6 @@
                         attributes: true, attributeFilter: ['class', 'id'],
                     });
                     if (document.body) { scheduleCheck(document.body); }
-                    
                 }, 100);
             });
         } catch(e) {}
@@ -315,8 +424,9 @@
     init();
 })();
 
-
-// 🌟 动态挂起/恢复拦截
+// ==========================================
+// 监听消息（放在 IIFE 外部）
+// ==========================================
 chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     if (msg.type === 'TOGGLE_PROTECTION') {
         if (msg.enabled === false) {
@@ -335,24 +445,15 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     }
 });
 
-// ==========================================
-// 🛡️ AI 软隐藏指令监听（绝对安全，绝不阻断网络请求）
-// ==========================================
 chrome.runtime.onMessage.addListener((msg) => {
     if (msg.type === 'HIDE_AI_AD' && msg.domain) {
-        // 🛡️ 核心修复 1：如果页面处于暂停/白名单状态，直接无视 AI 消息
         if (document.documentElement.getAttribute('data-dewsecure-paused') === 'true') return;
-
         const domain = msg.domain;
         console.log(`🛡️ [DewSecure] 正在执行 AI 软隐藏: ${domain}`);
-        
-        // 🛡️ 核心修复 2：只隐藏极其明确的 1x1 追踪像素图，绝不碰页面正常的 img 和 iframe
         document.querySelectorAll('img').forEach(el => {
             if (el.src && el.src.includes(domain) && el.width <= 2 && el.height <= 2) {
                 el.style.setProperty('display', 'none', 'important');
             }
         });
-
-        // 🛡️ 核心修复 3：彻底放弃遍历 div。宁可漏掉一些广告，也绝不能把整个网页搞白屏！
     }
 });
