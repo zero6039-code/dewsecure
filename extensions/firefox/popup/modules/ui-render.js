@@ -59,13 +59,21 @@ export async function updateSiteInfo() {
 }
 
 export async function renderTodayLogs() {
-    const res = await chrome.storage.local.get('dewsecure_logs');
-    const logs = Array.isArray(res.dewsecure_logs) ? res.dewsecure_logs : [];
+    const [resLogs, resStats] = await Promise.all([
+        chrome.storage.local.get('dewsecure_logs'),
+        chrome.storage.local.get('dewsecure_stats')
+    ]);
+    const logs = Array.isArray(resLogs.dewsecure_logs) ? resLogs.dewsecure_logs : [];
+    const stats = resStats.dewsecure_stats || {};
     const todayStr = new Date().toDateString();
     const todayLogs = logs.filter(l => l.date === todayStr);
 
+    // 🛡️ 修复：获取真实的今日拦截总数，如果大于日志条数，显示“+”
+    const realTodayBlocked = stats.date === todayStr ? stats.todayBlocked : 0;
+    const displayCount = realTodayBlocked > todayLogs.length ? `${todayLogs.length}+` : todayLogs.length;
+    
     const badge = document.getElementById('logCountBadge');
-    if (badge) badge.textContent = `${todayLogs.length} ${window.t('log_items')}`;
+    if (badge) badge.textContent = `${displayCount} ${window.t('log_items')}`;
 
     const list = document.getElementById('logsList');
     if (!list) return;
