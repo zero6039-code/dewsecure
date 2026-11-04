@@ -128,7 +128,8 @@ export async function handleMessage(message, sender) {
     const privilegedTypes = [
         'UPDATE_SETTING_KEY', 'UPDATE_SETTINGS', 
         'ADD_WHITELIST', 'REMOVE_WHITELIST', 
-        'ADD_TEMP_WHITELIST', 'REMOVE_TEMP_WHITELIST'
+        'ADD_TEMP_WHITELIST', 'REMOVE_TEMP_WHITELIST',
+        'REPORT_FEEDBACK' // 🛡️ N-8 修复：要求特权来源
     ];
     if (privilegedTypes.includes(message.type) && !isPrivilegedSender(sender)) {
         console.warn('❌ [拦截] 拒绝非特权页面调用:', message.type);
@@ -213,14 +214,15 @@ export async function handleMessage(message, sender) {
                 }
 
                 let host = message.domain;
+                let tab = null; // 🛡️ N-8 修复：提升变量作用域
                 if (!host) {
-                    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+                    [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
                     if (!tab || !tab.url) return { ok: false };
                     host = new URL(tab.url).hostname;
                 }
                 
                 // 🛡️ 修复误报逻辑：如果是在警告页（被拦截页面）触发的上报，必须提取真实的被拦截域名
-                if (!message.domain && tab.url && tab.url.includes('warning.html')) {
+                if (!message.domain && tab?.url && tab.url.includes('warning.html')) {
                     const urlParams = new URL(tab.url).searchParams;
                     const realDomain = urlParams.get('domain') || urlParams.get('url');
                     if (realDomain && realDomain !== 'Known Malicious Site') {
@@ -235,6 +237,12 @@ export async function handleMessage(message, sender) {
                 // 禁止上报扩展自身的 ID
                 if (host === chrome.runtime.id || !host.includes('.')) {
                     console.warn('❌ [Report] 拒绝上报无效或扩展自身域名:', host);
+                    return { ok: false, error: 'Invalid domain' };
+                }
+
+                // 🛡️ N-8 修复：增加域名合法性校验，防止恶意伪造乱码
+                if (!isValidWhitelistDomain(getETLD1(host))) {
+                    console.warn('❌ [Report] 拒绝上报非法域名:', host);
                     return { ok: false, error: 'Invalid domain' };
                 }
 
