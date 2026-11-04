@@ -1,4 +1,6 @@
-// 🔒 P-01 硬核钓鱼检测：品牌仿冒、同形字与防误杀优化 (V4 修复 H-2)
+// 🔒 P-01 硬核钓鱼检测：品牌仿冒、同形字与防误杀优化 (V5 修复 N-7)
+// 兼容策略：对外保留 detectBrandPhishing(url): boolean，调用方零改动；
+//           对内 assess(url) 返回 { flag, reasons }，供未来警告页显示理由。
 import { parse } from 'tldts';
 
 const BRAND_DOMAINS = {
@@ -26,24 +28,32 @@ const BRAND_DOMAINS = {
 
 const BRANDS = Object.keys(BRAND_DOMAINS);
 
-const HIGH_RISK_TLDS = ['.xyz', '.top', '.cc', '.tk', '.ml', '.ga', '.cf', '.gq', '.work', '.link', '.click', '.online', '.site'];
-const PHISH_KEYWORDS = ['login', 'signin', 'verify', 'secure', 'update', 'account', 'billing', 'support', 'auth', 'recovery', 'unlock', 'confirm'];
+// N-7 修复：高风险 TLD 用 publicSuffix 精确判断，关键词只看 host，不看 path
+const RISKY_SUFFIX = new Set([
+    'xyz', 'top', 'cc', 'tk', 'ml', 'ga', 'cf', 'gq',
+    'work', 'link', 'click', 'online', 'site'
+]);
+const KEYWORDS = ['login', 'signin', 'verify', 'secure', 'account',
+                  'billing', 'recovery', 'unlock', 'confirm'];
 
 // 豁免列表：绝对不会被品牌路径检测误杀的超级大站
 const SAFE_HOSTS = [
     'dewsecure.com', 'dev.dewsecure.com',
-    'github.com', 'google.com', 'youtube.com', 'facebook.com', 'twitter.com', 
-    'x.com', 'instagram.com', 'linkedin.com', 'wikipedia.org', 'microsoft.com', 
+    'github.com', 'google.com', 'youtube.com', 'facebook.com', 'twitter.com',
+    'x.com', 'instagram.com', 'linkedin.com', 'wikipedia.org', 'microsoft.com',
     'apple.com', 'amazon.com', 'cloudflare.com', 'reddit.com',
-    // 🛡️ 修复 dropbox 误报
     'dropbox.com', 'www.dropbox.com', 'dropboxusercontent.com'
 ];
 
-// 简单的 IDN (Punycode) 同形字解码处理函数
+// N-7 修复：真正的 ccTLD 后缀才信任（含 co.uk / com.my 这类二阶后缀）
+// 显式排除 RISKY_SUFFIX，防止 paypal.xyz 被误信任
+const isCcSuffix = (s) =>
+    !RISKY_SUFFIX.has(s) &&
+    /^([a-z]{2}|(co|com|net|org|ac|gov|edu)\.[a-z]{2})$/.test(s);
+
+// 简单的 IDN (Punycode) 同形字解码处理函数（保留原逻辑）
 function checkIdnHomograph(host) {
     if (!host.includes('xn--')) return false;
-    // 对于 Punycode 域名，若去掉 xn-- 后包含品牌词的后缀（如 xn--pple-43d -> pple），判定为 IDN 伪装
-    // 合法的 IDN（如中文 xn--fiqs8s）通常不包含长串英文，因此不会误杀
     const stripped = host.replace(/xn--/g, '');
     return BRANDS.some(brand => {
         const tail = brand.slice(1);
@@ -51,83 +61,75 @@ function checkIdnHomograph(host) {
     });
 }
 
+// 内部评估函数：返回 { flag, reasons }
+function assess(url) {
+    const u = new URL(url);
+    let host = u.hostname.toLowerCase().replace(/^www\./, '');
+    const reasons = [];
+
+    // 安全网 1：高信誉域名直接放行
+    if (SAFE_HOSTS.some(safe => host === safe || host.endsWith('.' + safe))) {
+        return { flag: false, reasons };
+    }
+
+    // 1. 纯 IP 形式访问的登录/管理页
+    const pathAndSearch = (u.pathname + u.search).toLowerCase();
+    if (/^\d{1,3}(\.\d{1,3}){3}$/.test(host) &&
+        (pathAndSearch.includes('login') || pathAndSearch.includes('admin'))) {
+        reasons.push('ip-login');
+        return { flag: true, reasons };
+    }
+
+    // 2. userinfo 混淆 (https://paypal.com@evil.com) —— H-2 已正确，保留
+    if (u.username && u.username.includes('.')) {
+        reasons.push('userinfo-spoof');
+        return { flag: true, reasons };
+    }
+
+    // 3. IDN 同形字 (xn--pple-43d.com)
+    if (checkIdnHomograph(host)) {
+        reasons.push('idn-homograph');
+        return { flag: true, reasons };
+    }
+
+    const p = parse(host);
+    if (!p.domain) return { flag: false, reasons };
+
+    const label = p.domainWithoutSuffix || '';
+    const sub = (p.subdomain || '').split('.').filter(Boolean);
+
+    // 4. 品牌仿冒检测（N-7 重写：标签级匹配 + ccTLD 信任）
+    for (const [brand, official] of Object.entries(BRAND_DOMAINS)) {
+        if (official.includes(p.domain)) continue;              // 官方注册域放行
+        if (label === brand && isCcSuffix(p.publicSuffix)) continue; // 品牌国家站放行
+
+        const tokens = label.split('-');
+        if (sub.some(l => l === brand || l.split('-').includes(brand))) {
+            reasons.push('brand-in-subdomain:' + brand);
+        } else if (tokens.includes(brand) && tokens.length > 1) {
+            reasons.push('brand-token:' + brand);
+        } else if (label === brand) {
+            reasons.push('brand-wrong-suffix:' + brand);
+        } else if (!label.includes(brand) &&
+                   label.replace(/0/g, 'o').replace(/1/g, 'l')
+                        .replace(/3/g, 'e').replace(/rn/g, 'm')
+                        .includes(brand)) {
+            reasons.push('lookalike:' + brand);
+        }
+    }
+
+    // 5. 高风险 TLD + 关键词（只看 host，不看 path —— N-7 第 1 点）
+    if (RISKY_SUFFIX.has(p.publicSuffix) && KEYWORDS.some(k => host.includes(k))) {
+        reasons.push('risky-tld+keyword-in-host');
+    }
+
+    return { flag: reasons.length > 0, reasons };
+}
+
+// 对外兼容接口：保持原函数名与 boolean 返回，调用方零改动
 export function detectBrandPhishing(url) {
     try {
-        const u = new URL(url);
-        let host = u.hostname.toLowerCase().replace(/^www\./, '');
-        const pathAndSearch = (u.pathname + u.search).toLowerCase();
-        
-        // 🛡️ 安全网 1：对全球高信誉域名直接放行，绝不检查它们的路径
-        if (SAFE_HOSTS.some(safe => host === safe || host.endsWith('.' + safe))) {
-            return false;
-        }
-
-        // 1. 拦截纯 IP 形式访问的登录页
-        if (/^\d{1,3}(\.\d{1,3}){3}$/.test(host) && (pathAndSearch.includes('login') || pathAndSearch.includes('admin'))) {
-            return true;
-        }
-
-        // 2. [H-2 修复] 精准拦截 userinfo 混淆 (如 https://paypal.com@evil.com)
-        // 使用 URL 解析的 username 属性，绝不误杀 medium.com/@user
-        if (u.username && u.username.includes('.')) {
-            return true;
-        }
-
-        // 3. 高风险 TLD 且包含诱导词
-        const hasRiskTld = HIGH_RISK_TLDS.some(tld => host.endsWith(tld));
-        const hasPhishKeyword = PHISH_KEYWORDS.some(kw => host.includes(kw) || pathAndSearch.includes(kw));
-        if (hasRiskTld && hasPhishKeyword) {
-            return true;
-        }
-
-        // [H-2 修复] 预解析注册域与子域
-        const domainInfo = parse(host);
-        const registeredDomain = domainInfo.domain;
-        const subdomain = domainInfo.subdomain || '';
-
-        // 4. 品牌仿冒检测
-        for (const brand of BRANDS) {
-            const officialDomains = BRAND_DOMAINS[brand];
-            
-            // 4.1 官方注册域直接跳过 (如登录页 login.paypal.com，注册域是 paypal.com)
-            const isOfficialReg = officialDomains.some(od => registeredDomain === od || (registeredDomain && registeredDomain.endsWith('.' + od)));
-            if (isOfficialReg) continue;
-
-            // 4.2 [H-2 修复] 子域欺骗检测 (如 paypal.com.evil-site.net)
-            if (registeredDomain && subdomain) {
-                const subLabels = subdomain.split('.');
-                if (subLabels.some(label => label === brand || label.startsWith(brand + '-'))) {
-                    return true;
-                }
-            }
-
-            // 4.3 IDN 同形字检测 (如 xn--pple-43d.com)
-            if (checkIdnHomograph(host)) {
-                return true;
-            }
-
-            // 4.4 传统同形字检测（如 paypa1 -> paypal）
-            const deobfuscated = host.replace(/0/g, 'o').replace(/1/g, 'l').replace(/3/g, 'e').replace(/5/g, 's').replace(/rn/g, 'm');
-            if (!host.includes(brand) && deobfuscated.includes(brand)) {
-                return true; 
-            }
-
-            // 4.5 域名包含品牌词但非官方（防误杀 notpaypal.com, myappleblog.com）
-            if (host.includes(brand)) {
-                const parts = host.split(brand);
-                const prefix = parts[0];
-                const suffix = parts[1] || '';
-                
-                const isSuspiciousPrefix = /[-_@.]/.test(prefix) || PHISH_KEYWORDS.some(kw => prefix.includes(kw));
-                const isSuspiciousSuffix = /^[-_]/.test(suffix) || PHISH_KEYWORDS.some(kw => suffix.includes(kw));
-                
-                if (isSuspiciousPrefix || isSuspiciousSuffix) {
-                    return true;
-                }
-            }
-        }
-
-        return false;
+        return assess(url).flag;
     } catch (e) {
         return false;
     }
