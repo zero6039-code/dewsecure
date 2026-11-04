@@ -46,12 +46,12 @@ export async function updateDNRRulesets(dnrEnabled, blockTrackers) {
     }
 }
 
-// 🔒 S-07: 允许通过 UPDATE_SETTING_KEY 修改的合法键
-const ALLOWED_SETTING_KEYS = new Set([
+// 🛡️ N-13 修复：仅允许通过 UPDATE_SETTING_KEY/UPDATE_SETTINGS 修改基础布尔开关
+// whitelist、tempWhitelist、dailyUsed 等敏感数据必须走各自专用的消息路径（且需经 isValidWhitelistDomain）
+const SIMPLE_KEYS = new Set([
     'dnrEnabled', 'antiHijackEnabled', 'phishingEnabled', 'intelEnabled', 'aiFourEnabled', 
     'aiEnabled', 'antiBypassEnabled', 'blockTrackers', 'hideCookieNotices', 
-    'hideAdPlaceholders', 'blockSocialTrackers', 'whitelist', 'tempWhitelist', 'tempWhitelistExpiry',
-    'dailyLimit', 'dailyUsed', 'lastResetDate'
+    'hideAdPlaceholders', 'blockSocialTrackers', 'shareThreatCandidates'
 ]);
 
 // 🔒 H3 修复：直接使用 tldts 校验，彻底解决公共后缀缺失问题
@@ -281,9 +281,10 @@ export async function handleMessage(message, sender) {
             sGet = await cleanExpiredTempWhitelist(sGet);
             return sGet;
         case 'UPDATE_SETTING_KEY':
-            if (!ALLOWED_SETTING_KEYS.has(message.key)) {
-                console.warn('❌ [拦截] 拒绝写入未授权的设置键:', message.key);
-                return { ok: false, error: 'Unauthorized setting key' };
+            // 🛡️ N-13 修复：必须是简单键，且值必须是布尔型，杜绝数组/对象注入
+            if (!SIMPLE_KEYS.has(message.key) || typeof message.value !== 'boolean') {
+                console.warn('❌ [拦截] 拒绝写入未授权的设置键或非法类型:', message.key);
+                return { ok: false, error: 'Unauthorized setting key or invalid type' };
             }
             let s = await getSettings();
             s[message.key] = message.value;
@@ -294,13 +295,16 @@ export async function handleMessage(message, sender) {
             return { ok: true };
         case 'UPDATE_SETTINGS':
             let currentSettings = await getSettings();
+            let hasDnrChange = false;
             for (const key of Object.keys(message.settings)) {
-                if (ALLOWED_SETTING_KEYS.has(key)) {
+                // 🛡️ N-13 修复：过滤敏感键与非布尔值
+                if (SIMPLE_KEYS.has(key) && typeof message.settings[key] === 'boolean') {
                     currentSettings[key] = message.settings[key];
+                    if (key === 'dnrEnabled' || key === 'blockTrackers') hasDnrChange = true;
                 }
             }
             await chrome.storage.local.set({ [SETTINGS_KEY]: currentSettings });
-            if (message.settings.dnrEnabled !== undefined || message.settings.blockTrackers !== undefined) {
+            if (hasDnrChange) {
                 await updateDNRRulesets(currentSettings.dnrEnabled, currentSettings.blockTrackers);
             }
             return { ok: true };
