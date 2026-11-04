@@ -129,5 +129,14 @@
   "phish_download_warn_desc": "You are downloading an executable from an unknown source ({filename}). Please ensure you trust the source.",
   "settings_privacy": "🔒 Privacy",
   "feat_share_intel": "Share Threat Intel (Anonymous)",
-  "feat_share_intel_desc": "Allow sending desensitized suspicious domains to the cloud to improve blocking. Default off."
+  "feat_share_intel_desc": "Allow sending desensitized suspicious domains to the cloud to improve blocking. Default off.",
+  "warn_reasons_title": "Detection Reasons:",
+  "warn_reason_ip_login": "IP address login page",
+  "warn_reason_userinfo_spoof": "Userinfo spoofing in URL",
+  "warn_reason_idn_homograph": "IDN homograph attack",
+  "warn_reason_brand_in_subdomain": "Brand in subdomain: {arg}",
+  "warn_reason_brand_token": "Brand token in domain: {arg}",
+  "warn_reason_brand_wrong_suffix": "Incorrect brand suffix: {arg}",
+  "warn_reason_lookalike": "Lookalike domain detected: {arg}",
+  "warn_reason_risky_tld_keyword_in_host": "Risky TLD with phishing keywords"
 }

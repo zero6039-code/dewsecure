@@ -62,7 +62,7 @@ function checkIdnHomograph(host) {
 }
 
 // 内部评估函数：返回 { flag, reasons }
-function assess(url) {
+export function assess(url) {
     const u = new URL(url);
     let host = u.hostname.toLowerCase().replace(/^www\./, '');
     const reasons = [];

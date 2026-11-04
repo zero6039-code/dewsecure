@@ -322,10 +322,29 @@ if (chrome.webNavigation && chrome.webNavigation.onBeforeNavigate) {
                 return; 
             }
 
-            // 🚨 执行钓鱼检测
-            if (detectBrandPhishing(details.url)) {
-                console.log('🚨 [Security] 检测到品牌钓鱼，执行强制拦截:', details.url);
-                const warningUrl = chrome.runtime.getURL(`warning.html?url=${encodeURIComponent(details.url)}&isPro=false`);
+            // 🚨 执行钓鱼检测（分级处置）
+            // 兼容旧版本直接返回 boolean 的情况，如果有 assess 则调用 assess
+            const phishingModule = await import('./background/phishingDetector.js');
+            let isPhish = false;
+            let reasons = [];
+            
+            if (phishingModule.assess) {
+                const finding = phishingModule.assess(details.url);
+                // 如果 flag 为 true，且理由大于等于 2 个，判定为高危，直接阻断
+                if (finding.flag) {
+                    isPhish = true;
+                    reasons = finding.reasons;
+                }
+            } else if (phishingModule.detectBrandPhishing(details.url)) {
+                isPhish = true;
+                reasons = ['brand-mismatch'];
+            }
+
+            if (isPhish) {
+                // 这里可以引入更细的评分，目前先按高危处理
+                console.log('🚨 [Security] 检测到品牌钓鱼，执行强制拦截:', details.url, '理由:', reasons);
+                const reasonStr = encodeURIComponent(reasons.join(', '));
+                const warningUrl = chrome.runtime.getURL(`warning.html?url=${encodeURIComponent(details.url)}&isPro=false&reasons=${reasonStr}`);
                 blockedTabs.set(details.tabId, details.url);
                 chrome.tabs.update(details.tabId, { url: warningUrl });
             }

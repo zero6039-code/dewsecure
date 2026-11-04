@@ -129,5 +129,14 @@
   "phish_download_warn_desc": "알 수 없는 소스에서 실행 파일({filename})을 다운로드하고 있습니다.",
   "settings_privacy": "🔒 개인정보",
   "feat_share_intel": "위협 인텔리전스 공유 (익명)",
-  "feat_share_intel_desc": "익명화된 의심스러운 도메인을 클라우드로 전송하여 차단 모델 개선에 기여합니다. 기본적으로 꺼져 있습니다."
+  "feat_share_intel_desc": "익명화된 의심스러운 도메인을 클라우드로 전송하여 차단 모델 개선에 기여합니다. 기본적으로 꺼져 있습니다.",
+  "warn_reasons_title": "탐지 이유:",
+  "warn_reason_ip_login": "IP 주소 로그인 페이지",
+  "warn_reason_userinfo_spoof": "URL의 사용자 정보 스푸핑",
+  "warn_reason_idn_homograph": "IDN 동형 이의어 공격",
+  "warn_reason_brand_in_subdomain": "서브도메인에 브랜드 포함: {arg}",
+  "warn_reason_brand_token": "도메인에 브랜드 토큰 포함: {arg}",
+  "warn_reason_brand_wrong_suffix": "잘못된 브랜드 접미사: {arg}",
+  "warn_reason_lookalike": "유사 도메인 탐지됨: {arg}",
+  "warn_reason_risky_tld_keyword_in_host": "위험한 TLD 및 피싱 키워드"
 }

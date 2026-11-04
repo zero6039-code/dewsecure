@@ -129,5 +129,14 @@
   "phish_download_warn_desc": "Você está baixando um executável de uma fonte desconhecida ({filename}).",
   "settings_privacy": "🔒 Privacidade",
   "feat_share_intel": "Compartilhar inteligência de ameaças (Anônimo)",
-  "feat_share_intel_desc": "Permitir o envio de domínios suspeitos desensibilizados para a nuvem para ajudar a melhorar o modelo de bloqueio. Padrão desativado."
+  "feat_share_intel_desc": "Permitir o envio de domínios suspeitos desensibilizados para a nuvem para ajudar a melhorar o modelo de bloqueio. Padrão desativado.",
+  "warn_reasons_title": "Razões da detecção:",
+  "warn_reason_ip_login": "Página de login por endereço IP",
+  "warn_reason_userinfo_spoof": "Falsificação de informações do usuário na URL",
+  "warn_reason_idn_homograph": "Ataque de homógrafo IDN",
+  "warn_reason_brand_in_subdomain": "Marca no subdomínio: {arg}",
+  "warn_reason_brand_token": "Token de marca no domínio: {arg}",
+  "warn_reason_brand_wrong_suffix": "Sufixo de marca incorreto: {arg}",
+  "warn_reason_lookalike": "Domínio semelhante detectado: {arg}",
+  "warn_reason_risky_tld_keyword_in_host": "TLD de risco com palavras-chave de phishing"
 }

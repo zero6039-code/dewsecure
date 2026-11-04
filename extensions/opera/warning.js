@@ -214,5 +214,37 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (isPro && proTip) {
             proTip.style.display = 'none';
         }
+
+        // 🛡️ 展示拦截理由（如果传入了 reasons 参数）
+        const reasonsParam = params.get('reasons');
+        if (reasonsParam) {
+            const dangerUrlEl = document.getElementById('danger-url');
+            if (dangerUrlEl) {
+                // 获取本地化文本
+                const langRes = await chrome.storage.local.get('preferred_lang');
+                let targetLang = langRes.preferred_lang || (navigator.language || 'en').split('-')[0].toLowerCase();
+                if (targetLang === 'zh_CN') targetLang = 'zh';
+                
+                let dict = {};
+                try {
+                    const dictRes = await fetch(chrome.runtime.getURL(`popup/locales/${targetLang}.json`));
+                    if (dictRes.ok) dict = await dictRes.json();
+                } catch (e) {}
+
+                const reasonTitle = dict['warn_reasons_title'] || 'Detection Reasons:';
+                const reasonLines = decodeURIComponent(reasonsParam).split(', ').map(r => {
+                    const parts = r.split(':');
+                    const code = parts[0].replace(/[-+]/g, '_'); // 统一将 '-' 和 '+' 转为 '_'
+                    const arg = parts[1] || '';
+                    let text = dict['warn_reason_' + code] || r;
+                    return '• ' + text.replace('{arg}', arg);
+                });
+
+                const reasonBox = document.createElement('div');
+                reasonBox.style.cssText = 'margin-top: 10px; margin-bottom: 20px; padding: 12px; background: #2a1515; border: 1px solid #ef4444; border-radius: 8px; color: #fca5a5; font-size: 13px; text-align: left; width: 100%; box-sizing: border-box;';
+                reasonBox.innerHTML = `<strong>${reasonTitle}</strong><br>${reasonLines.join('<br>')}`;
+                dangerUrlEl.parentNode.appendChild(reasonBox);
+            }
+        }
     }
 });

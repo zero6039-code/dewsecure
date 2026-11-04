@@ -129,5 +129,14 @@
   "phish_download_warn_desc": "不明なソースから実行可能ファイル ({filename}) をダウンロードしています。",
   "settings_privacy": "🔒 プライバシー",
   "feat_share_intel": "脅威インテリジェンスの共有 (匿名)",
-  "feat_share_intel_desc": "匿名化された疑わしいドメインをクラウドに送信し、ブロックモデルの改善に役立てます。デフォルトはオフです。"
+  "feat_share_intel_desc": "匿名化された疑わしいドメインをクラウドに送信し、ブロックモデルの改善に役立てます。デフォルトはオフです。",
+  "warn_reasons_title": "検出理由:",
+  "warn_reason_ip_login": "IPアドレスのログインページ",
+  "warn_reason_userinfo_spoof": "URLのユーザー情報スプーフィング",
+  "warn_reason_idn_homograph": "IDNホモグラフ攻撃",
+  "warn_reason_brand_in_subdomain": "サブドメインにブランド名: {arg}",
+  "warn_reason_brand_token": "ドメインにブランド名の組み合わせ: {arg}",
+  "warn_reason_brand_wrong_suffix": "誤ったブランドのサフィックス: {arg}",
+  "warn_reason_lookalike": "類似ドメインを検出: {arg}",
+  "warn_reason_risky_tld_keyword_in_host": "リスクの高いTLDとフィッシングキーワード"
 }

@@ -129,5 +129,14 @@
   "phish_download_warn_desc": "Sie laden eine ausführbare Datei aus unbekannter Quelle herunter ({filename}).",
   "settings_privacy": "🔒 Datenschutz",
   "feat_share_intel": "Bedrohungsinformationen teilen (Anonym)",
-  "feat_share_intel_desc": "Erlauben Sie das Senden von anonymisierten verdächtigen Domains an die Cloud, um das Blockierungsmodell zu verbessern. Standardmäßig deaktiviert."
+  "feat_share_intel_desc": "Erlauben Sie das Senden von anonymisierten verdächtigen Domains an die Cloud, um das Blockierungsmodell zu verbessern. Standardmäßig deaktiviert.",
+  "warn_reasons_title": "Erkennungsgründe:",
+  "warn_reason_ip_login": "IP-Adress-Anmeldeseite",
+  "warn_reason_userinfo_spoof": "Benutzerinfo-Spoofing in der URL",
+  "warn_reason_idn_homograph": "IDN-Homograph-Angriff",
+  "warn_reason_brand_in_subdomain": "Marke in Subdomain: {arg}",
+  "warn_reason_brand_token": "Marken-Token in Domain: {arg}",
+  "warn_reason_brand_wrong_suffix": "Falsches Marken-Suffix: {arg}",
+  "warn_reason_lookalike": "Ähnliche Domain erkannt: {arg}",
+  "warn_reason_risky_tld_keyword_in_host": "Riskante TLD mit Phishing-Schlüsselwörtern"
 }

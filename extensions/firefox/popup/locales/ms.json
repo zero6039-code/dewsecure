@@ -129,5 +129,14 @@
   "phish_download_warn_desc": "Anda memuat turun fail boleh laku dari sumber yang tidak diketahui ({filename}).",
   "settings_privacy": "🔒 Privasi",
   "feat_share_intel": "Kongsi Risikan Ancaman (Tanpa Nama)",
-  "feat_share_intel_desc": "Benarkan penghantaran domain mencurigakan yang dinyahkategorikan ke awan untuk membantu menambah baik model sekatan. Lalai dimatikan."
+  "feat_share_intel_desc": "Benarkan penghantaran domain mencurigakan yang dinyahkategorikan ke awan untuk membantu menambah baik model sekatan. Lalai dimatikan.",
+  "warn_reasons_title": "Sebab Pengesanan:",
+  "warn_reason_ip_login": "Halaman log masuk alamat IP",
+  "warn_reason_userinfo_spoof": "Penipuan maklumat pengguna dalam URL",
+  "warn_reason_idn_homograph": "Serangan homograf IDN",
+  "warn_reason_brand_in_subdomain": "Jenama dalam subdomain: {arg}",
+  "warn_reason_brand_token": "Token jenama dalam domain: {arg}",
+  "warn_reason_brand_wrong_suffix": "Akhiran jenama yang salah: {arg}",
+  "warn_reason_lookalike": "Domain serupa dikesan: {arg}",
+  "warn_reason_risky_tld_keyword_in_host": "TLD berisiko dengan kata kunci phishing"
 }

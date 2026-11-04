@@ -129,5 +129,14 @@
   "phish_download_warn_desc": "您正在从未知来源下载可执行文件 ({filename})。请确保您信任该来源，切勿随意运行。",
   "settings_privacy": "🔒 隐私",
   "feat_share_intel": "参与威胁情报共享 (匿名)",
-  "feat_share_intel_desc": "允许将脱敏后的可疑域名发送到云端，帮助改进拦截模型。默认关闭。"
+  "feat_share_intel_desc": "允许将脱敏后的可疑域名发送到云端，帮助改进拦截模型。默认关闭。",
+  "warn_reasons_title": "检测原因:",
+  "warn_reason_ip_login": "IP 地址登录页",
+  "warn_reason_userinfo_spoof": "URL 包含伪造的身份信息",
+  "warn_reason_idn_homograph": "IDN 同形字攻击",
+  "warn_reason_brand_in_subdomain": "子域名包含品牌词: {arg}",
+  "warn_reason_brand_token": "域名包含品牌词组合: {arg}",
+  "warn_reason_brand_wrong_suffix": "错误的品牌域名后缀: {arg}",
+  "warn_reason_lookalike": "检测到相似字符伪装: {arg}",
+  "warn_reason_risky_tld_keyword_in_host": "高风险域名后缀与诱导关键词"
 }
