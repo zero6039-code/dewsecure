@@ -126,5 +126,8 @@
   "phish_download_danger_title": "🚨 Muat Turun Berisiko Tinggi Disekat",
   "phish_download_danger_desc": "Fail sambungan berganda ({filename}) dikesan dan disekat.",
   "phish_download_warn_title": "⚠️ Risiko Keselamatan",
-  "phish_download_warn_desc": "Anda memuat turun fail boleh laku dari sumber yang tidak diketahui ({filename})."
+  "phish_download_warn_desc": "Anda memuat turun fail boleh laku dari sumber yang tidak diketahui ({filename}).",
+  "settings_privacy": "🔒 Privasi",
+  "feat_share_intel": "Kongsi Risikan Ancaman (Tanpa Nama)",
+  "feat_share_intel_desc": "Benarkan penghantaran domain mencurigakan yang dinyahkategorikan ke awan untuk membantu menambah baik model sekatan. Lalai dimatikan."
 }

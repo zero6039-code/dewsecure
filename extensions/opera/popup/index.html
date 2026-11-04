@@ -282,8 +282,9 @@
             <h2 class="auth-title" style="margin-bottom: 16px;" data-i18n="settings_title">设置</h2>
             <div class="settings-container">
                 <div class="settings-sidebar">
-                    <button class="settings-tab active" data-target="tabLang" data-i18n="settings_lang" data-i18n="settings_lang">🌐 语言</button>
-                    <button class="settings-tab" data-target="tabWhitelist" data-i18n="settings_whitelist" data-i18n="settings_whitelist">🛡️ 白名单</button>
+                    <button class="settings-tab active" data-target="tabLang" data-i18n="settings_lang">🌐 语言</button>
+                    <button class="settings-tab" data-target="tabWhitelist" data-i18n="settings_whitelist">🛡️ 白名单</button>
+                    <button class="settings-tab" data-target="tabPrivacy" data-i18n="settings_privacy">🔒 隐私</button>
                 </div>
                 <div class="settings-content">
                     
@@ -302,6 +303,18 @@
     </div>
 </div>
 
+                    </div>
+                    <div class="settings-pane" id="tabPrivacy">
+                        <div class="feature-row" style="padding: 10px 0;">
+                            <div class="feature-text">
+                                <div class="feature-name" data-i18n="feat_share_intel">参与威胁情报共享 (匿名)</div>
+                                <div class="feature-desc" data-i18n="feat_share_intel_desc">允许将脱敏后的可疑域名发送到云端，帮助改进拦截模型。默认关闭。</div>
+                            </div>
+                            <label class="ios-switch mini">
+                                <input type="checkbox" id="shareThreatCandidatesToggle">
+                                <span class="switch-track"><span class="switch-thumb"><svg class="icon-check" viewBox="0 0 24 24" fill="none"><path d="M5 13l4 4L19 7" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"/></svg><span class="icon-ring"></span></span></span>
+                            </label>
+                        </div>
                     </div>
                     <div class="settings-pane" id="tabWhitelist">
                         <div class="whitelist-header" data-i18n="settings_wl_list">白名单列表</div>

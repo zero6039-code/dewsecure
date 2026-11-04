@@ -213,7 +213,13 @@
                     return;
                 }
 
-                window.postMessage({ type: 'DEWSECURE_SETTINGS', settings }, '*');
+                // 🛡️ N-10 修复：只下发布尔开关，不泄露白名单等敏感配置，并使用安全 origin
+                const safeSettings = {
+                    antiHijackEnabled: settings.antiHijackEnabled,
+                    antiBypassEnabled: settings.antiBypassEnabled,
+                    blockSocialTrackers: settings.blockSocialTrackers
+                };
+                window.postMessage({ type: 'DEWSECURE_SETTINGS', settings: safeSettings }, location.origin);
 
                 // 🚀 启动页面级钓鱼检测（动态监听）
                 setTimeout(() => {

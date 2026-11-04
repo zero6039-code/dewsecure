@@ -126,5 +126,8 @@
   "phish_download_danger_title": "🚨 High-Risk Download Blocked",
   "phish_download_danger_desc": "A double extension file ({filename}) was detected and blocked by DewSecure.",
   "phish_download_warn_title": "⚠️ Security Risk",
-  "phish_download_warn_desc": "You are downloading an executable from an unknown source ({filename}). Please ensure you trust the source."
+  "phish_download_warn_desc": "You are downloading an executable from an unknown source ({filename}). Please ensure you trust the source.",
+  "settings_privacy": "🔒 Privacy",
+  "feat_share_intel": "Share Threat Intel (Anonymous)",
+  "feat_share_intel_desc": "Allow sending desensitized suspicious domains to the cloud to improve blocking. Default off."
 }

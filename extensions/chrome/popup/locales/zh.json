@@ -126,5 +126,8 @@
   "phish_download_danger_title": "🚨 已拦截高危下载",
   "phish_download_danger_desc": "检测到双扩展名文件 ({filename})，已被 DewSecure 强制阻断。",
   "phish_download_warn_title": "⚠️ 安全风险提示",
-  "phish_download_warn_desc": "您正在从未知来源下载可执行文件 ({filename})。请确保您信任该来源，切勿随意运行。"
+  "phish_download_warn_desc": "您正在从未知来源下载可执行文件 ({filename})。请确保您信任该来源，切勿随意运行。",
+  "settings_privacy": "🔒 隐私",
+  "feat_share_intel": "参与威胁情报共享 (匿名)",
+  "feat_share_intel_desc": "允许将脱敏后的可疑域名发送到云端，帮助改进拦截模型。默认关闭。"
 }

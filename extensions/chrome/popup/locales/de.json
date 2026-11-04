@@ -126,5 +126,8 @@
   "phish_download_danger_title": "🚨 Riskanter Download blockiert",
   "phish_download_danger_desc": "Eine Datei mit doppelter Erweiterung ({filename}) wurde erkannt und blockiert.",
   "phish_download_warn_title": "⚠️ Sicherheitsrisiko",
-  "phish_download_warn_desc": "Sie laden eine ausführbare Datei aus unbekannter Quelle herunter ({filename})."
+  "phish_download_warn_desc": "Sie laden eine ausführbare Datei aus unbekannter Quelle herunter ({filename}).",
+  "settings_privacy": "🔒 Datenschutz",
+  "feat_share_intel": "Bedrohungsinformationen teilen (Anonym)",
+  "feat_share_intel_desc": "Erlauben Sie das Senden von anonymisierten verdächtigen Domains an die Cloud, um das Blockierungsmodell zu verbessern. Standardmäßig deaktiviert."
 }

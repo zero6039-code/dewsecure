@@ -126,5 +126,8 @@
   "phish_download_danger_title": "🚨 고위험 다운로드 차단됨",
   "phish_download_danger_desc": "이중 확장자 파일({filename})이 감지되어 차단했습니다.",
   "phish_download_warn_title": "⚠️ 보안 위험",
-  "phish_download_warn_desc": "알 수 없는 소스에서 실행 파일({filename})을 다운로드하고 있습니다."
+  "phish_download_warn_desc": "알 수 없는 소스에서 실행 파일({filename})을 다운로드하고 있습니다.",
+  "settings_privacy": "🔒 개인정보",
+  "feat_share_intel": "위협 인텔리전스 공유 (익명)",
+  "feat_share_intel_desc": "익명화된 의심스러운 도메인을 클라우드로 전송하여 차단 모델 개선에 기여합니다. 기본적으로 꺼져 있습니다."
 }

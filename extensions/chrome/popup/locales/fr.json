@@ -126,5 +126,8 @@
   "phish_download_danger_title": "🚨 Téléchargement à haut risque bloqué",
   "phish_download_danger_desc": "Un fichier à double extension ({filename}) a été détecté et bloqué.",
   "phish_download_warn_title": "⚠️ Risque de sécurité",
-  "phish_download_warn_desc": "Vous téléchargez un exécutable depuis une source inconnue ({filename})."
+  "phish_download_warn_desc": "Vous téléchargez un exécutable depuis une source inconnue ({filename}).",
+  "settings_privacy": "🔒 Confidentialité",
+  "feat_share_intel": "Partager les renseignements sur les menaces (Anonyme)",
+  "feat_share_intel_desc": "Autoriser l'envoi de domaines suspects anonymisés vers le cloud pour aider à améliorer le modèle de blocage. Désactivé par défaut."
 }

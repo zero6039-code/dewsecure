@@ -126,5 +126,8 @@
   "phish_download_danger_title": "🚨 危険なダウンロードをブロック",
   "phish_download_danger_desc": "二重拡張子ファイル ({filename}) が検出され、ブロックされました。",
   "phish_download_warn_title": "⚠️ セキュリティリスク",
-  "phish_download_warn_desc": "不明なソースから実行可能ファイル ({filename}) をダウンロードしています。"
+  "phish_download_warn_desc": "不明なソースから実行可能ファイル ({filename}) をダウンロードしています。",
+  "settings_privacy": "🔒 プライバシー",
+  "feat_share_intel": "脅威インテリジェンスの共有 (匿名)",
+  "feat_share_intel_desc": "匿名化された疑わしいドメインをクラウドに送信し、ブロックモデルの改善に役立てます。デフォルトはオフです。"
 }
