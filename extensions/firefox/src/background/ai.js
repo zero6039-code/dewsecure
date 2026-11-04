@@ -10,6 +10,17 @@ function fnv1a(str) {
     }
     return hash;
 }
+
+// 🚀 性能优化：32 位 FNV-1a 哈希（避免 BigInt 开销）
+// 64 位 FNV-1a 对 16384 取模只取决于低 14 位，因此 32 位 Math.imul 模拟完全等价
+function fnv1a32(str) {
+    let hash = 0x84222325;
+    for (let i = 0; i < str.length; i++) {
+        hash = Math.imul(hash ^ str.charCodeAt(i), 0x1b3);
+    }
+    return hash;
+}
+
 // 辅助函数：计算熵值
 function calculateEntropy(s) {
     if (!s) return 0.0;
@@ -120,8 +131,8 @@ export function extractSparseFeatures(url) {
     const maxI = url_lower.length - 3;
     for (let i = 0; i <= maxI; i++) {
         const ngram = url_lower.substring(i, i + 3);
-        const hash = fnv1a(ngram);
-        const bucket = Number(hash % 16384n);
+        const hash = fnv1a32(ngram);
+        const bucket = hash & 0x3FFF;
         buckets.set(bucket, (buckets.get(bucket) || 0) + 1);
     }
 
