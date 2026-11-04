@@ -23,7 +23,7 @@ import { runAICheck } from './background/ai.js';
 import { detectBrandPhishing } from './background/phishingDetector.js';
 import { handleMessage } from './background/messageHandler.js';
 import { updateThreatIntel, initThreatFilter, checkThreatFilter } from './background/threatIntel.js';
-import { HARD_SAFE_DOMAINS } from './background/aiConfig.js';
+import { HARD_SAFE_DOMAINS, MINING_DOMAINS } from './background/aiConfig.js';
 
 // 🚀 AI 已改为纯 JS 推理，无需创建 Offscreen 页面
 
@@ -359,3 +359,21 @@ chrome.declarativeNetRequest.updateDynamicRules({
         }
     }]
 }).catch(e => console.warn('设置官方豁免失败:', e));
+
+
+// 🚀 注入挖矿域名 DNR 拦截
+if (MINING_DOMAINS && MINING_DOMAINS.length > 0) {
+    const miningRules = MINING_DOMAINS.map((domain, index) => ({
+        id: 900000 + index, // 使用 90 万段 ID，避开其他模块
+        priority: 2000000,
+        action: { type: 'block' },
+        condition: {
+            requestDomains: [domain],
+            resourceTypes: ["sub_frame", "script", "object", "xmlhttprequest", "websocket", "other"]
+        }
+    }));
+    chrome.declarativeNetRequest.updateDynamicRules({
+        removeRuleIds: miningRules.map(r => r.id),
+        addRules: miningRules
+    }).catch(e => console.warn('[DNR] 注入挖矿规则失败:', e));
+}

@@ -25,3 +25,11 @@ export const AI_BLOCK_RESOURCE_TYPES = [
     "sub_frame", "script", "object", "xmlhttprequest", 
     "ping", "csp_report", "media", "websocket", "other"
 ];
+
+// 4. 挖矿域名黑名单 (供 DNR 动态拦截)
+export const MINING_DOMAINS = [
+    'coinhive.com', 'coin-hive.com', 'authedmine.com', 'cryptoloot.pro', 'crypto-loot.com',
+    'coinimp.com', 'webminepool.com', 'miner.pr0gramm.com', 'moneropool.com', 'minero.cc',
+    'webmine.cz', 'coinerra.com', 'jsecoin.com', 'deepMiner.org', 'crypto-webminer.com',
+    'nerohut.com', 'coinpot.co', 'mining.best'
+];

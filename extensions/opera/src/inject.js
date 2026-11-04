@@ -1,3 +1,108 @@
+(function() {
+
+    // 11. 挖矿与资源滥用检测 (Worker + WASM + LongTask)
+    try {
+        let workerCount = 0;
+        let wasmCount = 0;
+        let longTaskCount = 0;
+        let isMiningDetected = false;
+        const activeWorkers = new Set();
+
+        const MINING_I18N = {
+            'zh': { title: '资源滥用警告：检测到疑似挖矿脚本', desc: '该页面正在后台运行高强度的计算任务（消耗大量 CPU），可能试图挖掘加密货币。DewSecure 已自动终止了这些任务。', btn: '我知道了' },
+            'en': { title: 'Resource Abuse Warning: Suspected Mining Script', desc: 'This page is running high-intensity computational tasks in the background (consuming CPU), possibly trying to mine cryptocurrency. DewSecure has automatically terminated these tasks.', btn: 'Got it' },
+            'de': { title: 'Ressourcenmissbrauch: Verdächtiges Mining-Skript', desc: 'Diese Seite führt im Hintergrund rechenintensive Aufgaben aus (CPU-Verbrauch), möglicherweise um Kryptowährungen zu schürfen. DewSecure hat diese Aufgaben automatisch beendet.', btn: 'Verstanden' },
+            'es': { title: 'Advertencia de abuso de recursos: Script de minería', desc: 'Esta página está ejecutando tareas computacionales de alta intensidad en segundo plano, posiblemente para minar criptomonedas. DewSecure ha terminado estas tareas automáticamente.', btn: 'Entendido' },
+            'fr': { title: 'Avertissement d\'abus de ressources : Script de minage', desc: 'Cette page exécute des tâches de calcul intensif en arrière-plan, essayant peut-être de miner des cryptomonnaies. DewSecure a automatiquement mis fin à ces tâches.', btn: 'Compris' },
+            'ja': { title: 'リソース乱用警告：マイニングスクリプトの疑い', desc: 'このページはバックグラウンドで高負荷な計算タスクを実行しており、暗号通貨をマイニングしようとしている可能性があります。DewSecureはこれらのタスクを自動的に終了しました。', btn: '了解' },
+            'ko': { title: '리소스 남용 경고: 채굴 스크립트 의심', desc: '이 페이지는 백그라운드에서 고강도 컴퓨팅 작업을 실행하고 있으며, 암호화폐를 채굴하려는 것일 수 있습니다. DewSecure가 이 작업을 자동으로 종료했습니다.', btn: '확인' },
+            'ms': { title: 'Amaran Penyalahgunaan Sumber: Skrip Perlombongan', desc: 'Halaman ini menjalankan tugas pengiraan berintensiti tinggi di latar belakang, mungkin cuba melombong mata wang kripto. DewSecure telah menamatkan tugas ini secara automatik.', btn: 'Faham' },
+            'pt': { title: 'Aviso de Abuso de Recursos: Script de Mineração', desc: 'Esta página está executando tarefas computacionais de alta intensidade em segundo plano, possivelmente para minerar criptomoedas. O DewSecure encerrou essas tarefas automaticamente.', btn: 'Entendi' }
+        };
+
+        function getMiningI18n() {
+            const lang = (navigator.language || 'en').split('-')[0].toLowerCase();
+            return MINING_I18N[lang] || MINING_I18N['en'];
+        }
+
+        function showMiningWarning() {
+            const bannerId = 'dewsecure-mining-warning';
+            if (document.getElementById(bannerId)) return;
+            const banner = document.createElement('div');
+            banner.id = bannerId;
+            banner.style.cssText = `
+                position: fixed; top: 0; left: 0; right: 0; z-index: 2147483647;
+                background: #f59e0b; color: white; padding: 12px 20px;
+                font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+                font-size: 14px; display: flex; justify-content: space-between; align-items: center;
+                box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            `;
+            const t = getMiningI18n();
+            banner.innerHTML = `
+                <div>
+                    <strong>⛔ ${t.title}</strong>
+                    <div style="font-size: 12px; opacity: 0.9; margin-top: 4px;">${t.desc}</div>
+                </div>
+                <button id="dewsecure-mining-ignore" style="background: transparent; border: 1px solid white; color: white; padding: 4px 12px; border-radius: 4px; cursor: pointer;">${t.btn}</button>
+            `;
+            document.body.appendChild(banner);
+            document.getElementById('dewsecure-mining-ignore').addEventListener('click', () => banner.remove());
+        }
+
+        // Hook Worker
+        const nativeWorker = window.Worker;
+        window.Worker = function(url, options) {
+            const w = new nativeWorker(url, options);
+            workerCount++;
+            activeWorkers.add(w);
+            w.addEventListener('error', () => activeWorkers.delete(w));
+            return w;
+        };
+        window.Worker.prototype = nativeWorker.prototype;
+
+        // Hook WebAssembly.instantiate
+        const nativeWasmInstantiate = WebAssembly.instantiate;
+        WebAssembly.instantiate = function(buffer, imports) {
+            wasmCount++;
+            if (workerCount >= 2 && wasmCount >= 1 && !isMiningDetected) {
+                triggerMiningCheck();
+            }
+            return nativeWasmInstantiate.apply(this, arguments);
+        };
+
+        // 监控 LongTask
+        if (window.PerformanceObserver) {
+            const obs = new PerformanceObserver((list) => {
+                for (const entry of list.getEntries()) {
+                    if (entry.duration > 50) {
+                        longTaskCount++;
+                        if (longTaskCount > 5 && !isMiningDetected) {
+                            triggerMiningCheck();
+                        }
+                    }
+                }
+            });
+            obs.observe({ entryTypes: ['longtask'] });
+        }
+
+        function triggerMiningCheck() {
+            if (isMiningDetected) return;
+            if (workerCount >= 2 && wasmCount >= 1 && longTaskCount >= 5) {
+                isMiningDetected = true;
+                console.warn('[DewSecure] 检测到严重资源滥用，正在终止 Workers...');
+                // 终止所有 Worker
+                for (const w of activeWorkers) {
+                    try { w.terminate(); } catch(e) {}
+                }
+                activeWorkers.clear();
+                showMiningWarning();
+            }
+        }
+    } catch (e) {
+        console.error('[DewSecure Inject] 挖矿防护初始化失败:', e);
+    }
+
+})();
 
 (function() {
     'use strict';
