@@ -24,6 +24,7 @@ import { detectBrandPhishing } from './background/phishingDetector.js';
 import { handleMessage } from './background/messageHandler.js';
 import { updateThreatIntel, initThreatFilter, checkThreatFilter } from './background/threatIntel.js';
 import { HARD_SAFE_DOMAINS, MINING_DOMAINS } from './background/aiConfig.js';
+import { initIntelReporter } from './background/intelReporter.js';
 
 // 🚀 AI 已改为纯 JS 推理，无需创建 Offscreen 页面
 
@@ -38,6 +39,7 @@ initSecurityListeners();
 initStatsListener();
 restoreSessionRules();
 initThreatFilter(); // 🚀 启动时从 IndexedDB 恢复过滤器
+initIntelReporter(); // 🚀 启动静默情报上报服务
 
 // 🚀 性能优化：合并消息分发，消除多个监听器竞争和无效的 return true
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
