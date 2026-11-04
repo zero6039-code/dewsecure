@@ -519,6 +519,14 @@ const privacyRules = [
             "resourceTypes": ["main_frame", "sub_frame", "stylesheet", "script", "image", "font", "object", "xmlhttprequest", "ping", "csp_report", "media", "websocket", "other"] 
         }
     },
+    // 🛡️ N-11 修复：放行内网地址与 localhost，防止 HTTPS 强制升级导致无法访问
+    {
+        "id": 10004, "priority": 11, "action": { "type": "allow" },
+        "condition": { 
+            "resourceTypes": ["main_frame", "sub_frame", "xmlhttprequest", "script", "image", "stylesheet", "font", "media", "websocket", "other"],
+            "regexFilter": "^http://(localhost|127\\.[0-9.]+|10\\.[0-9.]+|192\\.168\\.[0-9.]+|172\\.(1[6-9]|2[0-9]|3[01])\\.[0-9.]+|[^/:]+\\.(local|lan|internal|home)|[^/.:]+)(:[0-9]+)?(/|$)" 
+        }
+    },
     // 3. 注入 Sec-GPC 隐私信号 (优先级 1)
     {
         "id": 10003, "priority": 1,
