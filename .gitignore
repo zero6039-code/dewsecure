@@ -86,3 +86,7 @@ models/extensions/
 extensions/firefox/rules/allowlist.json
 extensions/opera/rules/allowlist.json
 extensions/*/manifest.json
+
+# 威胁情报生成物
+threat-filter.bin
+threat-filter.meta.json

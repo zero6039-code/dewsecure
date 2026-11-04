@@ -13,7 +13,23 @@ export async function updateDNRRulesets(dnrEnabled, blockTrackers) {
     try {
         const enable = [];
         const disable = [];
-        
+
+        // 🛡️ 核心修复：检查 DNR 全局可用额度，防止与其他广告拦截插件冲突导致静默失效
+        let hasEnoughQuota = true;
+        if (dnrEnabled && chrome.declarativeNetRequest.getAvailableStaticRuleCount) {
+            try {
+                const quota = await chrome.declarativeNetRequest.getAvailableStaticRuleCount();
+                // 如果可用额度极低，说明其他插件占满了额度，强制降级保护
+                if (quota < 30000) {
+                    hasEnoughQuota = false;
+                    console.warn(`⚠️ [DNR] 全局可用额度告警：仅剩 ${quota} 条。为防崩溃，降级为仅拦截基础广告。`);
+                    blockTrackers = false; // 强制关闭体积庞大的追踪器规则
+                }
+            } catch (e) {
+                console.warn('无法获取 DNR 额度，采用默认策略', e);
+            }
+        }
+
         if (dnrEnabled) enable.push(...ADS_RULESETS, ...EXTRA_RULESETS);
         else disable.push(...ADS_RULESETS, ...EXTRA_RULESETS);
 
@@ -24,7 +40,7 @@ export async function updateDNRRulesets(dnrEnabled, blockTrackers) {
             enableRulesetIds: enable,
             disableRulesetIds: disable
         });
-        console.log(`✅ [DNR] 规则集已更新 (广告:${dnrEnabled}, 追踪器:${blockTrackers})`);
+        console.log(`✅ [DNR] 规则集已更新 (广告:${dnrEnabled}, 追踪器:${blockTrackers}, 额度充足:${hasEnoughQuota})`);
     } catch (e) {
         console.warn('❌ [DNR] 规则集更新失败:', e);
     }
