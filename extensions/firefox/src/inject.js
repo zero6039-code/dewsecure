@@ -1,15 +1,13 @@
 window.__dewsecureDict = window.__dewsecureDict || {};
 (function() {
-
-    // 11. 挖矿与资源滥用检测 (Worker + WASM + LongTask)
+    // 11. 挖矿与资源滥用检测 (N-15 升级：计分制)
     try {
         let workerCount = 0;
         let wasmCount = 0;
         let longTaskCount = 0;
+        let socketCount = 0;
         let isMiningDetected = false;
         const activeWorkers = new Set();
-
-        
 
         function getMiningI18n() {
             return {
@@ -43,47 +41,22 @@ window.__dewsecureDict = window.__dewsecureDict || {};
             document.getElementById('dewsecure-mining-ignore').addEventListener('click', () => banner.remove());
         }
 
-        // Hook Worker
-        const nativeWorker = window.Worker;
-        window.Worker = function(url, options) {
-            const w = new nativeWorker(url, options);
-            workerCount++;
-            activeWorkers.add(w);
-            w.addEventListener('error', () => activeWorkers.delete(w));
-            return w;
-        };
-        window.Worker.prototype = nativeWorker.prototype;
-
-        // Hook WebAssembly.instantiate
-        const nativeWasmInstantiate = WebAssembly.instantiate;
-        WebAssembly.instantiate = function(buffer, imports) {
-            wasmCount++;
-            if (workerCount >= 2 && wasmCount >= 1 && !isMiningDetected) {
-                triggerMiningCheck();
-            }
-            return nativeWasmInstantiate.apply(this, arguments);
-        };
-
-        // 监控 LongTask
-        if (window.PerformanceObserver) {
-            const obs = new PerformanceObserver((list) => {
-                for (const entry of list.getEntries()) {
-                    if (entry.duration > 50) {
-                        longTaskCount++;
-                        if (longTaskCount > 5 && !isMiningDetected) {
-                            triggerMiningCheck();
-                        }
-                    }
-                }
-            });
-            obs.observe({ entryTypes: ['longtask'] });
-        }
-
         function triggerMiningCheck() {
             if (isMiningDetected) return;
-            if (workerCount >= 2 && wasmCount >= 1 && longTaskCount >= 5) {
+            
+            // 计分制：单 Worker(20) + WASM(20) + 长任务(20) = 60 触发
+            // 或者 WebSocket 连非 HTTP 端口(40) + 任意一个其它项 = 60 触发
+            let score = 0;
+            let reasons = [];
+            
+            if (workerCount > 0) { score += 20; reasons.push('Worker'); }
+            if (wasmCount > 0) { score += 20; reasons.push('WASM'); }
+            if (longTaskCount > 5) { score += 20; reasons.push('LongTask'); }
+            if (socketCount > 0) { score += 40; reasons.push('WebSocket-Mining-Port'); }
+
+            if (score >= 60) {
                 isMiningDetected = true;
-                console.warn('[DewSecure] 检测到严重资源滥用，正在终止 Workers...');
+                console.warn(`[DewSecure] 检测到严重资源滥用 (得分: ${score})，正在终止 Workers... 原因: ${reasons.join(', ')}`);
                 // 终止所有 Worker
                 for (const w of activeWorkers) {
                     try { w.terminate(); } catch(e) {}
@@ -92,10 +65,81 @@ window.__dewsecureDict = window.__dewsecureDict || {};
                 showMiningWarning();
             }
         }
+
+        // Hook Worker
+        const nativeWorker = window.Worker;
+        window.Worker = function(url, options) {
+            const w = new nativeWorker(url, options);
+            workerCount++;
+            activeWorkers.add(w);
+            w.addEventListener('error', () => activeWorkers.delete(w));
+            triggerMiningCheck();
+            return w;
+        };
+        window.Worker.prototype = nativeWorker.prototype;
+
+        // Hook WASM (补全 instantiateStreaming 和 Module)
+        if (window.WebAssembly) {
+            const nativeInstantiate = WebAssembly.instantiate;
+            WebAssembly.instantiate = function() {
+                wasmCount++;
+                triggerMiningCheck();
+                return nativeInstantiate.apply(this, arguments);
+            };
+
+            const nativeInstantiateStreaming = WebAssembly.instantiateStreaming;
+            if (nativeInstantiateStreaming) {
+                WebAssembly.instantiateStreaming = function() {
+                    wasmCount++;
+                    triggerMiningCheck();
+                    return nativeInstantiateStreaming.apply(this, arguments);
+                };
+            }
+
+            const nativeModule = WebAssembly.Module;
+            try {
+                WebAssembly.Module = function() {
+                    wasmCount++;
+                    triggerMiningCheck();
+                    return new nativeModule(...arguments);
+                };
+                WebAssembly.Module.prototype = nativeModule.prototype;
+            } catch(e) {}
+        }
+
+        // Hook WebSocket (检测常见挖矿端口)
+        const nativeWebSocket = window.WebSocket;
+        const MINING_PORTS = [3333, 4444, 5555, 7777, 14433, 14444, 45700];
+        window.WebSocket = function(url, protocols) {
+            try {
+                const u = new URL(url);
+                const port = u.port ? parseInt(u.port, 10) : (u.protocol === 'wss:' ? 443 : 80);
+                if (MINING_PORTS.includes(port)) {
+                    socketCount++;
+                    triggerMiningCheck();
+                }
+            } catch(e) {}
+            return new nativeWebSocket(url, protocols);
+        };
+        window.WebSocket.prototype = nativeWebSocket.prototype;
+
+        // 监控 LongTask
+        if (window.PerformanceObserver) {
+            const obs = new PerformanceObserver((list) => {
+                for (const entry of list.getEntries()) {
+                    if (entry.duration > 50) {
+                        longTaskCount++;
+                        if (longTaskCount > 5) {
+                            triggerMiningCheck();
+                        }
+                    }
+                }
+            });
+            obs.observe({ entryTypes: ['longtask'] });
+        }
     } catch (e) {
         console.error('[DewSecure Inject] 挖矿防护初始化失败:', e);
     }
-
 })();
 
 (function() {
