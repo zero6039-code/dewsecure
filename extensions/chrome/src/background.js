@@ -22,7 +22,7 @@ import { restoreSessionRules } from './background/dnr.js';
 import { runAICheck } from './background/ai.js';
 import { detectBrandPhishing } from './background/phishingDetector.js';
 import { handleMessage } from './background/messageHandler.js';
-import { updateThreatIntel } from './background/threatIntel.js';
+import { updateThreatIntel, initThreatFilter, checkThreatFilter } from './background/threatIntel.js';
 import { HARD_SAFE_DOMAINS } from './background/aiConfig.js';
 
 // 🚀 AI 已改为纯 JS 推理，无需创建 Offscreen 页面
@@ -37,6 +37,7 @@ chrome.action.setBadgeText({ text: '' });
 initSecurityListeners();
 initStatsListener();
 restoreSessionRules();
+initThreatFilter(); // 🚀 启动时从 IndexedDB 恢复过滤器
 
 // 🚀 性能优化：合并消息分发，消除多个监听器竞争和无效的 return true
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
@@ -257,6 +258,15 @@ if (chrome.webNavigation && chrome.webNavigation.onBeforeNavigate) {
             
             if (isHardSafeDomain(host)) {
                 // 豁免核心站点，直接放行，绝不拦截
+                return;
+            }
+
+            // 🚀 拦截前置检查 1.5：本地百万级威胁情报过滤器 (O(1) 极速查询)
+            if (checkThreatFilter(host)) {
+                console.warn('🚨 [Security] 命中本地威胁情报过滤器，强制拦截:', details.url);
+                const warningUrl = chrome.runtime.getURL(`warning.html?type=intel&domain=${encodeURIComponent(host)}`);
+                blockedTabs.set(details.tabId, details.url);
+                chrome.tabs.update(details.tabId, { url: warningUrl });
                 return;
             }
 

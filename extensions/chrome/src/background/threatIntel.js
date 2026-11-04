@@ -6,6 +6,91 @@ ed.etc.sha512Sync = (...m) => sha512(ed.etc.concatBytes(...m));
 const ED25519_PUBLIC_KEY_HEX = 'a21b4c875ab246b58adc225ddf66a054cfa7b79ed2093fcc2f97598fd1197631';
 const CACHE_KEY = 'dewsecure_intel_cache';
 
+
+// ==========================================
+// 🚀 百万级本地过滤器 (Threat Filter)
+// ==========================================
+let threatFilter = null; // 内存中的过滤器实例
+
+// 极简 IndexedDB 封装
+const DB_NAME = 'dewsecure_threat_db';
+const STORE_NAME = 'filters';
+function getDB() {
+    return new Promise((resolve, reject) => {
+        const req = indexedDB.open(DB_NAME, 1);
+        req.onupgradeneeded = () => req.result.createObjectStore(STORE_NAME);
+        req.onsuccess = () => resolve(req.result);
+        req.onerror = () => reject(req.error);
+    });
+}
+async function saveFilterToDB(buffer, meta) {
+    const db = await getDB();
+    return new Promise((resolve) => {
+        const tx = db.transaction(STORE_NAME, 'readwrite');
+        tx.objectStore(STORE_NAME).put({ buffer, meta }, 'threat-filter');
+        tx.oncomplete = () => resolve();
+    });
+}
+async function loadFilterFromDB() {
+    const db = await getDB();
+    return new Promise((resolve) => {
+        const req = db.transaction(STORE_NAME, 'readonly').objectStore(STORE_NAME).get('threat-filter');
+        req.onsuccess = () => resolve(req.result);
+        req.onerror = () => resolve(null);
+    });
+}
+
+// 与 Python 完全一致的 Bloom Filter 实现
+class FastBloomFilter {
+    constructor(arrayBuffer) {
+        const view = new DataView(arrayBuffer);
+        this.bits = view.getUint32(0, true); // 小端序
+        this.hashCount = view.getUint32(4, true);
+        this.buffer = new Uint8Array(arrayBuffer, 8); // 跳过前8字节
+    }
+    _hashes(str) {
+        let h1 = 0x811c9dc5;
+        let h2 = 0x1000193;
+        for (let i = 0; i < str.length; i++) {
+            const c = str.charCodeAt(i);
+            h1 = Math.imul(h1 ^ c, 0x01000193);
+            h2 = Math.imul(h2 ^ c, 0x01000193);
+        }
+        return [h1 >>> 0, h2 >>> 0];
+    }
+    has(str) {
+        const [h1, h2] = this._hashes(str);
+        for (let i = 0; i < this.hashCount; i++) {
+            const combinedHash = (h1 + i * h2) >>> 0;
+            const bitIndex = combinedHash % this.bits;
+            const byteIndex = bitIndex >>> 3;
+            const bitOffset = bitIndex & 7;
+            if ((this.buffer[byteIndex] & (1 << bitOffset)) === 0) {
+                return false;
+            }
+        }
+        return true;
+    }
+}
+
+export async function initThreatFilter() {
+    try {
+        const cached = await loadFilterFromDB();
+        if (cached && cached.buffer) {
+            threatFilter = new FastBloomFilter(cached.buffer);
+            console.log('⚡ [ThreatIntel] 过滤器已从 IndexedDB 加载至内存');
+        }
+    } catch (e) {
+        console.warn('加载本地过滤器失败', e);
+    }
+}
+
+export function checkThreatFilter(host) {
+    if (!threatFilter) return false;
+    return threatFilter.has(host);
+}
+
+
 // 🌟 核心函数：只负责把规则应用到浏览器（不涉及网络）
 async function applyRulesToDNR() {
     const user = await getCurrentUser();
@@ -88,6 +173,33 @@ export async function updateThreatIntel() {
         const baseUrl = 'https://api.dewsecure.com/api/intel';
         
         const headers = user?.token ? { 'Authorization': `Bearer ${user.token}` } : {};
+        // 🚀 新增：下载百万级过滤器
+        try {
+            const [binRes, metaRes] = await Promise.all([
+                fetch(`${baseUrl}/threat-filter.bin`, { cache: 'no-store', headers }),
+                fetch(`${baseUrl}/threat-filter.meta.json`, { cache: 'no-store', headers })
+            ]);
+            if (binRes.ok && metaRes.ok) {
+                const binBuffer = await binRes.arrayBuffer();
+                const metaData = await metaRes.json();
+                const binHash = await crypto.subtle.digest('SHA-256', binBuffer).then(buf => Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, '0')).join(''));
+                
+                if (binHash === metaData.sha256) {
+                    const msg = `${metaData.version}:${metaData.sha256}`;
+                    const sigBytes = Uint8Array.from(atob(metaData.signature.trim()), c => c.charCodeAt(0));
+                    const pubKeyBytes = new Uint8Array(ED25519_PUBLIC_KEY_HEX.match(/.{1,2}/g).map(b => parseInt(b, 16)));
+                    
+                    if (await ed.verifyAsync(sigBytes, new TextEncoder().encode(msg), pubKeyBytes)) {
+                        await saveFilterToDB(binBuffer, metaData);
+                        threatFilter = new FastBloomFilter(binBuffer);
+                        console.log(`🛡️ [ThreatIntel] 成功更新百万级过滤器 (Version: ${metaData.version})`);
+                    }
+                }
+            }
+        } catch (e) {
+            console.warn('过滤器下载或校验失败，保留现有内存数据', e);
+        }
+
         const [rulesRes, sigRes] = await Promise.all([
             fetch(`${baseUrl}/threat-rules`, { cache: 'no-store', headers }),
             fetch(`${baseUrl}/threat-rules.sig`, { cache: 'no-store', headers })

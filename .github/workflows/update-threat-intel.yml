@@ -18,17 +18,28 @@ jobs:
       - name: 安装签名依赖
         run: pip install pynacl
 
-      - name: 下载最新威胁情报
+      - name: 安装 Python 依赖
+        run: pip install pynacl
+
+      - name: 下载并生成传统 DNR 规则 (Top 5000)
         env:
           URLHAUS_AUTH_KEY: ${{ secrets.URLHAUS_AUTH_KEY }}
           ED25519_PRIVATE_KEY: ${{ secrets.ED25519_INTEL_KEY }}
         run: python scripts/download_threat_intel.py
 
+      - name: 构建百万级威胁情报过滤器 (Binary Bloom Filter)
+        env:
+          URLHAUS_AUTH_KEY: ${{ secrets.URLHAUS_AUTH_KEY }}
+          ED25519_PRIVATE_KEY: ${{ secrets.ED25519_INTEL_KEY }}
+        run: python scripts/build_threat_filter.py
+
       - name: 校验产物
         run: |
           [ -f threat-rules.json ] || (echo "❌ threat-rules.json 未生成" && exit 1)
           [ -f threat-rules.json.sig ] || (echo "❌ threat-rules.json.sig 未生成（签名失败）" && exit 1)
-          echo "✅ 产物完整：threat-rules.json + threat-rules.json.sig"
+          [ -f threat-filter.bin ] || (echo "❌ threat-filter.bin 未生成" && exit 1)
+          [ -f threat-filter.meta.json ] || (echo "❌ threat-filter.meta.json 未生成" && exit 1)
+          echo "✅ 产物完整：DNR JSON + Binary Filter 均生成成功"
 
       - name: 安装 rclone (安全校验版)
         run: |
