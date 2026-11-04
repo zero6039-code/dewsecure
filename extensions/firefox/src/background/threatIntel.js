@@ -1,6 +1,8 @@
 import { getCurrentUser } from '../authManager.js';
 import * as ed from '@noble/ed25519';
 import { sha512 } from '@noble/hashes/sha512';
+import { sha256 } from '@noble/hashes/sha256';
+import { parse } from 'tldts';
 import { syncRules, RANGE } from './dnrOwner.js';
 
 ed.etc.sha512Sync = (...m) => sha512(ed.etc.concatBytes(...m));
@@ -71,19 +73,73 @@ class FastBloomFilter {
     }
 }
 
+// ==========================================
+// 🛡️ N-3 修复：排序哈希前缀集合（零误报）
+// 格式：'DEW1' + h(1B) + count(4B LE) + 排序的 h*count 字节 SHA-256 前缀
+// ==========================================
+class HashSetFilter {
+    constructor(ab) {
+        const dv = new DataView(ab);
+        if (dv.getUint32(0, false) !== 0x44455731) throw new Error('bad magic');
+        this.h = dv.getUint8(4);
+        this.n = dv.getUint32(5, true);
+        if (this.h < 4 || this.h > 8) throw new Error('bad h');
+        if (ab.byteLength !== 9 + this.h * this.n) throw new Error('bad size');
+        this.b = new Uint8Array(ab, 9);
+    }
+    has(host) {
+        const key = sha256(new TextEncoder().encode(host)).subarray(0, this.h);
+        let lo = 0, hi = this.n - 1;
+        while (lo <= hi) {
+            const mid = (lo + hi) >>> 1, o = mid * this.h;
+            let cmp = 0;
+            for (let i = 0; i < this.h && cmp === 0; i++) cmp = this.b[o + i] - key[i];
+            if (cmp === 0) return true;
+            if (cmp < 0) lo = mid + 1; else hi = mid - 1;
+        }
+        return false;
+    }
+}
+
+// 格式检测：前 4 字节 'DEW1' → v2；否则按 v1 Bloom 兼容
+function detectFormat(ab) {
+    if (ab.byteLength >= 9) {
+        const dv = new DataView(ab);
+        if (dv.getUint32(0, false) === 0x44455731) return 'v2';
+    }
+    return 'v1';
+}
+
 export async function initThreatFilter() {
     try {
         const cached = await loadFilterFromDB();
         if (cached && cached.buffer) {
-            threatFilter = new FastBloomFilter(cached.buffer);
-            console.log('⚡ [ThreatIntel] 过滤器已从 IndexedDB 加载至内存');
+            const fmt = detectFormat(cached.buffer);
+            if (fmt === 'v2') {
+                threatFilter = new HashSetFilter(cached.buffer);
+                console.log(`⚡ [ThreatIntel] v2 哈希前缀过滤器已加载 (${cached.buffer.byteLength} bytes)`);
+            } else {
+                threatFilter = new FastBloomFilter(cached.buffer);
+                console.log('⚡ [ThreatIntel] v1 Bloom 过滤器已加载 (兼容模式)');
+            }
         }
-    } catch (e) {}
+    } catch (e) {
+        console.warn('[ThreatIntel] 过滤器加载失败:', e);
+        threatFilter = null;
+    }
 }
 
+// 🛡️ N-3 修复：注册域回溯，防止子域绕过
 export function checkThreatFilter(host) {
     if (!threatFilter) return false;
-    return threatFilter.has(host);
+    const p = parse(host);
+    if (!p.domain || p.isIp) return threatFilter.has(host);
+    const labels = host.split('.');
+    const depth = labels.length - p.domain.split('.').length;
+    for (let i = 0; i <= depth; i++) {
+        if (threatFilter.has(labels.slice(i).join('.'))) return true;
+    }
+    return false;
 }
 
 // ==========================================
@@ -134,10 +190,16 @@ async function updateThreatFilterBinary(userToken) {
             return;
         }
         
-        // 保存并加载
+        // 保存并加载（按格式选择实现）
         await saveFilterToDB(binBuffer, metaData);
-        threatFilter = new FastBloomFilter(binBuffer);
-        console.log(`🛡️ [ThreatIntel] 成功更新百万级过滤器 (Version: ${metaData.version}, Size: ${(binBuffer.byteLength/1024/1024).toFixed(2)} MB)`);
+        const fmt = detectFormat(binBuffer);
+        if (fmt === 'v2') {
+            threatFilter = new HashSetFilter(binBuffer);
+            console.log(`🛡️ [ThreatIntel] 成功更新 v2 哈希前缀过滤器 (Version: ${metaData.version}, Size: ${(binBuffer.byteLength/1024/1024).toFixed(2)} MB)`);
+        } else {
+            threatFilter = new FastBloomFilter(binBuffer);
+            console.log(`🛡️ [ThreatIntel] 成功更新 v1 Bloom 过滤器 (Version: ${metaData.version}, Size: ${(binBuffer.byteLength/1024/1024).toFixed(2)} MB)`);
+        }
         
     } catch (e) {
         console.warn('⚠️ [ThreatIntel] 更新二进制过滤器异常:', e);

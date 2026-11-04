@@ -274,22 +274,22 @@ if (chrome.webNavigation && chrome.webNavigation.onBeforeNavigate) {
                 return;
             }
 
-            // 🚀 拦截前置检查 1.5：本地百万级威胁情报过滤器 (O(1) 极速查询)
+            // 🛡️ 拦截前置检查 2：解析域名并检查用户白名单与临时暂停（N-3：提前到过滤器之前）
+            const { dewsecure_settings: settings } = await chrome.storage.local.get('dewsecure_settings');
+            const s = settings || {};
+            const matchDomain = (d) => host === d || host.endsWith('.' + d);
+
+            if ((s.whitelist || []).some(matchDomain) || (s.tempWhitelist || []).some(matchDomain)) {
+                return; // 命中白名单，绝不拦截（用户覆盖优先）
+            }
+
+            // 🚀 拦截前置检查 1.5：本地百万级威胁情报过滤器
             if (checkThreatFilter(host)) {
                 console.warn('🚨 [Security] 命中本地威胁情报过滤器，强制拦截:', details.url);
                 const warningUrl = chrome.runtime.getURL(`warning.html?type=intel&domain=${encodeURIComponent(host)}`);
                 blockedTabs.set(details.tabId, details.url);
                 chrome.tabs.update(details.tabId, { url: warningUrl });
                 return;
-            }
-
-            // 🛡️ 拦截前置检查 2：解析域名并检查用户白名单与临时暂停
-            const { dewsecure_settings: settings } = await chrome.storage.local.get('dewsecure_settings');
-            const s = settings || {};
-            const matchDomain = (d) => host === d || host.endsWith('.' + d);
-
-            if ((s.whitelist || []).some(matchDomain) || (s.tempWhitelist || []).some(matchDomain)) {
-                return; // 命中白名单，绝不拦截
             }
 
             // 🛡️ F3 修复：只有 PRO 用户且明确开启了 phishingEnabled 才拦截
