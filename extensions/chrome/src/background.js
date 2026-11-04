@@ -23,6 +23,7 @@ import { runAICheck } from './background/ai.js';
 import { detectBrandPhishing } from './background/phishingDetector.js';
 import { handleMessage } from './background/messageHandler.js';
 import { updateThreatIntel } from './background/threatIntel.js';
+import { HARD_SAFE_DOMAINS } from './background/aiConfig.js';
 
 // 🚀 AI 已改为纯 JS 推理，无需创建 Offscreen 页面
 
@@ -83,8 +84,13 @@ chrome.alarms.onAlarm.addListener((alarm) => {
     if (alarm.name === 'dewsecure_model_update') checkAndUpdateModel().catch(console.warn);
 });
 
-// 登录/登出监听
+// 登录/登出监听 & 模型更新监听
 chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
+    if (msg.type === 'MODEL_UPDATED') {
+        import('./background/ai.js').then(m => m.invalidateAIModelCache()).catch(() => {});
+        sendResponse({ ok: true });
+        return false;
+    }
     if (msg.type === 'AUTH_STATE_CHANGED') {
         // 🌟 核心修复：用户登录或状态改变时，立刻尝试拉取一次威胁情报
         setTimeout(updateThreatIntel, 1000);
@@ -203,9 +209,9 @@ if (chrome.webNavigation && chrome.webNavigation.onBeforeNavigate) {
                     parsedHost = new URL(rawDomain.startsWith('http') ? rawDomain : `https://${rawDomain}`).hostname;
                 } catch(e) {}
 
-                const HARD_SAFE = ['github.com', 'gitlab.com', 'dewsecure.com', 'npmjs.com', 'cloudflare.com', 'microsoft.com', 'apple.com', 'trip.com', 'shopee.com.my', 'tiktok.com'];
                 
-                if (parsedHost && HARD_SAFE.some(d => parsedHost === d || parsedHost.endsWith('.' + d))) {
+                
+                if (parsedHost && HARD_SAFE_DOMAINS.some(d => parsedHost === d || parsedHost.endsWith('.' + d))) {
                     console.warn('🛡️ [Security] 强行拦下对核心大厂的警告页跳转，放行！', parsedHost);
                     // 强制只用提取出的 hostname 跳转，绝不带路径
                     chrome.tabs.update(details.tabId, { url: `https://${parsedHost}` });
@@ -246,14 +252,7 @@ if (chrome.webNavigation && chrome.webNavigation.onBeforeNavigate) {
             
             // 🔒 H2 修复：移除 github.io / githubusercontent.com；删除 includes('zero6039') 子串豁免
             // 官方 Worker 用 zero6039.workers.dev 精确放行（点分隔，不误放 evil-zero6039.workers.dev）
-            const HARD_SAFE_DOMAINS = [
-                'dewsecure.com', 'zero6039.workers.dev', 'github.com',
-                'gitlab.com', 'npmjs.com', 'cloudflare.com', 'microsoft.com', 'apple.com',
-                'trip.com', 'shopee.com.my', 'tiktok.com', 'kkday.com', 'klook.com',
-                'lazada.com.my', 'traveloka.com', 'omguk.com', 'google.com', 'youtube.com',
-                'facebook.com', 'x.com', 'instagram.com', 'wired.com',
-                'dropbox.com', 'dropboxusercontent.com'
-            ];
+            
             const isHardSafeDomain = (h) =>
                 HARD_SAFE_DOMAINS.some(d => h === d || h.endsWith('.' + d));
             
@@ -301,6 +300,36 @@ chrome.declarativeNetRequest.getDynamicRules().then(rules => {
         chrome.declarativeNetRequest.updateDynamicRules({
             removeRuleIds: badRules.map(r => r.id)
         });
+    }
+});
+
+// 🛡️ 核心修复：清理 AI 之前注入且可能导致误杀的 sessionRules
+chrome.declarativeNetRequest.getSessionRules().then(rules => {
+    const aiRules = rules.filter(r => r.id >= 8000000);
+    if (aiRules.length > 0) {
+        console.warn(`[DNR] 清理了 ${aiRules.length} 条 AI 误杀历史规则，页面将恢复正常加载。`);
+        chrome.declarativeNetRequest.updateSessionRules({
+            removeRuleIds: aiRules.map(r => r.id)
+        });
+        // 同时清空可能污染的持久化缓存
+        if (chrome.storage.session) {
+            chrome.storage.session.remove('ai_checked_domains');
+        }
+    }
+});
+
+// 🛡️ 核心修复：清理 AI 之前注入且可能导致误杀的 sessionRules
+chrome.declarativeNetRequest.getSessionRules().then(rules => {
+    const aiRules = rules.filter(r => r.id >= 8000000);
+    if (aiRules.length > 0) {
+        console.warn(`[DNR] 清理了 ${aiRules.length} 条 AI 误杀历史规则，页面将恢复正常加载。`);
+        chrome.declarativeNetRequest.updateSessionRules({
+            removeRuleIds: aiRules.map(r => r.id)
+        });
+        // 同时清空可能污染的持久化缓存
+        if (chrome.storage.session) {
+            chrome.storage.session.remove('ai_checked_domains');
+        }
     }
 });
 

@@ -1,4 +1,5 @@
 import { getCachedModel } from '../modelManager.js';
+import { HARD_SAFE_DOMAINS, HARD_BLOCK_DOMAINS, AI_BLOCK_RESOURCE_TYPES } from './aiConfig.js';
 
 // 辅助函数：FNV-1a 哈希
 function fnv1a(str) {
@@ -196,9 +197,37 @@ export function extractSparseFeatures(url) {
 }
 
 const AI_CHECKED_DOMAINS = new Set();
-let cachedWeights = null; // 🚀 M-7 修复：内存级模型缓存
+let cachedWeights = null;
+let aiCheckedDomainsLoaded = false;
+let saveDomainsTimer = null;
+
+async function loadCheckedDomains() {
+    if (aiCheckedDomainsLoaded) return;
+    try {
+        const res = await chrome.storage.session.get('ai_checked_domains');
+        if (res && Array.isArray(res.ai_checked_domains)) {
+            res.ai_checked_domains.forEach(d => AI_CHECKED_DOMAINS.add(d));
+        }
+    } catch (e) {}
+    aiCheckedDomainsLoaded = true;
+}
+
+function scheduleSaveDomains() {
+    if (saveDomainsTimer) return;
+    saveDomainsTimer = setTimeout(() => {
+        saveDomainsTimer = null;
+        if (!chrome.storage.session) return;
+        chrome.storage.session.set({ ai_checked_domains: Array.from(AI_CHECKED_DOMAINS) }).catch(() => {});
+    }, 1000);
+}
+
+export function invalidateAIModelCache() {
+    cachedWeights = null;
+    console.log('🔄 [AI] 模型缓存已清除，等待下次加载');
+} // 🚀 M-7 修复：内存级模型缓存
 export async function runAICheck(url, tabId = null, isThirdParty = false) {
     try {
+        await loadCheckedDomains(); // 🚀 恢复休眠前的状态
         const domain = isThirdParty ? url : new URL(url).hostname;
         if (AI_CHECKED_DOMAINS.has(domain)) return;
         // 🔧 防御性微调：防止 Set 无限膨胀导致内存泄漏
@@ -206,13 +235,10 @@ export async function runAICheck(url, tabId = null, isThirdParty = false) {
             AI_CHECKED_DOMAINS.clear();
         }
         AI_CHECKED_DOMAINS.add(domain);
+        scheduleSaveDomains(); // 🚀 异步落盘
 
         // 🛑 防线 0：前端硬拦截 (与规则层对齐，命中直接拦截，不消耗 AI 算力)
-        const HARD_BLOCK_DOMAINS = [
-            'doubleclick.net', 'google-analytics.com', 'googlesyndication.com',
-            'adservice.google.com', 'scorecardresearch.com', 'criteo.com',
-            'taboola.com', 'outbrain.com', 'facebook.net', 'adnxs.com'
-        ];
+        
         if (HARD_BLOCK_DOMAINS.some(d => domain === d || domain.endsWith('.' + d))) {
             console.log(`🛑 [AI] 命中绝对黑名单，强制软隐藏: ${domain}`);
             let targetTabId = tabId;
@@ -280,12 +306,7 @@ export async function runAICheck(url, tabId = null, isThirdParty = false) {
             }
 
             // 🌟 防线 1：AI 拦截前置豁免检查 (绝对白名单)
-            const HARD_SAFE_DOMAINS = [
-            'github.com', 'cloudflare.com', 'apple.com', 'microsoft.com',
-            'google.com', 'gstatic.com', 'googleapis.com', 'forbes.com',
-            'forbesimg.com', 'cloudflareinsights.com', 'cnn.io', 'discomax.com', 'max.com',
-            'dropbox.com', 'dropboxstatic.com', 'dropboxusercontent.com'
-        ];
+            
             if (HARD_SAFE_DOMAINS.some(d => domain === d || domain.endsWith('.' + d))) return;
             if (domain === 'dewsecure.com' || domain.endsWith('.dewsecure.com')) return;
 
@@ -310,11 +331,7 @@ export async function runAICheck(url, tabId = null, isThirdParty = false) {
                         condition: {
                             requestDomains: [domain],
                             // 🔒 限定为子资源，绝不拦截 main_frame，彻底杜绝网页白屏
-                            resourceTypes: [
-                                "sub_frame", "stylesheet", "script", "image",
-                                "font", "object", "xmlhttprequest", "ping",
-                                "csp_report", "media", "websocket", "other"
-                            ]
+                            resourceTypes: AI_BLOCK_RESOURCE_TYPES
                         }
                     }]
                 }).catch(e => console.warn('[AI] DNR 规则注入失败:', e));

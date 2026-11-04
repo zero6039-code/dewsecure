@@ -244,6 +244,7 @@ export async function checkAndUpdateModel() {
         await dbPut(CACHE_META_KEY, newMeta);
 
         console.log('[ModelManager] ✅ 模型已更新:', remoteVersion);
+        chrome.runtime.sendMessage({ type: 'MODEL_UPDATED' }).catch(() => {});
         return { updated: true, meta: newMeta };
     } catch (e) {
         console.warn('[ModelManager] 检查更新失败:', e);
