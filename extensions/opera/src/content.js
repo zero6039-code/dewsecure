@@ -173,15 +173,31 @@
         }
     }
 
-    // ===== 批处理：新增节点 =====
+    // ===== 批处理：新增节点 (引入 requestIdleCallback 避免阻塞) =====
     const pendingCheck = new Set();
+    let idleCallbackId = null;
     let checkTimer = null;
+
+    function processIdleQueue(deadline) {
+        idleCallbackId = null;
+        if (pendingCheck.size === 0) return;
+        
+        while ((deadline.timeRemaining() > 0 || deadline.didTimeout) && pendingCheck.size > 0) {
+            const node = pendingCheck.values().next().value;
+            pendingCheck.delete(node);
+            checkAndKill(node);
+        }
+        
+        if (pendingCheck.size > 0) {
+            idleCallbackId = requestIdleCallback(processIdleQueue, { timeout: 100 });
+        }
+    }
+
     function flushCheck() {
         checkTimer = null;
         if (pendingCheck.size === 0) return;
-        const batch = Array.from(pendingCheck);
-        pendingCheck.clear();
-        for (const el of batch) checkAndKill(el);
+        if (idleCallbackId) return;
+        idleCallbackId = requestIdleCallback(processIdleQueue, { timeout: 100 });
     }
     
     function scheduleCheck(el) {
@@ -192,30 +208,47 @@
     }
 
 
-    // ===== 节点扫描与击毙 =====
+    // ===== 节点扫描与击毙 (读写分离，移除 innerText) =====
     function checkAndKill(root) {
         if (!root) return;
         const elements = root.querySelectorAll ? root.querySelectorAll('div, iframe, ins, section, aside') : [];
+        const killList = [];
+        
         for (const el of elements) {
             if (el.dataset.dwKilled) continue;
+            
+            // 🚀 廉价过滤：先看内联样式，跳过明显不是遮罩层的元素
+            const inlinePos = el.style.position;
+            if (inlinePos && inlinePos !== 'fixed' && inlinePos !== 'absolute') continue;
+            
             try {
                 const style = window.getComputedStyle(el);
                 if (style.position !== 'fixed' && style.position !== 'absolute') continue;
+                
                 const rect = el.getBoundingClientRect();
                 const isLarge = rect.width > window.innerWidth * 0.8 && rect.height > window.innerHeight * 0.8;
                 if (!isLarge) continue;
-                const isInvisible = parseFloat(style.opacity) < 0.1 || (el.innerText || '').trim() === '';
+                
+                // 🚀 去掉 innerText，避免强制重排。纯依赖 opacity 和 zIndex 判断
+                const isInvisible = parseFloat(style.opacity) < 0.1;
                 const zIndex = parseInt(style.zIndex, 10) || 0;
+                
                 if (!isInvisible && zIndex <= 1000) continue;
-                if (CAPTCHA_PATTERN.test(el.className + el.id + el.innerText)) continue;
+                if (CAPTCHA_PATTERN.test((el.className || '') + (el.id || ''))) continue;
 
-                el.style.setProperty('pointer-events', 'none', 'important');
-                el.style.setProperty('display', 'none', 'important');
-                el.dataset.dwKilled = 'true';
-                reportDomHidden(el);
-                warn('killed overlay');
+                killList.push(el);
             } catch (_) {}
         }
+        
+        // 批量写入 DOM，减少重排
+        for (const el of killList) {
+            el.style.setProperty('pointer-events', 'none', 'important');
+            el.style.setProperty('display', 'none', 'important');
+            el.dataset.dwKilled = 'true';
+            reportDomHidden(el);
+            warn('killed overlay');
+        }
+        
         if (root.shadowRoot) checkAndKill(root.shadowRoot);
     }
 
