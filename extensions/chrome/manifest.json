@@ -10,7 +10,9 @@
     "alarms",
     "tabs",
     "sidePanel",
-    "webNavigation"
+    "webNavigation",
+    "downloads",
+    "notifications"
   ],
   "host_permissions": [
     "https://cdn.dewsecure.com/*",

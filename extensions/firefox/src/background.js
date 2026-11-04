@@ -377,3 +377,102 @@ if (MINING_DOMAINS && MINING_DOMAINS.length > 0) {
         addRules: miningRules
     }).catch(e => console.warn('[DNR] 注入挖矿规则失败:', e));
 }
+
+
+
+
+// ==========================================
+// 🌐 Background 多语言引擎 (内存缓存)
+// ==========================================
+let bgDict = {};
+async function loadBgI18n() {
+    try {
+        const res = await chrome.storage.local.get('preferred_lang');
+        let lang = res.preferred_lang || navigator.language.split('-')[0].toLowerCase() || 'en';
+        if (lang === 'zh_CN') lang = 'zh';
+        
+        const url = chrome.runtime.getURL(`popup/locales/${lang}.json`);
+        const response = await fetch(url);
+        if (response.ok) {
+            bgDict = await response.json();
+        }
+    } catch (e) {
+        console.warn('[DewSecure] 后台语言包加载失败', e);
+    }
+}
+loadBgI18n(); // 启动时异步加载
+
+// ==========================================
+// 🚀 下载与投递链防御 (Download Guard)
+// ==========================================
+
+
+chrome.downloads.onDeterminingFilename.addListener((item, suggest) => {
+    const fullName = (item.filename || item.suggestedFilename || '').toLowerCase();
+    console.log('[DewSecure] 拦截下载检查:', fullName);
+
+    if (!fullName) {
+        suggest();
+        return;
+    }
+
+    // 2. 检查双扩展名 (如 invoice.pdf.exe)
+    const doubleExtRegex = /\.(pdf|docx?|xlsx?|pptx?|jpg|jpeg|png|gif|txt|csv|zip|rar)\.(exe|scr|js|vbs|bat|cmd|lnk|hta|msi|jar)$/i;
+    const isDoubleExt = doubleExtRegex.test(fullName);
+
+    // 3. 检查高危可执行后缀
+    const highRiskExts = ['.exe', '.msi', '.vbs', '.hta', '.lnk', '.scr', '.iso'];
+    const isHighRisk = highRiskExts.some(ext => fullName.endsWith(ext));
+
+    // 4. 检查脚本后缀
+    const scriptExts = ['.js', '.bat', '.cmd', '.ps1'];
+    const isScript = scriptExts.some(ext => fullName.endsWith(ext));
+
+    if (!isDoubleExt && !isHighRisk && !isScript) {
+        suggest();
+        return;
+    }
+
+    // 5. 判断来源是否安全
+    let isSafeOrigin = false;
+    try {
+        const originUrl = item.referrer || item.url || '';
+        if (originUrl && originUrl.startsWith('http')) {
+            const host = new URL(originUrl).hostname;
+            isSafeOrigin = HARD_SAFE_DOMAINS.some(d => host === d || host.endsWith('.' + d));
+        }
+    } catch (e) {}
+
+    if (isSafeOrigin) {
+        suggest();
+        return;
+    }
+
+    // 6. 处置逻辑
+    if (isDoubleExt) {
+        // 🛡️ 双扩展名：零容忍，直接阻断
+        const warningUrl = chrome.runtime.getURL(`warning.html?type=download&filename=${encodeURIComponent(fullName)}`);
+        chrome.tabs.create({ url: warningUrl });
+        showDownloadNotification('danger', fullName, bgDict.phish_download_danger_title || '🚨 High-Risk Download Blocked', (bgDict.phish_download_danger_desc || 'A double extension file ({filename}) was detected.').replace('{filename}', fullName));
+        return;
+    } else if (isHighRisk || isScript) {
+        // 普通高危后缀：弹窗警告，允许用户继续下载
+        showDownloadNotification('warning', fullName, bgDict.phish_download_warn_title || '⚠️ Security Risk', (bgDict.phish_download_warn_desc || 'You are downloading an executable from an unknown source ({filename}).').replace('{filename}', fullName));
+        suggest();
+    } else {
+        suggest();
+    }
+});
+
+function showDownloadNotification(level, filename, title, message) {
+    // 🛡️ 修复 MV3 CSP 限制：不能使用 data: 开头的 Base64 图片，必须使用扩展本地的静态图标
+    const iconUrl = chrome.runtime.getURL('icons/icon-128.png');
+
+    chrome.notifications.create({
+        type: 'basic',
+        iconUrl: iconUrl,
+        title: title,
+        message: message,
+        priority: level === 'danger' ? 2 : 0
+    });
+}

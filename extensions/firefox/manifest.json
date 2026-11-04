@@ -9,7 +9,9 @@
     "storage",
     "alarms",
     "tabs",
-    "webNavigation"
+    "webNavigation",
+    "downloads",
+    "notifications"
   ],
   "host_permissions": [
     "https://cdn.dewsecure.com/*",

@@ -1,3 +1,4 @@
+
 // 🌟 多语言引擎
 async function applyI18n() {
     try {
@@ -24,6 +25,61 @@ applyI18n();
 document.addEventListener('DOMContentLoaded', async () => {
     const params = new URLSearchParams(window.location.search);
     const type = params.get('type');
+
+    // 🚀 下载拦截专属逻辑
+    if (type === 'download') {
+        const filename = params.get('filename') || '未知文件';
+        
+        const DOWNLOAD_I18N = {
+            'zh': { title: '⚠️ 已拦截高危下载', desc: 'DewSecure 拦截了文件 <strong>{filename}</strong> 的下载。<br><br>检测到双重扩展名（例如 .pdf.exe），这是黑客用于伪装恶意软件（病毒、木马）的典型手段，系统已强制阻断。', btn: '关闭此页面' },
+            'en': { title: '⚠️ High-Risk Download Blocked', desc: 'DewSecure blocked the download of <strong>{filename}</strong>.<br><br>A double extension (e.g., .pdf.exe) was detected, which is a typical method used by hackers to disguise malware (viruses, trojans).', btn: 'Close this page' },
+            'de': { title: '⚠️ Riskanter Download blockiert', desc: 'DewSecure hat den Download von <strong>{filename}</strong> blockiert.<br><br>Es wurde eine doppelte Dateiendung (z. B. .pdf.exe) erkannt. Dies ist eine typische Methode von Hackern, um Malware zu tarnen.', btn: 'Diese Seite schließen' },
+            'es': { title: '⚠️ Descarga de alto riesgo bloqueada', desc: 'DewSecure bloqueó la descarga de <strong>{filename}</strong>.<br><br>Se detectó una doble extensión (ej. .pdf.exe), un método típico de hackers para disfrazar malware.', btn: 'Cerrar esta página' },
+            'fr': { title: '⚠️ Téléchargement à haut risque bloqué', desc: 'DewSecure a bloqué le téléchargement de <strong>{filename}</strong>.<br><br>Une double extension (ex. .pdf.exe) a été détectée, une méthode typique pour déguiser des malwares.', btn: 'Fermer cette page' },
+            'ja': { title: '⚠️ 危険なダウンロードをブロック', desc: 'DewSecureは<strong>{filename}</strong>のダウンロードをブロックしました。<br><br>二重拡張子（例：.pdf.exe）が検出されました。これはハッカーがマルウェアを偽装する一般的な手法です。', btn: 'このページを閉じる' },
+            'ko': { title: '⚠️ 고위험 다운로드 차단됨', desc: 'DewSecure가 <strong>{filename}</strong> 다운로드를 차단했습니다.<br><br>이중 확장자(예: .pdf.exe)가 감지되었습니다. 해커가 악성코드를 위장하는 일반적인 방법입니다.', btn: '이 페이지 닫기' },
+            'ms': { title: '⚠️ Muat Turun Berisiko Tinggi Disekat', desc: 'DewSecure menyekat muat turun <strong>{filename}</strong>.<br><br>Sambungan berganda (cth. .pdf.exe) dikesan, kaedah biasa penggodam menyamar perisian hasad.', btn: 'Tutup halaman ini' },
+            'pt': { title: '⚠️ Download de Alto Risco Bloqueado', desc: 'O DewSecure bloqueou o download de <strong>{filename}</strong>.<br><br>Uma extensão dupla (ex. .pdf.exe) foi detectada, um método típico de hackers para disfarçar malware.', btn: 'Fechar esta página' }
+        };
+
+        const lang = (navigator.language || 'en').split('-')[0].toLowerCase();
+        const t = DOWNLOAD_I18N[lang] || DOWNLOAD_I18N['en'];
+
+        const titleEl = document.querySelector('h1');
+        if (titleEl) {
+            titleEl.textContent = t.title;
+            titleEl.style.color = '#ef4444';
+            titleEl.removeAttribute('data-i18n');
+        }
+        
+        const descEl = document.querySelector('p');
+        if (descEl) {
+            descEl.innerHTML = t.desc.replace('{filename}', filename);
+            descEl.removeAttribute('data-i18n');
+        }
+        
+        const dangerUrlEl = document.getElementById('danger-url');
+        if (dangerUrlEl) {
+            dangerUrlEl.textContent = filename;
+            dangerUrlEl.style.color = '#ef4444';
+            dangerUrlEl.style.fontWeight = 'bold';
+            dangerUrlEl.style.backgroundColor = '#2a1515';
+            dangerUrlEl.style.border = '1px solid #ef4444';
+        }
+        
+        const btnContinue = document.getElementById('btn-continue');
+        if (btnContinue) btnContinue.style.display = 'none';
+        
+        const btnClose = document.getElementById('btn-close');
+        if (btnClose) {
+            btnClose.textContent = t.btn;
+            btnClose.removeAttribute('data-i18n');
+            btnClose.style.background = '#3b82f6';
+            btnClose.onclick = () => window.close();
+        }
+        
+        return;
+    }
     
     // 🔒 M-1 修复：杜绝二次 decodeURIComponent 抛错
     const raw = params.get('domain') || params.get('url') || '';

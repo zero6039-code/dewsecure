@@ -122,5 +122,9 @@
   "footer_terms": "利用規約",
   "footer_link": "GitHubでソースを見る",
   "footer_text": "コアエンジンはオープンソース、データは絶対に外部に漏れません。",
-  "feedback_login_required": "フィードバックを送信するにはログインしてください。"
+  "feedback_login_required": "フィードバックを送信するにはログインしてください。",
+  "phish_download_danger_title": "🚨 危険なダウンロードをブロック",
+  "phish_download_danger_desc": "二重拡張子ファイル ({filename}) が検出され、ブロックされました。",
+  "phish_download_warn_title": "⚠️ セキュリティリスク",
+  "phish_download_warn_desc": "不明なソースから実行可能ファイル ({filename}) をダウンロードしています。"
 }

@@ -122,5 +122,9 @@
   "footer_terms": "Conditions d'utilisation",
   "footer_link": "Voir le code sur GitHub",
   "footer_text": "Moteur principal open source, les données ne quittent jamais la maison.",
-  "feedback_login_required": "Veuillez vous connecter pour envoyer des commentaires."
+  "feedback_login_required": "Veuillez vous connecter pour envoyer des commentaires.",
+  "phish_download_danger_title": "🚨 Téléchargement à haut risque bloqué",
+  "phish_download_danger_desc": "Un fichier à double extension ({filename}) a été détecté et bloqué.",
+  "phish_download_warn_title": "⚠️ Risque de sécurité",
+  "phish_download_warn_desc": "Vous téléchargez un exécutable depuis une source inconnue ({filename})."
 }

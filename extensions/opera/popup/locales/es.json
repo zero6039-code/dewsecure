@@ -122,5 +122,9 @@
   "footer_terms": "Términos de servicio",
   "footer_link": "Ver código en GitHub",
   "footer_text": "Motor principal de código abierto, los datos nunca salen de casa.",
-  "feedback_login_required": "Inicie sesión para enviar comentarios."
+  "feedback_login_required": "Inicie sesión para enviar comentarios.",
+  "phish_download_danger_title": "🚨 Descarga de alto riesgo bloqueada",
+  "phish_download_danger_desc": "Se detectó y bloqueó un archivo con doble extensión ({filename}).",
+  "phish_download_warn_title": "⚠️ Riesgo de seguridad",
+  "phish_download_warn_desc": "Está descargando un ejecutable de una fuente desconocida ({filename})."
 }
