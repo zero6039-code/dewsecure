@@ -1,3 +1,107 @@
+
+(function() {
+    'use strict';
+    // 🚀 ClickFix 剪贴板防护 (提升至最顶层，确保绝对执行)
+    try {
+        const DANGEROUS_CLIPBOARD_PATTERNS = [
+            /powershell/i, /mshta/i, /cmd\s*\/c/i, /curl/i, /wget/i,
+            /Invoke-WebRequest/i, /Start-Process/i, /base64/i, /\bbash\b/i, /\.ps1/i, /\.bat/i, /\.vbs/i
+        ];
+        const LONG_BASE64_PATTERN = /^[A-Za-z0-9+/]{100,}={0,2}$/;
+
+        function isDangerousClipboard(text) {
+            if (!text) return false;
+            const str = String(text);
+            if (DANGEROUS_CLIPBOARD_PATTERNS.some(regex => regex.test(str))) return true;
+            if (LONG_BASE64_PATTERN.test(str.replace(/\s/g, ''))) return true;
+            return false;
+        }
+
+
+        const CLIPBOARD_I18N = {
+            'zh': { title: '安全警告：DewSecure 拦截了一次危险的剪贴板复制。', desc: '该内容包含可疑指令（如 PowerShell/CMD），请勿将其粘贴到运行窗口。', btn: '我确定安全，继续' },
+            'en': { title: 'Security Alert: DewSecure blocked a dangerous clipboard copy.', desc: 'This content contains suspicious commands (e.g., PowerShell/CMD). Do not paste it into the run window.', btn: 'I am sure it\'s safe, continue' },
+            'de': { title: 'Sicherheitswarnung: DewSecure hat eine gefährliche Zwischenablage-Kopie blockiert.', desc: 'Dieser Inhalt enthält verdächtige Befehle (z. B. PowerShell/CMD). Fügen Sie ihn nicht in das Ausführungsfenster ein.', btn: 'Ich bin sicher, fortfahren' },
+            'es': { title: 'Alerta de seguridad: DewSecure bloqueó una copia peligrosa en el portapapeles.', desc: 'Este contenido contiene comandos sospechosos (ej. PowerShell/CMD). No lo pegues en la ventana de ejecución.', btn: 'Estoy seguro, continuar' },
+            'fr': { title: 'Alerte de sécurité : DewSecure a bloqué une copie de presse-papiers dangereuse.', desc: 'Ce contenu contient des commandes suspectes (ex. PowerShell/CMD). Ne le collez pas dans la fenêtre d\'exécution.', btn: 'Je suis sûr, continuer' },
+            'ja': { title: 'セキュリティ警告：DewSecureが危険なクリップボードのコピーをブロックしました。', desc: 'このコンテンツには疑わしいコマンド（PowerShell/CMDなど）が含まれています。実行ウィンドウに貼り付けないでください。', btn: '安全です、続行します' },
+            'ko': { title: '보안 경고: DewSecure가 위험한 클립보드 복사를 차단했습니다.', desc: '이 콘텐츠에는 의심스러운 명령(PowerShell/CMD 등)이 포함되어 있습니다. 실행 창에 붙여넣지 마십시오.', btn: '안전합니다, 계속' },
+            'ms': { title: 'Amaran Keselamatan: DewSecure menyekat salinan papan keratan yang berbahaya.', desc: 'Kandungan ini mengandungi arahan yang mencurigakan (cth. PowerShell/CMD). Jangan tampal ke tetingkap larian.', btn: 'Saya pasti selamat, teruskan' },
+            'pt': { title: 'Alerta de Segurança: O DewSecure bloqueou uma cópia perigosa da área de transferência.', desc: 'Este conteúdo contém comandos suspeitos (ex. PowerShell/CMD). Não o cole na janela de execução.', btn: 'Tenho certeza, continuar' }
+        };
+
+        function getI18nText() {
+            const lang = (navigator.language || 'en').split('-')[0].toLowerCase();
+            return CLIPBOARD_I18N[lang] || CLIPBOARD_I18N['en'];
+        }
+
+        function showClipboardWarning() {
+            const bannerId = 'dewsecure-clipboard-warning';
+            if (document.getElementById(bannerId)) return;
+            const banner = document.createElement('div');
+            banner.id = bannerId;
+            banner.style.cssText = `
+                position: fixed; top: 0; left: 0; right: 0; z-index: 2147483647;
+                background: #ef4444; color: white; padding: 12px 20px;
+                font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+                font-size: 14px; display: flex; justify-content: space-between; align-items: center;
+                box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            `;
+            const t = getI18nText();
+            banner.innerHTML = `
+                <div>
+                    <strong>🚨 ${t.title}</strong>
+                    <div style="font-size: 12px; opacity: 0.8; margin-top: 4px;">${t.desc}</div>
+                </div>
+                <button id="dewsecure-clipboard-ignore" style="background: transparent; border: 1px solid white; color: white; padding: 4px 12px; border-radius: 4px; cursor: pointer;">${t.btn}</button>
+            `;
+            document.body.appendChild(banner);
+            document.getElementById('dewsecure-clipboard-ignore').addEventListener('click', () => banner.remove());
+            setTimeout(() => { if (banner.parentNode) banner.remove(); }, 10000);
+        }
+
+        // 拦截 navigator.clipboard.writeText
+        if (navigator.clipboard) {
+            const originalWriteText = navigator.clipboard.writeText;
+            Object.defineProperty(navigator.clipboard, 'writeText', {
+                value: async function(text) {
+                    const isPaused = document.documentElement.getAttribute('data-dewsecure-paused') === 'true';
+                    if (!isPaused && isDangerousClipboard(text)) {
+                        console.warn('[DewSecure] 已拦截危险的剪贴板写入:', text.substring(0, 50) + '...');
+                        showClipboardWarning();
+                        return Promise.reject(new Error('DewSecure: Clipboard write blocked due to suspicious content'));
+                    }
+                    return originalWriteText.apply(this, arguments);
+                },
+                writable: true,
+                configurable: true
+            });
+        }
+
+        // 拦截 document.execCommand('copy')
+        const nativeExecCommand = document.execCommand;
+        Object.defineProperty(document, 'execCommand', {
+            value: function(command, showUI, value) {
+                const isPaused = document.documentElement.getAttribute('data-dewsecure-paused') === 'true';
+                if (command.toLowerCase() === 'copy' && !isPaused) {
+                    const selection = document.getSelection() ? document.getSelection().toString() : '';
+                    if (isDangerousClipboard(selection)) {
+                        console.warn('[DewSecure] 已拦截危险的 execCommand 复制:', selection.substring(0, 50) + '...');
+                        showClipboardWarning();
+                        return false;
+                    }
+                }
+                return nativeExecCommand.apply(this, arguments);
+            },
+            writable: true,
+            configurable: true
+        });
+        console.log('🛡️ [DewSecure Inject] 剪贴板防护装甲已加载');
+    } catch (e) {
+        console.error('[DewSecure Inject] 剪贴板防护初始化失败:', e);
+    }
+})();
+
 (function() {
     // F-03: 主世界无法调用 chrome.runtime，完全依赖 content.js 通过 postMessage 传递 DEWSECURE_PAUSE 信号
 

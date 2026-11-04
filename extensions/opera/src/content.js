@@ -227,7 +227,15 @@
                 const zIndex = parseInt(style.zIndex, 10) || 0;
                 
                 if (!isInvisible && zIndex <= 1000) continue;
-                if (CAPTCHA_PATTERN.test((el.className || '') + (el.id || ''))) continue;
+
+                // 🚀 修复假验证码绕过：只豁免真正的官方验证码 iframe
+                let isOfficialCaptcha = false;
+                if (el.tagName === 'IFRAME') {
+                    const src = (el.src || '').toLowerCase();
+                    const officialCaptchaHosts = ['google.com/recaptcha', 'recaptcha.net', 'hcaptcha.com', 'challenges.cloudflare.com'];
+                    if (officialCaptchaHosts.some(h => src.includes(h))) isOfficialCaptcha = true;
+                }
+                if (isOfficialCaptcha) continue;
 
                 killList.push(el);
             } catch (_) {}
