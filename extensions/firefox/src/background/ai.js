@@ -197,6 +197,14 @@ export function extractSparseFeatures(url) {
 }
 
 const AI_CHECKED_DOMAINS = new Set();
+// 📊 信号 3：记录该域名在多少个不同站点中被请求
+const HOST_REF_COUNT = new Map();
+export function recordHostRef(host) {
+    HOST_REF_COUNT.set(host, (HOST_REF_COUNT.get(host) || 0) + 1);
+    if (HOST_REF_COUNT.size > 5000) HOST_REF_COUNT.clear(); // 防内存泄漏
+}
+
+
 let cachedWeights = null;
 let aiCheckedDomainsLoaded = false;
 let saveDomainsTimer = null;
@@ -240,15 +248,7 @@ export async function runAICheck(url, tabId = null, isThirdParty = false) {
         // 🛑 防线 0：前端硬拦截 (与规则层对齐，命中直接拦截，不消耗 AI 算力)
         
         if (HARD_BLOCK_DOMAINS.some(d => domain === d || domain.endsWith('.' + d))) {
-            console.log(`🛑 [AI] 命中绝对黑名单，强制软隐藏: ${domain}`);
-            let targetTabId = tabId;
-            if (!targetTabId) {
-                const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
-                if (tabs[0] && tabs[0].id) targetTabId = tabs[0].id;
-            }
-            if (targetTabId) {
-                chrome.tabs.sendMessage(targetTabId, { type: 'HIDE_AI_AD', domain: domain }).catch(() => {});
-            }
+            console.log(`🛑 [AI] 命中绝对黑名单，交由网络层/规则层处理: ${domain}`);
             return;
         }
 
@@ -316,9 +316,29 @@ export async function runAICheck(url, tabId = null, isThirdParty = false) {
                 return;
             }
 
-            // 🚀 M-7 核心修复：置信度 >= 0.95 时，直接注入 DNR 规则，在【网络层】真正切断请求！
-            if (confidence >= 0.95) {
-                // 生成一个固定的 800 万段规则 ID，避免与白名单(1万段)和威胁情报(100万段)冲突
+            // ==========================================
+            // 🚀 M-7 核心重构：多信号交叉验证 (3 种独立信号)
+            // ==========================================
+            const signals = ['模型置信度'];
+            let finalConfidence = confidence;
+
+            // 信号 2：跨站引用频率 (被 >= 3 个站点引用)
+            const refCount = HOST_REF_COUNT.get(domain) || 0;
+            if (refCount >= 3) {
+                signals.push(`跨站引用(${refCount}次)`);
+                finalConfidence = Math.min(1.0, finalConfidence + 0.05);
+            }
+
+            // 信号 3：威胁情报匹配 (如果在本地情报缓存中)
+            // 由于这里没有直接的同步查库方法，暂时用简单的域名长度/特征做示意。
+            // 实际落地可在此调用本地查表接口。
+            if (domain.length > 15 && domain.includes('-')) { 
+                signals.push('可疑特征匹配');
+                finalConfidence = Math.min(1.0, finalConfidence + 0.05);
+            }
+
+            if (signals.length >= 3 && finalConfidence >= 0.95) {
+                // 🛡️ 满足三信号交叉验证，执行硬拦截
                 const hash = domain.split('').reduce((a, b) => ((a << 5) - a) + b.charCodeAt(0), 0);
                 const ruleId = 8000000 + Math.abs(hash % 100000);
 
@@ -326,19 +346,30 @@ export async function runAICheck(url, tabId = null, isThirdParty = false) {
                     removeRuleIds: [ruleId],
                     addRules: [{
                         id: ruleId,
-                        priority: 2000000, // 高优先级
+                        priority: 2000000,
                         action: { type: 'block' },
                         condition: {
                             requestDomains: [domain],
-                            // 🔒 限定为子资源，绝不拦截 main_frame，彻底杜绝网页白屏
                             resourceTypes: AI_BLOCK_RESOURCE_TYPES
                         }
                     }]
                 }).catch(e => console.warn('[AI] DNR 规则注入失败:', e));
 
-                console.log(`🛡️ [AI] 已对 ${domain} 实施网络层硬拦截 (置信度: ${confidence.toFixed(2)})`);
+                console.log(`🛡️ [AI] 已对 ${domain} 实施硬拦截 (信号: ${signals.join(', ')} | 置信度: ${finalConfidence.toFixed(2)})`);
             } else {
-                console.log(`🛡️ [AI] 发现可疑第三方 (${domain})，但置信度不足 0.95 (${confidence.toFixed(2)})，仅观察。`);
+                // 💡 置信度高，但信号不足，进入“建议规则”管线
+                if (finalConfidence >= 0.95) {
+                    console.log(`💡 [AI] 发现高度可疑域名 ${domain}，信号不足 (${signals.join(', ')})，转入人工审核建议。`);
+                    chrome.storage.local.get('ai_suggested_rules').then(res => {
+                        const list = res.ai_suggested_rules || [];
+                        if (!list.some(r => r.domain === domain)) {
+                            list.push({ domain, reason: signals.join(', '), score: finalConfidence, ts: Date.now() });
+                            chrome.storage.local.set({ ai_suggested_rules: list.slice(-50) });
+                        }
+                    });
+                } else {
+                    console.log(`🛡️ [AI] 发现可疑第三方 (${domain})，置信度不足或信号不够，仅观察。`);
+                }
             }
         }
     } catch(e) {}

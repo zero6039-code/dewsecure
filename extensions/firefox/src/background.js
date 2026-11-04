@@ -51,8 +51,9 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
                     sendResponse({ ok: true });
                     return;
                 }
-                import('./background/ai.js').then(({ runAICheck }) => {
+                import('./background/ai.js').then(({ runAICheck, recordHostRef }) => {
                     for (const host of message.hosts) {
+                        recordHostRef(host); // 📊 记录跨站引用次数
                         runAICheck(host, sender.tab.id, true);
                     }
                     sendResponse({ ok: true });
@@ -309,21 +310,6 @@ chrome.declarativeNetRequest.getDynamicRules().then(rules => {
         chrome.declarativeNetRequest.updateDynamicRules({
             removeRuleIds: badRules.map(r => r.id)
         });
-    }
-});
-
-// 🛡️ 核心修复：清理 AI 之前注入且可能导致误杀的 sessionRules
-chrome.declarativeNetRequest.getSessionRules().then(rules => {
-    const aiRules = rules.filter(r => r.id >= 8000000);
-    if (aiRules.length > 0) {
-        console.warn(`[DNR] 清理了 ${aiRules.length} 条 AI 误杀历史规则，页面将恢复正常加载。`);
-        chrome.declarativeNetRequest.updateSessionRules({
-            removeRuleIds: aiRules.map(r => r.id)
-        });
-        // 同时清空可能污染的持久化缓存
-        if (chrome.storage.session) {
-            chrome.storage.session.remove('ai_checked_domains');
-        }
     }
 });
 

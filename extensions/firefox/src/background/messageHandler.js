@@ -7,7 +7,7 @@ import { jwtPayload } from '../authManager.js'; // 🔒 M-3 修复：引入安�
 // 🔒 分离广告与追踪器规则集，实现独立开关
 const ADS_RULESETS = ['ads_1a', 'ads_1b', 'ads_2', 'ads_3', 'ads_4', 'anti_affiliate'];
 const TRACKER_RULESETS = ['trackers_1a', 'trackers_1b', 'trackers_2a', 'trackers_2b'];
-const EXTRA_RULESETS = ['annoyances', 'privacy'];
+const EXTRA_RULESETS = ['annoyances']; // 'privacy' 由 background.js 动态注入，不走静态规则集
 
 export async function updateDNRRulesets(dnrEnabled, blockTrackers) {
     try {

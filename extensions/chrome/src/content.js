@@ -249,15 +249,4 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     }
 });
 
-chrome.runtime.onMessage.addListener((msg) => {
-    if (msg.type === 'HIDE_AI_AD' && msg.domain) {
-        if (document.documentElement.getAttribute('data-dewsecure-paused') === 'true') return;
-        const domain = msg.domain;
-        console.log(`🛡️ [DewSecure] 正在执行 AI 软隐藏: ${domain}`);
-        document.querySelectorAll('img').forEach(el => {
-            if (el.src && el.src.includes(domain) && el.width <= 2 && el.height <= 2) {
-                el.style.setProperty('display', 'none', 'important');
-            }
-        });
-    }
-});
+
