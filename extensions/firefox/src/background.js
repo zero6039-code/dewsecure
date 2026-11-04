@@ -25,6 +25,7 @@ import { handleMessage } from './background/messageHandler.js';
 import { updateThreatIntel, initThreatFilter, checkThreatFilter } from './background/threatIntel.js';
 import { HARD_SAFE_DOMAINS, MINING_DOMAINS } from './background/aiConfig.js';
 import { initIntelReporter } from './background/intelReporter.js';
+import { syncRules, RANGE } from './background/dnrOwner.js';
 
 // 🚀 AI 已改为纯 JS 推理，无需创建 Offscreen 页面
 
@@ -305,15 +306,6 @@ if (chrome.webNavigation && chrome.webNavigation.onBeforeNavigate) {
     });
 } // 🌟 这里补上了缺失的大括号！
 
-// 强制清理可能误伤的 DNR 规则
-chrome.declarativeNetRequest.getDynamicRules().then(rules => {
-    const badRules = rules.filter(r => JSON.stringify(r).includes('dewsecure'));
-    if (badRules.length > 0) {
-        chrome.declarativeNetRequest.updateDynamicRules({
-            removeRuleIds: badRules.map(r => r.id)
-        });
-    }
-});
 
 // 🛡️ 核心修复：清理 AI 之前注入且可能导致误杀的 sessionRules
 chrome.declarativeNetRequest.getSessionRules().then(rules => {
@@ -332,9 +324,7 @@ chrome.declarativeNetRequest.getSessionRules().then(rules => {
 
 // 🌟 防线 3：全局最高优先级豁免 (防止未来任何新模块误伤官方)
 // 改用 DynamicRules 并设置最高优先级，确保在 DNR 底层绝对放行
-chrome.declarativeNetRequest.updateDynamicRules({
-    removeRuleIds: [999999],
-    addRules: [{
+syncRules(RANGE.official, [{
         "id": 999999,
         "priority": 2147483647, // 最高优先级，碾压一切静态/动态拦截规则
         "action": { "type": "allow" }, // 改为 allow，全资源放行
@@ -345,8 +335,7 @@ chrome.declarativeNetRequest.updateDynamicRules({
             ],
             "resourceTypes": ["main_frame", "sub_frame", "stylesheet", "script", "image", "font", "object", "xmlhttprequest", "ping", "csp_report", "media", "websocket", "other"]
         }
-    }]
-}).catch(e => console.warn('设置官方豁免失败:', e));
+}]);
 
 
 // 🚀 注入挖矿域名 DNR 拦截
@@ -360,10 +349,7 @@ if (MINING_DOMAINS && MINING_DOMAINS.length > 0) {
             resourceTypes: ["sub_frame", "script", "object", "xmlhttprequest", "websocket", "other"]
         }
     }));
-    chrome.declarativeNetRequest.updateDynamicRules({
-        removeRuleIds: miningRules.map(r => r.id),
-        addRules: miningRules
-    }).catch(e => console.warn('[DNR] 注入挖矿规则失败:', e));
+    syncRules(RANGE.mining, miningRules);
 }
 
 
@@ -502,7 +488,4 @@ const privacyRules = [
     }
 ];
 
-chrome.declarativeNetRequest.updateDynamicRules({
-    removeRuleIds: [10001, 10002, 10003],
-    addRules: privacyRules
-}).catch(e => console.warn('[DNR] 注入隐私净化规则失败:', e));
+syncRules(RANGE.privacy, privacyRules);

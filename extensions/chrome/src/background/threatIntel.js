@@ -1,6 +1,7 @@
 import { getCurrentUser } from '../authManager.js';
 import * as ed from '@noble/ed25519';
 import { sha512 } from '@noble/hashes/sha512';
+import { syncRules, RANGE } from './dnrOwner.js';
 
 ed.etc.sha512Sync = (...m) => sha512(ed.etc.concatBytes(...m));
 const ED25519_PUBLIC_KEY_HEX = 'a21b4c875ab246b58adc225ddf66a054cfa7b79ed2093fcc2f97598fd1197631';
@@ -140,40 +141,45 @@ async function updateThreatFilterBinary(userToken) {
 }
 
 // ==========================================
-// 传统 DNR 规则更新
+// 🛡️ N-1 修复：情报规则只管理 RANGE.intel 段
 // ==========================================
+const HARD_SAFE = ['github.com', 'githubusercontent.com', 'github.io', 'gitlab.com', 'npmjs.com', 'cloudflare.com', 'microsoft.com', 'apple.com', 'dewsecure.com', 'google.com', 'youtube.com', 'facebook.com', 'dropbox.com', 'dropboxusercontent.com'];
+const MAX_INTEL_RULES = 25000;   // 留 5000 余量给隐私/挖矿/豁免/AI 会话
+
 async function applyRulesToDNR() {
     const user = await getCurrentUser();
     const isPro = user && user.tier !== 'free';
     const { dewsecure_settings: settings } = await chrome.storage.local.get('dewsecure_settings');
     const isEnabled = settings?.intelEnabled !== false;
 
-    const existing = await chrome.declarativeNetRequest.getDynamicRules();
-    const existingIds = existing.map(r => r.id);
-
+    // 非 Pro 或关闭：只清空 intel 段，绝不动其他模块的规则
     if (!isPro || !isEnabled) {
-        if (existingIds.length > 0) {
-            await chrome.declarativeNetRequest.updateDynamicRules({ removeRuleIds: existingIds });
-        }
+        await syncRules(RANGE.intel, []);
         return;
     }
 
     const { [CACHE_KEY]: cache } = await chrome.storage.local.get(CACHE_KEY);
-    if (cache && cache.rulesData) {
-        const HARD_SAFE = ['github.com', 'githubusercontent.com', 'github.io', 'gitlab.com', 'npmjs.com', 'cloudflare.com', 'microsoft.com', 'apple.com', 'dewsecure.com', 'google.com', 'youtube.com', 'facebook.com', 'dropbox.com', 'dropboxusercontent.com'];
-        const newRules = [];
-        for (const rule of cache.rulesData) {
-            const domain = rule.condition?.requestDomains?.[0];
-            if (!domain) continue; 
-            if (HARD_SAFE.some(d => domain === d || domain.endsWith('.' + d))) continue;
-            rule.condition.resourceTypes = ["main_frame", "sub_frame"];
-            newRules.push({
-                ...rule,
-                action: { type: 'redirect', redirect: { extensionPath: `/warning.html?type=intel&domain=${encodeURIComponent(domain)}` } }
-            });
-        }
-        await chrome.declarativeNetRequest.updateDynamicRules({ removeRuleIds: existingIds, addRules: newRules });
+    if (!cache || !cache.rulesData) return;
+
+    const newRules = [];
+    for (const rule of cache.rulesData) {
+        const domain = rule.condition?.requestDomains?.[0];
+        if (!domain) continue; 
+        if (HARD_SAFE.some(d => domain === d || domain.endsWith('.' + d))) continue;
+        if (newRules.length >= MAX_INTEL_RULES) break;
+
+        // 显式重映射 ID 到 RANGE.intel 段（不依赖服务端 id 策略），深拷贝 condition 防止改写缓存
+        newRules.push({
+            id: RANGE.intel[0] + newRules.length,
+            priority: rule.priority ?? 2000000,
+            action: { type: 'redirect', redirect: { extensionPath: `/warning.html?type=intel&domain=${encodeURIComponent(domain)}` } },
+            condition: {
+                ...rule.condition,
+                resourceTypes: ["main_frame", "sub_frame"],
+            },
+        });
     }
+    await syncRules(RANGE.intel, newRules);
 }
 
 // ==========================================
