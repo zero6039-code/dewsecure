@@ -3,6 +3,7 @@
     
     // 🌟 官网与本地开发环境白名单
     const hostname = window.location.hostname;
+    const inList = (h, list) => list.some(d => h === d || h.endsWith('.' + d));
     if (
         hostname === 'dewsecure.com' || 
         hostname.endsWith('.dewsecure.com') ||
@@ -17,7 +18,7 @@
     
     // ===== DewSecure 复杂 SPA 豁免名单 =====
     const SPA_SAFE_LIST = ['wired.com', 'forbes.com'];
-    if (SPA_SAFE_LIST.some(d => window.location.hostname.includes(d))) {
+    if (inList(window.location.hostname, SPA_SAFE_LIST)) {
         console.warn('🛡️ [DewSecure] 检测到复杂 SPA 站点，已自动豁免 DOM 清理以防止白屏。');
         return; 
     }
@@ -61,56 +62,58 @@
     // ==========================================
     // 🚀 页面级本地钓鱼识别 (启发式规则打分)
     // ==========================================
-    function analyzePageForPhishing() {
+    // 增强的同站判断，处理 com.my / co.uk 等多级后缀
+    function getBaseDomain(h) {
+        if (!h) return '';
+        const parts = h.split('.');
+        if (parts.length <= 2) return h;
+        const multiLevel = ['com.my', 'co.uk', 'com.cn', 'com.sg', 'co.id', 'com.au', 'co.jp'];
+        const lastTwo = parts.slice(-2).join('.');
+        return multiLevel.includes(lastTwo) ? parts.slice(-3).join('.') : lastTwo;
+    }
+
+    function scorePage() {
+        let score = 0;
+        const reasons = [];
         const hostname = window.location.hostname;
-        
-        const passwordInputs = document.querySelectorAll('input[type="password"]');
-        if (passwordInputs.length === 0) return;
 
-        let score = 40;
-        const reasons = ['检测到密码输入框'];
-
+        // 1. 跨站表单 (40分)
         const forms = document.querySelectorAll('form');
         for (const form of forms) {
             const action = form.getAttribute('action');
             if (!action) continue;
-            
-            if (action.startsWith('data:') || action.startsWith('blob:')) {
-                score += 20;
-                reasons.push('表单使用了 data:/blob: 提交');
-            } else {
-                try {
-                    const actionUrl = new URL(action, window.location.href);
-                    const getBaseDomain = (h) => h ? h.split('.').slice(-2).join('.') : '';
-                    if (getBaseDomain(actionUrl.hostname) !== getBaseDomain(hostname)) {
-                        score += 30;
-                        reasons.push(`表单跨域提交至 ${actionUrl.hostname}`);
-                    }
-                } catch (e) {}
-            }
+            try {
+                const actionUrl = new URL(action, window.location.href);
+                if (actionUrl.protocol === 'data:' || actionUrl.protocol === 'blob:' || getBaseDomain(actionUrl.hostname) !== getBaseDomain(hostname)) {
+                    score += 40;
+                    reasons.push(`表单跨站提交至 ${actionUrl.hostname}`);
+                    break;
+                }
+            } catch (e) {}
         }
 
+        // 2. 标题品牌仿冒 (25分)
         const title = document.title.toLowerCase();
         const BRANDS = ['paypal', 'apple', 'microsoft', 'google', 'amazon', 'netflix', 'binance', 'coinbase', 'facebook', 'instagram'];
         for (const brand of BRANDS) {
             if (title.includes(brand) && !hostname.includes(brand)) {
-                score += 20;
+                score += 25;
                 reasons.push(`页面标题包含品牌词 [${brand}] 但域名不匹配`);
                 break;
             }
         }
 
+        // 3. 隐藏的跨域 iframe (15分)
         const iframes = document.querySelectorAll('iframe');
         for (const iframe of iframes) {
             try {
                 const src = iframe.src;
                 if (src && src.startsWith('http')) {
                     const iframeUrl = new URL(src);
-                    const getBaseDomain = (h) => h ? h.split('.').slice(-2).join('.') : '';
                     if (getBaseDomain(iframeUrl.hostname) !== getBaseDomain(hostname)) {
                         const style = window.getComputedStyle(iframe);
                         if (style.display === 'none' || style.visibility === 'hidden' || parseInt(style.width) <= 1) {
-                            score += 10;
+                            score += 15;
                             reasons.push('检测到隐藏的跨域 iframe');
                             break;
                         }
@@ -119,6 +122,15 @@
             } catch(e) {}
         }
 
+        return { score, reasons };
+    }
+
+    function analyzePageForPhishing() {
+        const passwordInputs = document.querySelectorAll('input[type="password"]');
+        if (passwordInputs.length === 0) return;
+
+        const { score, reasons } = scorePage();
+        // 阈值提升至 60，且密码框不再计分，必须由至少 2 个独立信号触发
         if (score >= 60) {
             console.warn(`🚨 [DewSecure] 本地启发式检测到疑似钓鱼行为 (得分: ${score})`, reasons);
             triggerPhishingWarning(score, reasons, passwordInputs);
@@ -138,12 +150,16 @@
             btn.style.cursor = 'not-allowed';
         });
 
-        if (document.getElementById('dewsecure-phishing-warning')) return;
+        if (document.getElementById('dewsecure-phishing-warning-host')) return;
+
+        // 使用 closed Shadow DOM 防止页面脚本篡改或直接点击按钮
+        const host = document.createElement('div');
+        host.id = 'dewsecure-phishing-warning-host';
+        host.style.cssText = 'position: fixed; top: 0; left: 0; right: 0; z-index: 2147483647;';
+        const shadow = host.attachShadow({ mode: 'closed' });
 
         const banner = document.createElement('div');
-        banner.id = 'dewsecure-phishing-warning';
         banner.style.cssText = `
-            position: fixed; top: 0; left: 0; right: 0; z-index: 2147483647;
             background: #ef4444; color: white; padding: 12px 20px;
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
             font-size: 14px; display: flex; justify-content: space-between; align-items: center;
@@ -156,10 +172,11 @@
             </div>
             <button id="dewsecure-phishing-ignore" style="background: transparent; border: 1px solid white; color: white; padding: 4px 12px; border-radius: 4px; cursor: pointer;">我确定安全，继续</button>
         `;
-        document.body.appendChild(banner);
+        shadow.appendChild(banner);
+        document.body.appendChild(host);
 
-        document.getElementById('dewsecure-phishing-ignore').addEventListener('click', () => {
-            banner.remove();
+        shadow.getElementById('dewsecure-phishing-ignore').addEventListener('click', () => {
+            host.remove();
             passwordInputs.forEach(input => {
                 input.disabled = false;
                 input.style.backgroundColor = '';
@@ -178,7 +195,7 @@
     // ===== 核心初始化 =====
     function init() {
         const skipDomains = ['google.com', 'youtube.com', 'facebook.com', 'twitter.com', 'x.com', 'instagram.com', 'wired.com'];
-        if (skipDomains.some(d => window.location.hostname.endsWith(d))) {
+        if (inList(window.location.hostname, skipDomains)) {
             console.log('🛡️ [DewSecure] 核心站点豁免 DOM 清理，防止 SPA 崩溃。');
             return;
         }
@@ -198,10 +215,19 @@
 
                 window.postMessage({ type: 'DEWSECURE_SETTINGS', settings }, '*');
 
-                // 🚀 启动页面级钓鱼检测
+                // 🚀 启动页面级钓鱼检测（动态监听）
                 setTimeout(() => {
                     try { analyzePageForPhishing(); } catch (e) { console.warn(e); }
                 }, 1000);
+
+                let timer;
+                const observer = new MutationObserver(() => {
+                    clearTimeout(timer);
+                    timer = setTimeout(() => {
+                        try { analyzePageForPhishing(); } catch (e) {}
+                    }, 500);
+                });
+                observer.observe(document.documentElement, { childList: true, subtree: true });
 
                 setTimeout(() => {
                     // 🚀 性能优化：废弃 DOM 正则遍历，改用声明式 CSS 注入
