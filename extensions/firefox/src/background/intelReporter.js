@@ -2,9 +2,11 @@
 // 🚀 静默众包情报上报器 (K-匿名)
 // ==========================================
 
+import { ensureAlarm, due } from './alarmHelper.js';
+
 export async function initIntelReporter() {
-    // 每天执行一次（1440 分钟）
-    chrome.alarms.create('dewsecure_report_candidates', { periodInMinutes: 1440 });
+    // N-2 修复：闹钟按需创建，避免每次 SW 唤醒重置倒计时
+    await ensureAlarm('dewsecure_report_candidates', { periodInMinutes: 1440, delayInMinutes: 1 });
     
     chrome.alarms.onAlarm.addListener(async (alarm) => {
         if (alarm.name === 'dewsecure_report_candidates') {
@@ -12,8 +14,10 @@ export async function initIntelReporter() {
         }
     });
 
-    // 延迟 10 秒执行一次（用于测试或上次未发完的补偿）
-    setTimeout(reportCandidates, 10000);
+    // N-2 修复：删除 10 秒 setTimeout（每次 SW 唤醒都会跑），改用 6 小时节流
+    if (await due('last_report_check', 6 * 3600e3)) {
+        await reportCandidates();
+    }
 }
 
 async function reportCandidates() {

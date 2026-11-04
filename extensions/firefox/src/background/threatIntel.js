@@ -94,18 +94,28 @@ async function updateThreatFilterBinary(userToken) {
         const baseUrl = 'https://api.dewsecure.com/api/intel';
         const headers = userToken ? { 'Authorization': `Bearer ${userToken}` } : {};
         
-        const [binRes, metaRes] = await Promise.all([
-            fetch(`${baseUrl}/threat-filter.bin`, { cache: 'no-store', headers }),
-            fetch(`${baseUrl}/threat-filter.meta.json`, { cache: 'no-store', headers })
-        ]);
+        // N-2 修复：先拉元数据（几 KB），版本未变就跳过整份 bin 下载
+        const metaRes = await fetch(`${baseUrl}/threat-filter.meta.json`, { cache: 'no-store', headers });
+        if (!metaRes.ok) {
+            // 严格模式：meta 失败直接跳过，不 fallback 到 bin
+            console.warn(`⚠️ [ThreatIntel] meta 拉取失败 (HTTP ${metaRes.status})，跳过过滤器更新`);
+            return;
+        }
+        const metaData = await metaRes.json();
         
-        if (!binRes.ok || !metaRes.ok) {
-            console.warn(`⚠️ [ThreatIntel] 下载过滤器失败 (HTTP ${binRes.status}/${metaRes.status})`);
+        // 版本比较提前到 bin 下载之前
+        const cached = await loadFilterFromDB();
+        if (cached && cached.meta && cached.meta.version === metaData.version && threatFilter) {
             return;
         }
         
+        // 版本有变（或首次安装），才下载整份 bin
+        const binRes = await fetch(`${baseUrl}/threat-filter.bin`, { cache: 'no-store', headers });
+        if (!binRes.ok) {
+            console.warn(`⚠️ [ThreatIntel] bin 拉取失败 (HTTP ${binRes.status})`);
+            return;
+        }
         const binBuffer = await binRes.arrayBuffer();
-        const metaData = await metaRes.json();
         
         // 哈希校验
         const binHash = await crypto.subtle.digest('SHA-256', binBuffer).then(buf => Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, '0')).join(''));
@@ -121,12 +131,6 @@ async function updateThreatFilterBinary(userToken) {
         
         if (!(await ed.verifyAsync(sigBytes, new TextEncoder().encode(msg), pubKeyBytes))) {
             console.error('❌ [ThreatIntel] 过滤器签名校验失败');
-            return;
-        }
-        
-        // 检查本地版本，如果版本一致且内存有数据，直接跳过写入
-        const cached = await loadFilterFromDB();
-        if (cached && cached.meta && cached.meta.version === metaData.version && threatFilter) {
             return;
         }
         
@@ -202,18 +206,28 @@ export async function updateThreatIntel() {
         // 🚀 1. 优先下载并更新百万级过滤器（独立逻辑，不受版本回放影响）
         await updateThreatFilterBinary(user?.token);
 
-        // 🚀 2. 更新传统 DNR 规则
+        // 🚀 2. 更新传统 DNR 规则（N-2：先拉 .sig，版本未变则跳过整份 rules 下载）
         const baseUrl = 'https://api.dewsecure.com/api/intel';
         const headers = user?.token ? { 'Authorization': `Bearer ${user.token}` } : {};
-        const [rulesRes, sigRes] = await Promise.all([
-            fetch(`${baseUrl}/threat-rules`, { cache: 'no-store', headers }),
-            fetch(`${baseUrl}/threat-rules.sig`, { cache: 'no-store', headers })
-        ]);
 
-        if (!rulesRes.ok || !sigRes.ok) throw new Error(`HTTP Error`);
-
-        const rulesBuffer = await rulesRes.arrayBuffer();
+        // 先拉签名元数据（几 KB）
+        const sigRes = await fetch(`${baseUrl}/threat-rules.sig`, { cache: 'no-store', headers });
+        if (!sigRes.ok) throw new Error(`sig HTTP ${sigRes.status}`);
         const sigData = await sigRes.json();
+
+        // 版本回放检查提前到 rules 下载之前
+        const { [CACHE_KEY]: localCache } = await chrome.storage.local.get(CACHE_KEY);
+        if (localCache && localCache.sigData && localCache.sigData.version) {
+            if (sigData.version <= localCache.sigData.version) {
+                console.warn(`🛡️ [ThreatIntel] 拒绝回放：远端版本(${sigData.version}) <= 本地版本(${localCache.sigData.version})`);
+                return; 
+            }
+        }
+
+        // 版本有变，才拉整份 rules
+        const rulesRes = await fetch(`${baseUrl}/threat-rules`, { cache: 'no-store', headers });
+        if (!rulesRes.ok) throw new Error(`rules HTTP ${rulesRes.status}`);
+        const rulesBuffer = await rulesRes.arrayBuffer();
         
         const actualHash = await crypto.subtle.digest('SHA-256', rulesBuffer).then(buf => Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, '0')).join(''));
         if (actualHash !== sigData.sha256) throw new Error('SHA-256 mismatch');
@@ -224,14 +238,6 @@ export async function updateThreatIntel() {
 
         if (!(await ed.verifyAsync(sigBytes, new TextEncoder().encode(msgStr), pubKeyBytes))) {
             throw new Error('Ed25519 signature invalid');
-        }
-
-        const { [CACHE_KEY]: localCache } = await chrome.storage.local.get(CACHE_KEY);
-        if (localCache && localCache.sigData && localCache.sigData.version) {
-            if (sigData.version <= localCache.sigData.version) {
-                console.warn(`🛡️ [ThreatIntel] 拒绝回放：远端版本(${sigData.version}) <= 本地版本(${localCache.sigData.version})`);
-                return; 
-            }
         }
 
         console.log('✅ [ThreatIntel] 签名校验通过，写入本地缓存...');

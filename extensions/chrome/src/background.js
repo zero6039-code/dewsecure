@@ -25,6 +25,7 @@ import { handleMessage } from './background/messageHandler.js';
 import { updateThreatIntel, initThreatFilter, checkThreatFilter } from './background/threatIntel.js';
 import { HARD_SAFE_DOMAINS, MINING_DOMAINS } from './background/aiConfig.js';
 import { initIntelReporter } from './background/intelReporter.js';
+import { ensureAlarm, due } from './background/alarmHelper.js';
 import { syncRules, RANGE } from './background/dnrOwner.js';
 
 // 🚀 AI 已改为纯 JS 推理，无需创建 Offscreen 页面
@@ -93,16 +94,24 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 });
 
 
-// 威胁情报同步 (URLhaus等)
-setTimeout(updateThreatIntel, 3000);
-chrome.alarms.create('dewsecure_threat_intel', { periodInMinutes: 1440 });
+// 威胁情报同步 (URLhaus等) — N-2：闹钟按需创建 + 6 小时节流
+(async () => {
+    await ensureAlarm('dewsecure_threat_intel', { periodInMinutes: 1440, delayInMinutes: 1 });
+    if (await due('last_intel_check', 6 * 3600e3)) {
+        updateThreatIntel();
+    }
+})();
 chrome.alarms.onAlarm.addListener((alarm) => {
     if (alarm.name === 'dewsecure_threat_intel') updateThreatIntel();
 });
 
-// 模型同步
-setTimeout(() => { checkAndUpdateModel().catch(console.warn); }, 5000);
-chrome.alarms.create('dewsecure_model_update', { periodInMinutes: 1440 });
+// 模型同步 — N-2：闹钟按需创建 + 6 小时节流
+(async () => {
+    await ensureAlarm('dewsecure_model_update', { periodInMinutes: 1440, delayInMinutes: 1 });
+    if (await due('last_model_check', 6 * 3600e3)) {
+        checkAndUpdateModel().catch(console.warn);
+    }
+})();
 chrome.alarms.onAlarm.addListener((alarm) => {
     if (alarm.name === 'dewsecure_model_update') checkAndUpdateModel().catch(console.warn);
 });
