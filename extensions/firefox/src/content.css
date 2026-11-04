@@ -1,0 +1,29 @@
+/* ==========================================
+   DewSecure 安全页面净化规则 (Cosmetic Filters)
+   ========================================== */
+/* 1. 确定性的广告位元素 */
+.ad-banner, .ad-container, .ad-slot, .ad-wrapper, .ad-unit,
+.ad-panel, .ad-box, .ad-frame, .ad-iframe, .ad-sticky, .ad-overlay,
+[data-ad], [data-ad-slot], [data-ad-unit], [data-google-query-id],
+ins.adsbygoogle, iframe[src*="doubleclick"], iframe[id*="google_ads_iframe"],
+.native-ad, .sponsored, .advertisement,
+.floating-ad, .video-ad, .google_ads_iframe, .OUTBRAIN, .taboola,
+.in-article-ad, .dfp-ad, .gpt-ad,
+#adLeaderboard, #adFrame, #ad-space, #ad-content, #ad-area, #ad-zone,
+.text-ad, .textad, .advertorial, .branded-content,
+[data-ad-source], [data-ad-provider], [aria-label="sponsored"] {
+    display: none !important;
+    opacity: 0 !important;
+    pointer-events: none !important;
+    visibility: hidden !important;
+}
+
+/* 2. Cookie 弹窗 (仅隐藏视觉层，同时用 JS 解锁滚动) */
+#cookie-banner, .cookie-consent, [id*="cookie-notice"], [class*="cookie-banner"],
+.gdpr-banner, #gdpr, [class*="gdpr"], .consent-bar, .cookie-snackbar,
+#onetrust-consent-sdk, .optanon-alert-box-wrapper, #didomi-notice, #cookiebot,
+.cc-window, .cli-modal, .moove-gdpr-infobar, .borlabs-cookie-box,
+.osano-cm-window, #iubenda-cs-banner, .cky-consent-container {
+    display: none !important;
+    pointer-events: none !important;
+}
