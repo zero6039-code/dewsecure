@@ -98,13 +98,14 @@ def train_model():
     class_weights_arr = compute_class_weight('balanced', classes=classes, y=y_train)
     class_weight_dict = {cls: weight for cls, weight in zip(classes, class_weights_arr)}
     
+    # 🛡️ E1 修复的延伸：既然 data_prep 已经做了过采样，这里不能再用 balanced，否则会导致模型极度偏向少数类
     model = SGDClassifier(
         loss='log_loss', 
         penalty='l2', 
         alpha=1e-5, 
         max_iter=100, 
-        random_state=42, # 模型内部迭代依然固定，保证收敛稳定
-        class_weight=class_weight_dict
+        random_state=42 
+        # class_weight=class_weight_dict  <-- 移除双重加权
     )
 
     # 🔥 关键神技：多轮 Epoch + 每轮随机洗牌 (Shuffle)
