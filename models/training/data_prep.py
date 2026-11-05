@@ -459,24 +459,28 @@ def build_dataset():
     df.loc[df["domain"].apply(is_hard_block), "label"] = 2
     print(f"  → 已强制执行金标后缀覆写 (绝对保护)")
     
-    # 找出所有的 Tracker 样本
-    trackers_df = df[df['label'] == 2]
-    if not trackers_df.empty:
-        print(f"⚖️ 对 {len(trackers_df)} 个 Tracker 样本进行 5 倍过采样...")
-        # 直接复制 4 份并拼接到原数据上
-        for _ in range(4):
-            df = pd.concat([df, trackers_df], ignore_index=True)
-    
-    # 打乱顺序
+    # 🛡️ E1 修复：先划分数据集，再对训练集进行过采样，防止测试集被污染
     df = df.sample(frac=1, random_state=42).reset_index(drop=True)
-
+    
     split = int(len(df) * 0.8)
-    df[:split].to_csv(os.path.join(DATA_DIR, "train.csv"), index=False)
-    df[split:].to_csv(os.path.join(DATA_DIR, "test.csv"), index=False)
+    train_df = df[:split].copy()
+    test_df = df[split:].copy()
 
-    print(f"\n训练集: {len(df[:split])} 条")
-    print(f"测试集: {len(df[split:])} 条")
-    print(f"标签分布:\n{df['label'].value_counts().sort_index()}")
+    # 找出训练集中的 Tracker 样本进行过采样
+    train_trackers = train_df[train_df['label'] == 2]
+    if not train_trackers.empty:
+        print(f"⚖️ 对训练集中的 {len(train_trackers)} 个 Tracker 样本进行 5 倍过采样...")
+        for _ in range(4):
+            train_df = pd.concat([train_df, train_trackers], ignore_index=True)
+        train_df = train_df.sample(frac=1, random_state=42).reset_index(drop=True)
+
+    train_df.to_csv(os.path.join(DATA_DIR, "train.csv"), index=False)
+    test_df.to_csv(os.path.join(DATA_DIR, "test.csv"), index=False)
+
+    print(f"\n训练集 (过采样后): {len(train_df)} 条")
+    print(f"测试集 (原始真实分布): {len(test_df)} 条")
+    print(f"训练集标签分布:\n{train_df['label'].value_counts().sort_index()}")
+    print(f"测试集标签分布:\n{test_df['label'].value_counts().sort_index()}")
 
     # 🌟 提取并写入 CSV 成功后，标记数据库状态，防止重复训练
     mark_feedbacks_as_processed()
