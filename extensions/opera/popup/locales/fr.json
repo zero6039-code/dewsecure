@@ -145,5 +145,8 @@
   "clipboard_title": "Alerte de sécurité : Action de presse-papiers dangereuse bloquée.",
   "clipboard_desc": "Ce contenu contient des commandes suspectes (ex. PowerShell/CMD). Ne le collez pas dans la fenêtre d'exécution.",
   "clipboard_btn": "Je suis sûr, continuer",
-  "phish_passkey_tip": "Conseil de sécurité : Ce site tente de voler votre mot de passe. Utilisez Passkey pour vous connecter ; il est lié au domaine réel et immunisé contre les pages clonées."
+  "phish_passkey_tip": "Conseil de sécurité : Ce site tente de voler votre mot de passe. Utilisez Passkey pour vous connecter ; il est lié au domaine réel et immunisé contre les pages clonées.",
+  "leak_title": "Alerte de sécurité : DewSecure a bloqué la fuite",
+  "leak_desc": "Cette page a tenté d'envoyer votre mot de passe à un serveur tiers ({host}).",
+  "leak_btn": "J'ai compris"
 }

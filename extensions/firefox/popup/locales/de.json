@@ -145,5 +145,8 @@
   "clipboard_title": "Sicherheitswarnung: Gefährliche Zwischenablage-Aktion blockiert.",
   "clipboard_desc": "Dieser Inhalt enthält verdächtige Befehle (z. B. PowerShell/CMD). Fügen Sie ihn nicht in das Ausführungsfenster ein.",
   "clipboard_btn": "Ich bin sicher, fortfahren",
-  "phish_passkey_tip": "Sicherheitstipp: Diese Website versucht, Ihr Passwort zu stehlen. Verwenden Sie Passkey zum Anmelden. Er ist an die echte Domain gebunden und immun gegen Klon-Seiten."
+  "phish_passkey_tip": "Sicherheitstipp: Diese Website versucht, Ihr Passwort zu stehlen. Verwenden Sie Passkey zum Anmelden. Er ist an die echte Domain gebunden und immun gegen Klon-Seiten.",
+  "leak_title": "Sicherheitswarnung: DewSecure hat Datenleck blockiert",
+  "leak_desc": "Diese Seite hat versucht, Ihr Passwort an einen Drittanbieter-Server ({host}) zu senden.",
+  "leak_btn": "Verstanden"
 }

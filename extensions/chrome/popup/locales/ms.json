@@ -145,5 +145,8 @@
   "clipboard_title": "Amaran Keselamatan: Tindakan papan keratan berbahaya disekat.",
   "clipboard_desc": "Kandungan ini mengandungi arahan yang mencurigakan (cth. PowerShell/CMD). Jangan tampal ke tetingkap larian.",
   "clipboard_btn": "Saya pasti selamat, teruskan",
-  "phish_passkey_tip": "Petua Keselamatan: Laman ini cuba mencuri kata laluan anda. Gunakan Passkey untuk log masuk; ia terikat pada domain sebenar dan kebal terhadap halaman klon."
+  "phish_passkey_tip": "Petua Keselamatan: Laman ini cuba mencuri kata laluan anda. Gunakan Passkey untuk log masuk; ia terikat pada domain sebenar dan kebal terhadap halaman klon.",
+  "leak_title": "Amaran Keselamatan: DewSecure Menyekat Kebocoran Data",
+  "leak_desc": "Halaman ini cuba menghantar kata laluan anda ke pelayan pihak ketiga ({host}).",
+  "leak_btn": "Faham"
 }

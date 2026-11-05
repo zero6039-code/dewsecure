@@ -145,5 +145,8 @@
   "clipboard_title": "安全警告：DewSecure 拦截了一次危险的剪贴板操作。",
   "clipboard_desc": "该内容包含可疑指令（如 PowerShell/CMD），请勿将其粘贴到运行窗口。",
   "clipboard_btn": "我确定安全，继续",
-  "phish_passkey_tip": "安全建议：该网站试图窃取您的密码。请优先使用 Passkey（通行密钥）登录，它绑定真实域名，对克隆页天然免疫。"
+  "phish_passkey_tip": "安全建议：该网站试图窃取您的密码。请优先使用 Passkey（通行密钥）登录，它绑定真实域名，对克隆页天然免疫。",
+  "leak_title": "安全警告：DewSecure 已拦截数据外传",
+  "leak_desc": "当前页面试图将您的密码发送到第三方服务器 ({host})。",
+  "leak_btn": "我知道了"
 }

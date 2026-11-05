@@ -65,6 +65,10 @@
     // 🚀 页面级本地钓鱼识别 (启发式规则打分)
     // ==========================================
     // 增强的同站判断，处理 com.my / co.uk 等多级后缀
+    // A3 修复：明确允许的 IdP 和 UGC 平台，防止误伤
+    const SAFE_IDP_HOSTS = ['accounts.google.com', 'login.microsoftonline.com', 'appleid.apple.com', 'okta.com', 'auth0.com'];
+    const SAFE_UGC_HOSTS = ['stackexchange.com', 'fandom.com', 'slashdot.org'];
+
     function getBaseDomain(h) {
         if (!h) return '';
         const parts = h.split('.');
@@ -78,38 +82,54 @@
         let score = 0;
         const reasons = [];
         const hostname = window.location.hostname;
+        const pageBaseDomain = getBaseDomain(hostname);
 
-        // 1. 跨站表单 (40分)
+        // 1. 跨站表单：独立计分，且排除白名单 IdP (A3 修复)
         const forms = document.querySelectorAll('form');
+        let hasCrossSiteCredForm = false;
         for (const form of forms) {
             const action = form.getAttribute('action');
             if (!action) continue;
             try {
                 const actionUrl = new URL(action, window.location.href);
-                if (actionUrl.protocol === 'data:' || actionUrl.protocol === 'blob:' || getBaseDomain(actionUrl.hostname) !== getBaseDomain(hostname)) {
+                const actionHost = actionUrl.hostname;
+                
+                // 排除安全的 IdP
+                const isSafeIdP = SAFE_IDP_HOSTS.some(idp => actionHost === idp || actionHost.endsWith('.' + idp));
+                if (isSafeIdP) continue;
+
+                if (actionUrl.protocol === 'data:' || actionUrl.protocol === 'blob:' || getBaseDomain(actionHost) !== pageBaseDomain) {
                     score += 40;
-                    reasons.push({ key: 'reason_cross_site_form', arg: actionUrl.hostname });
+                    reasons.push({ key: 'reason_cross_site_form', arg: actionHost });
                     
-                    // 🛡️ 强化：检测高价值凭证收集 (+30分)
                     const hasPassword = form.querySelector('input[type="password"]');
                     const hasEmail = form.querySelector('input[type="email"], input[name*="email" i], input[name*="user" i], input[name*="login" i]');
                     if (hasPassword || hasEmail) {
-                        score += 30;
-                        reasons.push({ key: 'reason_credential_form' });
+                        hasCrossSiteCredForm = true;
                     }
-                    break;
                 }
             } catch (e) {}
         }
+        
+        // 跨站表单 + 凭证 = 60分
+        if (hasCrossSiteCredForm) {
+            score += 30;
+            reasons.push({ key: 'reason_credential_form' });
+        }
 
-        // 2. 标题品牌仿冒 (25分)
+        // 2. 标题品牌仿冒：修正判断逻辑 (A3 修复)
         const title = document.title.toLowerCase();
         const BRANDS = ['paypal', 'apple', 'microsoft', 'google', 'amazon', 'netflix', 'binance', 'coinbase', 'facebook', 'instagram'];
         for (const brand of BRANDS) {
-            if (title.includes(brand) && !hostname.includes(brand)) {
-                score += 25;
-                reasons.push({ key: 'reason_brand_title', arg: brand });
-                break;
+            // 如果标题包含品牌词，且当前域名不是该品牌的官方注册域，才算仿冒
+            if (title.includes(brand) && !pageBaseDomain.includes(brand)) {
+                // 排除 UGC 平台
+                const isSafeUGC = SAFE_UGC_HOSTS.some(ugc => hostname.includes(ugc));
+                if (!isSafeUGC) {
+                    score += 25;
+                    reasons.push({ key: 'reason_brand_title', arg: brand });
+                    break;
+                }
             }
         }
 
@@ -149,18 +169,8 @@
     }
 
     function triggerPhishingWarning(score, reasons, passwordInputs) {
-        passwordInputs.forEach(input => {
-            input.disabled = true;
-            input.style.backgroundColor = '#ffebee';
-            input.style.border = '2px solid #ef4444';
-            input.placeholder = '⚠️ DewSecure Locked';
-        });
-        document.querySelectorAll('form button[type="submit"], form input[type="submit"]').forEach(btn => {
-            btn.disabled = true;
-            btn.style.opacity = '0.5';
-            btn.style.cursor = 'not-allowed';
-        });
-
+        // A3 修复：不直接 disable 密码框，避免被页面脚本瞬间还原，也避免破坏正常登录体验
+        // 改为高亮提示，只有当用户尝试提交时才由后台强制拦截
         if (document.getElementById('dewsecure-phishing-warning-host')) return;
 
         // 🛡️ 从字典获取翻译
