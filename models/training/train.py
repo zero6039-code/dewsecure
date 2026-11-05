@@ -61,8 +61,25 @@ def train_model():
     train_df, test_df = prepare_dataset()
 
     N_FEATURES = 16418
-    CHUNK_SIZE = 5000  # 🛡️ 内存优化：分块大小下调至 5000，本地稳跑
+    CHUNK_SIZE = 5000
     EPOCHS = 5
+
+    # ==========================================
+    # 🛡️ 性能优化：特征只提取一次，转为稀疏矩阵
+    # ==========================================
+    print("🔬 正在提取训练集特征 (仅执行一次)...")
+    from scipy.sparse import vstack, csr_matrix
+    
+    # 提取所有特征，存入列表
+    X_list = [extract_features(d) for d in tqdm(train_df["domain"], desc="Train Features")]
+    # 转为稀疏矩阵拼接，内存占用极小
+    X_train = vstack([csr_matrix(x) for x in X_list])
+    y_train = train_df["label"].astype(int).values
+
+    print("🔬 正在提取测试集特征 (仅执行一次)...")
+    X_test_list = [extract_features(d) for d in tqdm(test_df["domain"], desc="Test Features")]
+    X_test = vstack([csr_matrix(x) for x in X_test_list])
+    y_test = test_df["label"].astype(int).values
 
     print("🚀 正在初始化 SGD 增量学习模型...")
     classes = np.array([0, 1, 2])
@@ -75,47 +92,30 @@ def train_model():
         random_state=42 
     )
 
-    print(f"🏃 开始 {EPOCHS} 轮打乱顺序训练（在线学习模式，防OOM）...")
+    print(f"🏃 开始 {EPOCHS} 轮打乱顺序训练...")
     for epoch in range(EPOCHS):
-        train_df = train_df.sample(frac=1, random_state=42 + epoch).reset_index(drop=True)
+        # 只打乱索引，不重新提取特征
+        indices = np.random.permutation(X_train.shape[0])
+        X_shuffled = X_train[indices]
+        y_shuffled = y_train[indices]
+        
         print(f"🔄 第 {epoch+1} 轮训练...")
         
-        total_chunks = (len(train_df) + CHUNK_SIZE - 1) // CHUNK_SIZE
+        total_chunks = (len(y_shuffled) + CHUNK_SIZE - 1) // CHUNK_SIZE
         for i in range(total_chunks):
             start = i * CHUNK_SIZE
-            end = min((i + 1) * CHUNK_SIZE, len(train_df))
-            chunk = train_df.iloc[start:end]
+            end = min((i + 1) * CHUNK_SIZE, len(y_shuffled))
             
-            # 仅提取当前块的特征
-            X_list = []
-            for domain in chunk["domain"]:
-                X_list.append(extract_features(domain))
-            
-            from scipy.sparse import csr_matrix
-            X_chunk = csr_matrix(X_list)
-            y_chunk = chunk["label"].astype(int).values
+            X_chunk = X_shuffled[start:end]
+            y_chunk = y_shuffled[start:end]
 
             if epoch == 0 and i == 0:
                 model.partial_fit(X_chunk, y_chunk, classes=classes)
             else:
                 model.partial_fit(X_chunk, y_chunk)
-            
-            print(f"  ✅ Epoch {epoch+1} 进度: Chunk {i+1}/{total_chunks}")
 
-    print("📈 正在评估模型 (分块预测，防OOM)...")
-    y_test = test_df["label"].astype(int).values
-    y_pred = []
-    
-    from tqdm import tqdm
-    from scipy.sparse import csr_matrix
-    
-    for i in tqdm(range(0, len(test_df), CHUNK_SIZE), desc="Test"):
-        chunk = test_df.iloc[i:i+CHUNK_SIZE]
-        X_chunk = csr_matrix([extract_features(d) for d in chunk["domain"]])
-        preds = model.predict(X_chunk)
-        y_pred.extend(preds)
-        
-    y_pred = np.array(y_pred)
+    print("📈 正在评估模型 (一次性预测)...")
+    y_pred = model.predict(X_test)
 
     target_names = ['Normal', 'Ad', 'Tracker']
     try:
