@@ -1,3 +1,4 @@
+import { syncRules, RANGE, getOrCreateRuleIdUnsafe, removeRuleIdMappingUnsafe, withLock } from './dnrOwner.js';
 import { getSettings, SETTINGS_KEY, STATS_KEY, LOG_KEY } from './settings.js';
 import { getInstallationId } from '../deviceManager.js';
 import { recordBlock, getMatchedStats } from './stats.js';
@@ -88,16 +89,7 @@ function getETLD1(host) {
     return getDomain(host, { allowPrivateDomains: true }) || host;
 }
 
-// 🔒 M-5 修复：持久化自增规则 ID 映射，避免哈希碰撞
-async function getOrCreateRuleId(domain) {
-    const { ruleIdMap = {}, nextRuleId = 10000 } = await chrome.storage.local.get(['ruleIdMap', 'nextRuleId']);
-    if (ruleIdMap[domain]) return ruleIdMap[domain];
-    
-    const newId = nextRuleId;
-    ruleIdMap[domain] = newId;
-    await chrome.storage.local.set({ ruleIdMap, nextRuleId: newId + 1 });
-    return newId;
-}
+// 🛡️ C2 修复：getOrCreateRuleId 已移至 dnrOwner.js 的串行队列中
 
 // 🔒 H-3 修复：清理过期临时白名单
 async function cleanExpiredTempWhitelist(settings) {
@@ -105,7 +97,8 @@ async function cleanExpiredTempWhitelist(settings) {
     const now = Date.now();
     const expiry = settings.tempWhitelistExpiry || {};
     
-    settings.tempWhitelist = settings.tempWhitelist.filter(domain => {
+    // 🛡️ C2 修复：防止历史脏数据（undefined）导致 filter 报错崩溃
+    settings.tempWhitelist = (settings.tempWhitelist || []).filter(domain => {
         if (expiry[domain] && expiry[domain] < now) {
             delete expiry[domain];
             changed = true;
@@ -130,7 +123,8 @@ export async function handleMessage(message, sender) {
         'UPDATE_SETTING_KEY', 'UPDATE_SETTINGS', 
         'ADD_WHITELIST', 'REMOVE_WHITELIST', 
         'ADD_TEMP_WHITELIST', 'REMOVE_TEMP_WHITELIST',
-        'REPORT_FEEDBACK' // 🛡️ N-8 修复：要求特权来源
+        'REPORT_FEEDBACK',
+        'GET_LOGS', 'GET_STATS' // 🛡️ C1 修复：仅允许特权页面读取日志与统计
     ];
     if (privilegedTypes.includes(message.type) && !isPrivilegedSender(sender)) {
         console.warn('❌ [拦截] 拒绝非特权页面调用:', message.type);
@@ -155,39 +149,41 @@ export async function handleMessage(message, sender) {
             if (!isValidWhitelistDomain(message.domain)) {
                 return { ok: false, error: '格式非法或公共后缀' };
             }
-            try {
-                let settings = await getSettings();
-                settings = await cleanExpiredTempWhitelist(settings);
-                if (!settings.tempWhitelistExpiry) settings.tempWhitelistExpiry = {};
+            // 🛡️ C2 修复：使用 withLock 串行化，彻底解决并发覆盖问题
+            return await withLock(async () => {
+                try {
+                    let settings = await getSettings();
+                    settings = await cleanExpiredTempWhitelist(settings);
+                    if (!settings.tempWhitelistExpiry) settings.tempWhitelistExpiry = {};
 
-                if (!settings.tempWhitelist.includes(message.domain)) {
-                    settings.tempWhitelist.push(message.domain);
-                }
-                // 默认放行 24 小时
-                settings.tempWhitelistExpiry[message.domain] = Date.now() + 24 * 60 * 60 * 1000;
-                await chrome.storage.local.set({ [SETTINGS_KEY]: settings });
-                
-                if (message.domain === 'dewsecure.com' || message.domain.endsWith('.dewsecure.com')) return { ok: true };
-                
-                const ruleId = await getOrCreateRuleId(message.domain);
-                await chrome.declarativeNetRequest.updateSessionRules({
-                    removeRuleIds: [ruleId],
-                    addRules: [{ 
-                        id: ruleId, 
-                        priority: 2147483647, 
-                        action: { type: 'allow' }, // 统一使用 allow
-                        condition: { 
-                            requestDomains: [message.domain], 
-                            resourceTypes: [
-                                "main_frame", "sub_frame", "stylesheet", "script", "image", 
-                                "font", "object", "xmlhttprequest", "ping", "csp_report", 
-                                "media", "websocket", "webtransport", "webbundle", "other"
-                            ] 
-                        } 
-                    }]
-                });
-                return { ok: true };
-            } catch (e) { return { ok: false, error: e.message }; }
+                    if (!settings.tempWhitelist.includes(message.domain)) {
+                        settings.tempWhitelist.push(message.domain);
+                    }
+                    settings.tempWhitelistExpiry[message.domain] = Date.now() + 24 * 60 * 60 * 1000;
+                    await chrome.storage.local.set({ [SETTINGS_KEY]: settings });
+                    
+                    if (message.domain === 'dewsecure.com' || message.domain.endsWith('.dewsecure.com')) return { ok: true };
+                    
+                    const ruleId = await getOrCreateRuleIdUnsafe(message.domain);
+                    await chrome.declarativeNetRequest.updateSessionRules({
+                        removeRuleIds: [ruleId],
+                        addRules: [{ 
+                            id: ruleId, 
+                            priority: 2147483647, 
+                            action: { type: 'allow' },
+                            condition: { 
+                                requestDomains: [message.domain], 
+                                resourceTypes: [
+                                    "main_frame", "sub_frame", "stylesheet", "script", "image", 
+                                    "font", "object", "xmlhttprequest", "ping", "csp_report", 
+                                    "media", "websocket", "webtransport", "webbundle", "other"
+                                ] 
+                            } 
+                        }]
+                    });
+                    return { ok: true };
+                } catch (e) { return { ok: false, error: e.message }; }
+            });
         case 'REMOVE_TEMP_WHITELIST':
             try {
                 let settings = await getSettings();

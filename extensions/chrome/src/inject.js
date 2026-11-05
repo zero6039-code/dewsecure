@@ -538,13 +538,26 @@ window.__dewsecureDict = window.__dewsecureDict || {};
         const tDesc = (window.__dewsecureDict['leak_desc'] || 'This page attempted to send your password to a third-party server ({host}).').replace('{host}', targetHost);
         const tBtn = window.__dewsecureDict['leak_btn'] || 'Got it';
 
-        banner.innerHTML = `
-            <div style="flex: 1; text-align: center; padding-right: 20px;">
-                <strong>🚨 ${tTitle}</strong>
-                <div style="font-size: 12px; opacity: 0.9; margin-top: 4px;">${tDesc}</div>
-            </div>
-            <button id="dewsecure-leak-ignore" style="background: transparent; border: 1px solid white; color: white; padding: 6px 16px; border-radius: 4px; cursor: pointer; white-space: nowrap; font-size: 13px;">${tBtn}</button>
-        `;
+        // 🛡️ C3 修复：使用安全 DOM 操作
+        const contentDiv = document.createElement('div');
+        contentDiv.style.cssText = 'flex: 1; text-align: center; padding-right: 20px;';
+        
+        const titleStrong = document.createElement('strong');
+        titleStrong.textContent = '🚨 ' + tTitle;
+        contentDiv.appendChild(titleStrong);
+        
+        const descDiv = document.createElement('div');
+        descDiv.style.cssText = 'font-size: 12px; opacity: 0.9; margin-top: 4px;';
+        descDiv.textContent = tDesc;
+        contentDiv.appendChild(descDiv);
+
+        const btn = document.createElement('button');
+        btn.id = 'dewsecure-leak-ignore';
+        btn.style.cssText = 'background: transparent; border: 1px solid white; color: white; padding: 6px 16px; border-radius: 4px; cursor: pointer; white-space: nowrap; font-size: 13px;';
+        btn.textContent = tBtn;
+
+        banner.appendChild(contentDiv);
+        banner.appendChild(btn);
         document.body ? document.body.appendChild(banner) : document.documentElement.appendChild(banner);
         
         document.getElementById('dewsecure-leak-ignore').addEventListener('click', () => banner.remove());

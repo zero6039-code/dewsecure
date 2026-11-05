@@ -242,7 +242,15 @@ document.addEventListener('DOMContentLoaded', async () => {
 
                 const reasonBox = document.createElement('div');
                 reasonBox.style.cssText = 'margin-top: 10px; margin-bottom: 20px; padding: 12px; background: #2a1515; border: 1px solid #ef4444; border-radius: 8px; color: #fca5a5; font-size: 13px; text-align: left; width: 100%; box-sizing: border-box;';
-                reasonBox.innerHTML = `<strong>${reasonTitle}</strong><br>${reasonLines.join('<br>')}`;
+                // 🛡️ C3 修复：使用安全 DOM 操作
+                const titleStrong = document.createElement('strong');
+                titleStrong.textContent = reasonTitle;
+                reasonBox.appendChild(titleStrong);
+                reasonBox.appendChild(document.createElement('br'));
+                reasonLines.forEach(line => {
+                    reasonBox.appendChild(document.createTextNode(line));
+                    reasonBox.appendChild(document.createElement('br'));
+                });
                 dangerUrlEl.parentNode.appendChild(reasonBox);
             }
         }

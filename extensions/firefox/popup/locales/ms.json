@@ -113,7 +113,7 @@
   "feedback_failed": "❌ Gagal dihantar",
   "feedback_thanks": "✅ Terima kasih atas maklum balas anda!",
   "feedback_cooldown": "⏳ Sudah dilaporkan, sila tunggu 24j",
-  "phish_title": "Bahaya: Laman Phishing Dikesan",
+  "phish_title": "Amaran Keselamatan: DewSecure Mengesan Pancingan Data",
   "phish_desc": "DewSecure mengesan laman web ini cuba menyamar sebagai organisasi sah untuk mencuri kata laluan, kad kredit atau maklumat peribadi anda. Halaman ini telah dikunci.",
   "phish_close": "Tutup halaman ini",
   "phish_continue": "Saya pakar, abaikan risiko",

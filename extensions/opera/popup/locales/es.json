@@ -113,7 +113,7 @@
   "feedback_failed": "❌ Error al enviar",
   "feedback_thanks": "✅ ¡Gracias por tu opinión!",
   "feedback_cooldown": "⏳ Ya reportado, espera 24h",
-  "phish_title": "Peligro: Sitio de phishing detectado",
+  "phish_title": "Advertencia de seguridad: DewSecure detectó phishing",
   "phish_desc": "DewSecure detectó que este sitio web intenta hacerse pasar por una organización legítima para robar sus contraseñas o información personal. La página ha sido bloqueada.",
   "phish_close": "Cerrar esta página",
   "phish_continue": "Soy un experto, ignorar el riesgo",

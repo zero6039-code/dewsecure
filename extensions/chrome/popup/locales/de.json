@@ -113,7 +113,7 @@
   "feedback_failed": "❌ Senden fehlgeschlagen",
   "feedback_thanks": "✅ Vielen Dank für Ihr Feedback!",
   "feedback_cooldown": "⏳ Bereits gemeldet, bitte warte 24h",
-  "phish_title": "Gefahr: Phishing-Website erkannt",
+  "phish_title": "Sicherheitswarnung: DewSecure hat Phishing erkannt",
   "phish_desc": "DewSecure hat festgestellt, dass diese Website versucht, sich als legitime Organisation auszugeben, um Ihre Passwörter oder persönlichen Daten zu stehlen. Die Seite wurde gesperrt.",
   "phish_close": "Diese Seite schließen",
   "phish_continue": "Ich bin Experte, Risiko ignorieren",

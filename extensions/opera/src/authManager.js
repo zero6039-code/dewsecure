@@ -72,8 +72,24 @@ export async function verifyOTP(email, token) {
 }
 
 export async function saveExternalAuth(payload) {
-    const { token, refreshToken, email, tokenExpiresAt } = payload;
+    const { token, refreshToken, email } = payload;
     if (!token) return { ok: false, error: 'Missing token' };
+
+    // 🛡️ C4 修复：严格校验 JWT 的 iss、aud、exp，不再信任页面传来的 tokenExpiresAt
+    const claims = jwtPayload(token);
+    if (!claims) return { ok: false, error: 'Invalid JWT format' };
+    
+    if (claims.iss && !claims.iss.startsWith(SUPABASE_URL)) {
+        return { ok: false, error: 'Invalid JWT issuer' };
+    }
+    if (claims.aud && claims.aud !== 'authenticated') {
+        return { ok: false, error: 'Invalid JWT audience' };
+    }
+    if (!claims.exp || claims.exp * 1000 <= Date.now()) {
+        return { ok: false, error: 'JWT expired' };
+    }
+
+    const tokenExpiresAt = claims.exp * 1000;
 
     const { [USER_KEY]: oldUser } = await chrome.storage.local.get(USER_KEY);
     const emailChanged = email && oldUser && oldUser.email !== email;
@@ -83,7 +99,7 @@ export async function saveExternalAuth(payload) {
         tier: emailChanged ? 'free' : (oldUser?.tier || 'free'), 
         token: token, 
         refreshToken: refreshToken || oldUser?.refreshToken || null,
-        tokenExpiresAt: tokenExpiresAt || Date.now() + 3600 * 1000
+        tokenExpiresAt: tokenExpiresAt
     };
 
     await chrome.storage.local.set({ [USER_KEY]: user });
@@ -113,6 +129,14 @@ export async function logoutUser() {
     }
 
     await chrome.storage.local.remove(USER_KEY);
+    
+    // 🛡️ C4 修复：登出时清理模型缓存与情报过滤器，防止串号
+    await chrome.storage.local.remove('dewsecure_intel_cache');
+    try {
+        indexedDB.deleteDatabase('dewsecure_threat_db');
+        indexedDB.deleteDatabase('dewsecure_model_db');
+    } catch (e) {}
+
     chrome.runtime.sendMessage({ type: 'AUTH_STATE_CHANGED' }).catch(() => {});
 
     const { [SETTINGS_KEY]: settings = {} } = await chrome.storage.local.get(SETTINGS_KEY);
@@ -195,7 +219,7 @@ export async function fetchUserProfile() {
         if (!payload || !payload.sub) return null;
         
         const userId = payload.sub;
-        const res = await fetchWithAuth(`${SUPABASE_URL}/rest/v1/profiles?id=eq.${userId}&select=tier,subscription_ends_at,trial_ends_at,referral_days_balance,family_owner_id,created_at,stripe_customer_id`, {
+        const res = await fetchWithAuth(`${SUPABASE_URL}/rest/v1/profiles?id=eq.${encodeURIComponent(userId)}&select=tier,subscription_ends_at,trial_ends_at,referral_days_balance,family_owner_id,created_at,stripe_customer_id`, {
             headers: { 'apikey': SUPABASE_ANON_KEY }
         }, user);
         

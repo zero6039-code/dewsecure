@@ -113,7 +113,7 @@
   "feedback_failed": "❌ Submit failed",
   "feedback_thanks": "✅ Thank you for your feedback!",
   "feedback_cooldown": "⏳ Already reported, please wait 24h",
-  "phish_title": "Danger: Phishing Site Detected",
+  "phish_title": "Security Warning: DewSecure Phishing Detected",
   "phish_desc": "DewSecure detected that this website is trying to impersonate a legitimate organization to steal your passwords, credit cards, or personal information. The page has been locked to protect your property.",
   "phish_close": "Close this page",
   "phish_continue": "I am an expert, ignore risk",

@@ -8,19 +8,15 @@
     "declarativeNetRequestFeedback",
     "storage",
     "alarms",
-    "tabs",
     "webNavigation",
     "downloads",
     "notifications"
   ],
   "host_permissions": [
-    "https://cdn.dewsecure.com/*",
-    "https://dewsecure-api.zero6039.workers.dev/*",
-    "https://api.dewsecure.com/*",
     "<all_urls>"
   ],
   "content_security_policy": {
-    "extension_pages": "script-src 'self'; object-src 'self'; connect-src *;"
+    "extension_pages": "script-src 'self'; object-src 'self'; connect-src 'self' https://api.dewsecure.com https://*.supabase.co https://cdn.dewsecure.com https://dewsecure-api.zero6039.workers.dev;"
   },
   "background": {
     "scripts": [
@@ -36,7 +32,8 @@
       "js": [
         "src/content.js"
       ],
-      "run_at": "document_start"
+      "run_at": "document_start",
+      "all_frames": true
     },
     {
       "matches": [
@@ -46,7 +43,8 @@
         "src/inject.js"
       ],
       "run_at": "document_start",
-      "world": "MAIN"
+      "world": "MAIN",
+      "all_frames": true
     }
   ],
   "declarative_net_request": {
@@ -139,6 +137,7 @@
       ]
     }
   ],
+  "minimum_chrome_version": "114",
   "sidebar_action": {
     "default_panel": "popup/index.html",
     "default_icon": {

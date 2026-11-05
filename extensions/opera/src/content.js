@@ -174,7 +174,7 @@
         if (document.getElementById('dewsecure-phishing-warning-host')) return;
 
         // 🛡️ 从字典获取翻译
-        const tTitle = contentDict['phish_title'] || '🚨 Security Warning: Phishing Detected';
+        const tTitle = contentDict['phish_title'] || '🚨 Security Warning: DewSecure Phishing Detected';
         const tDesc = contentDict['phish_desc'] || 'This page is trying to steal your password.';
         const tBtn = contentDict['phish_continue'] || 'I am sure it\'s safe, continue';
         
@@ -197,13 +197,28 @@
             font-size: 14px; display: flex; justify-content: space-between; align-items: center;
             box-shadow: 0 4px 6px rgba(0,0,0,0.1);
         `;
-        banner.innerHTML = `
-            <div>
-                <strong>${tTitle}</strong> ${tDesc}
-                <div style="font-size: 12px; opacity: 0.8; margin-top: 4px;">${reasonText}</div>
-            </div>
-            <button id="dewsecure-phishing-ignore" style="background: transparent; border: 1px solid white; color: white; padding: 4px 12px; border-radius: 4px; cursor: pointer;">${tBtn}</button>
-        `;
+        // 🛡️ C3 修复：使用安全 DOM 操作
+        const contentDiv = document.createElement('div');
+        // 🛡️ 修复 UI 居中对齐
+        contentDiv.style.cssText = 'flex: 1; text-align: center; padding-right: 20px;';
+        
+        const titleStrong = document.createElement('strong');
+        titleStrong.textContent = tTitle;
+        contentDiv.appendChild(titleStrong);
+        contentDiv.appendChild(document.createTextNode(' ' + tDesc));
+        
+        const reasonDiv = document.createElement('div');
+        reasonDiv.style.cssText = 'font-size: 12px; opacity: 0.8; margin-top: 4px;';
+        reasonDiv.textContent = reasonText;
+        contentDiv.appendChild(reasonDiv);
+
+        const btn = document.createElement('button');
+        btn.id = 'dewsecure-phishing-ignore';
+        btn.style.cssText = 'background: transparent; border: 1px solid white; color: white; padding: 4px 12px; border-radius: 4px; cursor: pointer;';
+        btn.textContent = tBtn;
+
+        banner.appendChild(contentDiv);
+        banner.appendChild(btn);
         shadow.appendChild(banner);
         document.body.appendChild(host);
 

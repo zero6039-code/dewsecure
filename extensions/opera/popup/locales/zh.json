@@ -113,7 +113,7 @@
   "feedback_failed": "❌ 上报失败",
   "feedback_thanks": "✅ 感谢您的反馈！",
   "feedback_cooldown": "⏳ 已上报过，24小时内请勿重复提交",
-  "phish_title": "极度危险：检测到钓鱼网站",
+  "phish_title": "安全警告：DewSecure 检测到钓鱼网站",
   "phish_desc": "DewSecure 引擎检测到该网站试图伪装成合法机构，以窃取您的密码、信用卡或个人信息。为了保护您的财产安全，页面已被强制锁定。",
   "phish_close": "关闭此页面",
   "phish_continue": "我是专家，忽略风险",
