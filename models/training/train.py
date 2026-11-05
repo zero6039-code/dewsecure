@@ -68,17 +68,18 @@ def train_model():
     # 🛡️ 性能优化：特征只提取一次，转为稀疏矩阵
     # ==========================================
     print("🔬 正在提取训练集特征 (仅执行一次)...")
-    from scipy.sparse import vstack, csr_matrix
+    from scipy.sparse import csr_matrix
     
     # 提取所有特征，存入列表
+    # 提取所有特征，存入列表
     X_list = [extract_features(d) for d in tqdm(train_df["domain"], desc="Train Features")]
-    # 转为稀疏矩阵拼接，内存占用极小
-    X_train = vstack([csr_matrix(x) for x in X_list])
+    # 🛡️ 最安全、最高效的稀疏矩阵构建方式，彻底避免 vstack 的维度错位
+    X_train = csr_matrix(X_list)
     y_train = train_df["label"].astype(int).values
 
     print("🔬 正在提取测试集特征 (仅执行一次)...")
     X_test_list = [extract_features(d) for d in tqdm(test_df["domain"], desc="Test Features")]
-    X_test = vstack([csr_matrix(x) for x in X_test_list])
+    X_test = csr_matrix(X_test_list)
     y_test = test_df["label"].astype(int).values
 
     print("🚀 正在初始化 SGD 增量学习模型...")

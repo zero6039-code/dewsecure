@@ -469,8 +469,9 @@ def build_dataset():
     # 找出训练集中的 Tracker 样本进行过采样
     train_trackers = train_df[train_df['label'] == 2]
     if not train_trackers.empty:
-        print(f"⚖️ 对训练集中的 {len(train_trackers)} 个 Tracker 样本进行 5 倍过采样...")
-        for _ in range(4):
+        print(f"⚖️ 对训练集中的 {len(train_trackers)} 个 Tracker 样本进行 2 倍过采样...")
+        # 🛡️ 强制 2 倍过采样（复制 1 次）
+        for _ in range(1):
             train_df = pd.concat([train_df, train_trackers], ignore_index=True)
         train_df = train_df.sample(frac=1, random_state=42).reset_index(drop=True)
 
