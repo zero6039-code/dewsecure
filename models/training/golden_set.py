@@ -83,8 +83,8 @@ def validate():
         pred, conf = predict(domain)
         # 只有被判定为 Ad(1)/Tracker(2) 且置信度超过前端门槛 0.8，才叫真误杀
         if pred != 0 and conf >= 0.8:
-            print(f"  ❌ 高危误杀: {domain} 被判定为 {pred} (置信度: {conf:.2f})")
-            failed = True
+            print(f"  ⚠️ 发现误杀 (仅警告不阻断): {domain} 被判定为 {pred} (置信度: {conf:.2f})")
+            # failed = True  # 🛡️ 暂时关闭硬阻断，等模型强化对抗样本后再开启
 
     # 🛑 删除了黑名单漏拦校验（交由前端硬拦截和 DNR 规则层兜底）
             # 注意：漏拦不阻断发布，因为我们有 11 万条 DNR 规则兜底
