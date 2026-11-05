@@ -23,7 +23,9 @@ const BRAND_DOMAINS = {
     'wechat': ['wechat.com', 'qq.com'],
     'tencent': ['tencent.com'],
     'taobao': ['taobao.com', 'tmall.com'],
-    'unionpay': ['unionpay.com', 'unionpayintl.com']
+    'unionpay': ['unionpay.com', 'unionpayintl.com'],
+    'maybank2u': ['maybank2u.com.my'],
+    'appleid': ['appleid.apple.com']
 };
 
 const BRANDS = Object.keys(BRAND_DOMAINS);
@@ -39,10 +41,16 @@ const KEYWORDS = ['login', 'signin', 'verify', 'secure', 'account',
 // 豁免列表：绝对不会被品牌路径检测误杀的超级大站
 const SAFE_HOSTS = [
     'dewsecure.com', 'dev.dewsecure.com',
-    'github.com', 'google.com', 'youtube.com', 'facebook.com', 'twitter.com',
+    'youtube.com', 'facebook.com', 'twitter.com',
     'x.com', 'instagram.com', 'linkedin.com', 'wikipedia.org', 'microsoft.com',
-    'apple.com', 'amazon.com', 'cloudflare.com', 'reddit.com',
-    'dropbox.com', 'www.dropbox.com', 'dropboxusercontent.com'
+    'apple.com', 'amazon.com', 'cloudflare.com', 'reddit.com'
+];
+// 🛡️ B2 修复：UGC 平台豁免（防误杀正常用户内容，但保留路径级敏感词检测）
+// 包含了混用官方与 UGC 业务的域名（如 docs.google.com, github.io 等）
+const UGC_HOSTS = [
+    'stackexchange.com', 'fandom.com', 'slashdot.org', 'medium.com', 
+    'wordpress.com', 'blogspot.com', 'google.com', 'github.com', 
+    'github.io', 'dropbox.com', 'dropboxusercontent.com', 'googleapis.com'
 ];
 
 // N-7 修复：真正的 ccTLD 后缀才信任（含 co.uk / com.my 这类二阶后缀）
@@ -51,13 +59,18 @@ const isCcSuffix = (s) =>
     !RISKY_SUFFIX.has(s) &&
     /^([a-z]{2}|(co|com|net|org|ac|gov|edu)\.[a-z]{2})$/.test(s);
 
-// 简单的 IDN (Punycode) 同形字解码处理函数（保留原逻辑）
+// 🛡️ B2 修复：精准 IDN 同形字检测
 function checkIdnHomograph(host) {
     if (!host.includes('xn--')) return false;
-    const stripped = host.replace(/xn--/g, '');
+    // 尝试解析 punycode（浏览器一般能直接通过 URL 解析出来，这里做特征匹配）
+    const stripped = host.replace(/xn--/g, '').replace(/[-.]/g, '');
     return BRANDS.some(brand => {
-        const tail = brand.slice(1);
-        return tail.length >= 3 && stripped.includes(tail);
+        // 如果去掉 xn-- 和连字符后，包含了品牌词的绝大部分字符，视为高危
+        const brandChars = brand.split('').filter(c => c.match(/[a-z]/)).join('');
+        if (brandChars.length < 3) return false;
+        let matches = 0;
+        for (const c of brandChars) { if (stripped.includes(c)) matches++; }
+        return matches >= Math.floor(brandChars.length * 0.7);
     });
 }
 
@@ -98,23 +111,35 @@ export function assess(url) {
     const label = p.domainWithoutSuffix || '';
     const sub = (p.subdomain || '').split('.').filter(Boolean);
 
-    // 4. 品牌仿冒检测（N-7 重写：标签级匹配 + ccTLD 信任）
-    for (const [brand, official] of Object.entries(BRAND_DOMAINS)) {
-        if (official.includes(p.domain)) continue;              // 官方注册域放行
-        if (label === brand && isCcSuffix(p.publicSuffix)) continue; // 品牌国家站放行
+    // 🛡️ B2 修复：UGC 平台豁免（防误杀 stackexchange 等）
+    if (UGC_HOSTS.some(ugc => host === ugc || host.endsWith('.' + ugc))) {
+        // 如果是 UGC 平台，只有路径包含敏感词才报警（防 docs.google.com/forms 钓鱼）
+        if (pathAndSearch.includes('login') || pathAndSearch.includes('verify') || pathAndSearch.includes('account')) {
+            reasons.push('ugc-phishing-path');
+            return { flag: true, reasons };
+        }
+        return { flag: false, reasons };
+    }
 
-        const tokens = label.split('-');
+    // 4. 品牌仿冒检测（N-7 重写：标签级匹配 + 模糊匹配）
+    for (const [brand, official] of Object.entries(BRAND_DOMAINS)) {
+        if (official.some(o => host === o || host.endsWith('.' + o))) continue; // 官方注册域及子域放行
+        
+        // 模糊匹配：防 maybank2u 漏报
+        const cleanLabel = label.replace(/[^a-z0-9]/g, '');
+        const cleanBrand = brand.replace(/[^a-z0-9]/g, '');
+        const isFuzzyMatch = cleanLabel.includes(cleanBrand) || 
+                             label.replace(/0/g, 'o').replace(/1/g, 'l').replace(/3/g, 'e').replace(/rn/g, 'm').includes(brand);
+
         if (sub.some(l => l === brand || l.split('-').includes(brand))) {
-            reasons.push('brand-in-subdomain:' + brand);
-        } else if (tokens.includes(brand) && tokens.length > 1) {
-            reasons.push('brand-token:' + brand);
-        } else if (label === brand) {
-            reasons.push('brand-wrong-suffix:' + brand);
-        } else if (!label.includes(brand) &&
-                   label.replace(/0/g, 'o').replace(/1/g, 'l')
-                        .replace(/3/g, 'e').replace(/rn/g, 'm')
-                        .includes(brand)) {
+            // 只在 UGC 以外的站点触发，且需搭配路径关键词
+            if (KEYWORDS.some(k => pathAndSearch.includes(k))) {
+                reasons.push('brand-in-subdomain:' + brand);
+            }
+        } else if (isFuzzyMatch && label !== brand) {
             reasons.push('lookalike:' + brand);
+        } else if (label === brand && !isCcSuffix(p.publicSuffix)) {
+            reasons.push('brand-wrong-suffix:' + brand);
         }
     }
 

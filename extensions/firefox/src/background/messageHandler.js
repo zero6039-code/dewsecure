@@ -14,16 +14,17 @@ export async function updateDNRRulesets(dnrEnabled, blockTrackers) {
         const enable = [];
         const disable = [];
 
-        // 🛡️ 核心修复：检查 DNR 全局可用额度，防止与其他广告拦截插件冲突导致静默失效
+        // 🛡️ B5 修复：检查 DNR 全局可用额度（精确比对，不再一刀切 30000）
         let hasEnoughQuota = true;
         if (dnrEnabled && chrome.declarativeNetRequest.getAvailableStaticRuleCount) {
             try {
                 const quota = await chrome.declarativeNetRequest.getAvailableStaticRuleCount();
-                // 如果可用额度极低，说明其他插件占满了额度，强制降级保护
-                if (quota < 30000) {
+                // DewSecure 追踪器规则集约 40000 条，如果剩余额度不够加载它，再降级
+                const neededTrackersQuota = 40000; 
+                if (quota < neededTrackersQuota) {
                     hasEnoughQuota = false;
-                    console.warn(`⚠️ [DNR] 全局可用额度告警：仅剩 ${quota} 条。为防崩溃，降级为仅拦截基础广告。`);
-                    blockTrackers = false; // 强制关闭体积庞大的追踪器规则
+                    console.warn(`⚠️ [DNR] 全局可用额度 (${quota}) 不足以加载追踪器规则 (${neededTrackersQuota})，已静默降级。请提示用户关闭其他拦截插件。`);
+                    blockTrackers = false; // 精确关闭
                 }
             } catch (e) {
                 console.warn('无法获取 DNR 额度，采用默认策略', e);

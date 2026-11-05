@@ -129,9 +129,28 @@ export async function initThreatFilter() {
     }
 }
 
-// 🛡️ N-3 修复：注册域回溯，防止子域绕过
+// 🛡️ B1 修复：统一主机名规范化（去尾随点、小写、去端口与 IPv6 方括号）
+export function normalizeHost(input) {
+    let h = String(input || '').trim().toLowerCase();
+    if (!h) return '';
+    if (h.includes('://')) {
+        try { h = new URL(h).hostname; } catch { return ''; }
+    }
+    if (h.startsWith('[')) {
+        const end = h.indexOf(']');
+        return end > 0 ? h.slice(1, end) : '';
+    }
+    const colon = h.lastIndexOf(':');
+    if (colon > -1 && h.indexOf(':') === colon) h = h.slice(0, colon);
+    while (h.endsWith('.')) h = h.slice(0, -1);
+    return h;
+}
+
+// 🛡️ N-3 修复：注册域回溯，防止子域绕过 (B1 升级：接入 normalizeHost)
 export function checkThreatFilter(host) {
     if (!threatFilter) return false;
+    host = normalizeHost(host);
+    if (!host) return false;
     const p = parse(host);
     if (!p.domain || p.isIp) return threatFilter.has(host);
     const labels = host.split('.');
@@ -159,10 +178,28 @@ async function updateThreatFilterBinary(userToken) {
         }
         const metaData = await metaRes.json();
         
-        // 版本比较提前到 bin 下载之前
+        // 🛡️ B3 修复：二进制过滤器版本防回滚与有效期校验
         const cached = await loadFilterFromDB();
-        if (cached && cached.meta && cached.meta.version === metaData.version && threatFilter) {
+        
+        // 校验 purpose (防域分隔攻击，如果服务端下发)
+        if (metaData.purpose && metaData.purpose !== 'dewsecure/filter/v1') {
+            console.error('❌ [ThreatIntel] 拒绝未知的 purpose:', metaData.purpose);
             return;
+        }
+        // 校验 valid_until (防冻结攻击，如果服务端下发)
+        if (metaData.valid_until && Date.now() > metaData.valid_until) {
+            console.error('❌ [ThreatIntel] 拒绝过期的过滤器元数据');
+            return;
+        }
+
+        if (cached && cached.meta && threatFilter) {
+            if (metaData.version < cached.meta.version) {
+                console.warn(`🛡️ [ThreatIntel] 拒绝回滚：远端版本(${metaData.version}) < 本地版本(${cached.meta.version})`);
+                return;
+            }
+            if (metaData.version === cached.meta.version) {
+                return; // 版本相同，跳过下载
+            }
         }
         
         // 版本有变（或首次安装），才下载整份 bin
@@ -180,8 +217,8 @@ async function updateThreatFilterBinary(userToken) {
             return;
         }
         
-        // 验签
-        const msg = `${metaData.version}:${metaData.sha256}`;
+        // 验签 (兼容旧的 version:sha256 与新的 purpose:version:sha256)
+        const msg = metaData.purpose ? `${metaData.purpose}:${metaData.version}:${metaData.sha256}` : `${metaData.version}:${metaData.sha256}`;
         const sigBytes = Uint8Array.from(atob(metaData.signature.trim()), c => c.charCodeAt(0));
         const pubKeyBytes = new Uint8Array(ED25519_PUBLIC_KEY_HEX.match(/.{1,2}/g).map(b => parseInt(b, 16)));
         
@@ -210,7 +247,9 @@ async function updateThreatFilterBinary(userToken) {
 // 🛡️ N-1 修复：情报规则只管理 RANGE.intel 段
 // ==========================================
 const HARD_SAFE = ['github.com', 'githubusercontent.com', 'github.io', 'gitlab.com', 'npmjs.com', 'cloudflare.com', 'microsoft.com', 'apple.com', 'dewsecure.com', 'google.com', 'youtube.com', 'facebook.com', 'dropbox.com', 'dropboxusercontent.com'];
-const MAX_INTEL_RULES = 25000;   // 留 5000 余量给隐私/挖矿/豁免/AI 会话
+// 🛡️ B4 修复：redirect 属于不安全规则，硬上限为 5000。
+// 优先读取浏览器原生常量，回退到 4900（留 100 余量给隐私/挖矿等动态规则）。
+const MAX_INTEL_RULES = (chrome.declarativeNetRequest && chrome.declarativeNetRequest.MAX_NUMBER_OF_UNSAFE_DYNAMIC_RULES) || 4900;
 
 async function applyRulesToDNR() {
     const user = await getCurrentUser();
@@ -229,10 +268,15 @@ async function applyRulesToDNR() {
 
     const newRules = [];
     for (const rule of cache.rulesData) {
-        const domain = rule.condition?.requestDomains?.[0];
+        const domain = normalizeHost(rule.condition?.requestDomains?.[0]);
         if (!domain) continue; 
         if (HARD_SAFE.some(d => domain === d || domain.endsWith('.' + d))) continue;
-        if (newRules.length >= MAX_INTEL_RULES) break;
+        
+        // 🛡️ B4 修复：触达上限时记录警告，避免静默截断
+        if (newRules.length >= MAX_INTEL_RULES) {
+            console.warn(`⚠️ [ThreatIntel] 动态规则已达安全上限 (${MAX_INTEL_RULES} 条)，部分最新情报被截断。`);
+            break;
+        }
 
         // 显式重映射 ID 到 RANGE.intel 段（不依赖服务端 id 策略），深拷贝 condition 防止改写缓存
         newRules.push({
@@ -277,7 +321,16 @@ export async function updateThreatIntel() {
         if (!sigRes.ok) throw new Error(`sig HTTP ${sigRes.status}`);
         const sigData = await sigRes.json();
 
-        // 版本回放检查提前到 rules 下载之前
+        // 🛡️ B3 修复：规则文件版本防回滚与有效期校验
+        if (sigData.purpose && sigData.purpose !== 'dewsecure/rules/v1') {
+            console.error('❌ [ThreatIntel] 拒绝未知的 rules purpose:', sigData.purpose);
+            return;
+        }
+        if (sigData.valid_until && Date.now() > sigData.valid_until) {
+            console.error('❌ [ThreatIntel] 拒绝过期的 rules 元数据');
+            return;
+        }
+
         const { [CACHE_KEY]: localCache } = await chrome.storage.local.get(CACHE_KEY);
         if (localCache && localCache.sigData && localCache.sigData.version) {
             if (sigData.version <= localCache.sigData.version) {
