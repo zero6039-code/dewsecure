@@ -44,6 +44,14 @@ jobs:
           python conversion/to_onnx.py
           python training/golden_set.py
 
+        - name: 🛡️ 跨语言特征一致性校验 (E5)
+          run: |
+            # 1. 生成 Python 端的基准特征向量 (包含 Punycode 兼容)
+            python models/training/gen_test_vectors.py
+            # 2. 进入扩展目录，运行 Node.js 脚本比对 Python 与 JS 的特征哈希
+            cd extensions/chrome
+            node test_consistency.js
+
       - name: 读取版本与指标
         id: meta
         working-directory: models
