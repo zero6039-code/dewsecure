@@ -50,3 +50,55 @@ export function syncRules(owned, rules) {
     });
     return queue;
 }
+
+
+// ==========================================
+// 🛡️ C2 修复：统一的规则 ID 分配器（串行执行，防竞态，防死锁）
+// ==========================================
+const RULE_ID_BASE = 10000;
+const ID_MAP_KEY = 'ruleIdMap';
+const NEXT_ID_KEY = 'nextRuleId';
+
+// 🔒 核心锁方法，供外部调用
+export function withLock(fn) {
+    const task = queue.then(fn);
+    queue = task.catch(e => console.warn('[Lock] 任务执行异常:', e));
+    return task;
+}
+
+// ⚠️ 无锁版本，只能在 withLock 内部调用！
+export async function getOrCreateRuleIdUnsafe(domain) {
+    const data = await chrome.storage.local.get([ID_MAP_KEY, NEXT_ID_KEY]);
+    let ruleIdMap = data[ID_MAP_KEY] || {};
+    let nextRuleId = data[NEXT_ID_KEY] || RULE_ID_BASE;
+    
+    if (ruleIdMap[domain]) return ruleIdMap[domain];
+
+    const newId = nextRuleId;
+    ruleIdMap[domain] = newId;
+    await chrome.storage.local.set({ 
+        [ID_MAP_KEY]: ruleIdMap, 
+        [NEXT_ID_KEY]: newId + 1 
+    });
+    return newId;
+}
+
+// 🔒 带锁版本，供外部直接调用
+export async function getOrCreateRuleId(domain) {
+    return withLock(() => getOrCreateRuleIdUnsafe(domain));
+}
+
+// ⚠️ 无锁版本，供锁内调用
+export async function removeRuleIdMappingUnsafe(domain) {
+    const data = await chrome.storage.local.get(ID_MAP_KEY);
+    let ruleIdMap = data[ID_MAP_KEY] || {};
+    if (ruleIdMap[domain]) {
+        delete ruleIdMap[domain];
+        await chrome.storage.local.set({ [ID_MAP_KEY]: ruleIdMap });
+    }
+}
+
+// 🔒 带锁版本
+export async function removeRuleIdMapping(domain) {
+    return withLock(() => removeRuleIdMappingUnsafe(domain));
+}

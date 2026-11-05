@@ -47,8 +47,49 @@ restoreSessionRules();
 initThreatFilter(); // 🚀 启动时从 IndexedDB 恢复过滤器
 initIntelReporter(); // 🚀 启动静默情报上报服务
 
+// 🛡️ C1 修复：消息分发策略表
+const MESSAGE_POLICY = {
+    'THIRD_PARTY_HOSTS': ['contentScript', 'extensionPage'],
+    'CHECK_URL_AI': ['contentScript', 'extensionPage'],
+    'DOM_AD_HIDDEN': ['contentScript', 'extensionPage'],
+    'GET_SETTINGS': ['contentScript', 'extensionPage'],
+    'MODEL_UPDATED': ['extensionPage'],
+    'FORCE_DOWNLOAD': ['extensionPage'],
+    'AUTH_STATE_CHANGED': ['extensionPage']
+    // 其他未在此表中的消息（如 UPDATE_SETTINGS、GET_LOGS）默认只允许 extensionPage
+};
+
+function isExtensionPage(sender) {
+    if (!sender) return false;
+    const extUrl = chrome.runtime.getURL('');
+    return !!(sender.url && sender.url.startsWith(extUrl));
+}
+
+function isContentScript(sender) {
+    if (!sender) return false;
+    return sender.id === chrome.runtime.id && !isExtensionPage(sender);
+}
+
 // 🚀 性能优化：合并消息分发，消除多个监听器竞争和无效的 return true
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+    // 🛡️ C1 修复：统一前置策略校验
+    const allowedSenders = MESSAGE_POLICY[message.type];
+    if (allowedSenders) {
+        const senderType = isExtensionPage(sender) ? 'extensionPage' : (isContentScript(sender) ? 'contentScript' : 'unknown');
+        if (!allowedSenders.includes(senderType)) {
+            console.warn(`❌ [拦截] ${message.type} 拒绝来自 ${senderType} 的调用`);
+            sendResponse({ error: 'Unauthorized sender for this message type' });
+            return false;
+        }
+    } else {
+        // 未在策略表中的消息，默认只允许扩展内部页面（如 GET_LOGS, UPDATE_SETTINGS）
+        if (!isExtensionPage(sender)) {
+            console.warn(`❌ [拦截] 未授权消息类型 ${message.type} 拒绝来自非扩展页面的调用`);
+            sendResponse({ error: 'Privileged sender required' });
+            return false;
+        }
+    }
+
     switch (message.type) {
         // --- 1. AI 异步处理 ---
         case 'THIRD_PARTY_HOSTS':
@@ -81,19 +122,21 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
             return false;
 
         case 'FORCE_DOWNLOAD':
-            // 🛡️ 用户确认后强制下载
-            if (message.url) {
-                forceDownloadUrls.add(message.url);
+            // 🛡️ C1 修复：绝对不允许直接添加，必须匹配之前的拦截记录（一次性令牌）
+            if (message.url && forceDownloadUrls.has(message.url)) {
+                forceDownloadUrls.delete(message.url); // 用后即焚
                 chrome.downloads.download({
                     url: message.url,
                     filename: message.filename,
                     conflictAction: 'uniquify'
                 }).catch(e => {
-                    forceDownloadUrls.delete(message.url);
                     console.warn('[DewSecure] 强制下载失败:', e);
                 });
+                sendResponse({ ok: true });
+            } else {
+                console.warn('❌ [Security] 拦截越权下载请求，缺少有效令牌:', message.url);
+                sendResponse({ ok: false, error: 'Invalid download token' });
             }
-            sendResponse({ ok: true });
             return false;
 
         case 'AUTH_STATE_CHANGED':
@@ -108,7 +151,10 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
         // --- 3. 其余核心业务全部交由 handleMessage 处理 ---
         default:
-            handleMessage(message, sender).then(sendResponse).catch(() => sendResponse({ ok: false }));
+            handleMessage(message, sender).then(sendResponse).catch((e) => {
+                console.error('❌ [handleMessage 异常]', e);
+                sendResponse({ ok: false, error: e?.message || String(e) });
+            });
             return true; // handleMessage 是异步 Promise
     }
 });
@@ -140,9 +186,7 @@ chrome.alarms.onAlarm.addListener((alarm) => {
 // 🔒 S-01: 外部消息来源白名单（生产域名）
 const ALLOWED_EXTERNAL_ORIGINS = new Set([
     'https://dewsecure.com',
-    'https://www.dewsecure.com',
-    'http://localhost:8888',
-    'http://127.0.0.1:8888'
+    'https://www.dewsecure.com'
 ]);
 
 function isTrustedExternalSender(sender) {
