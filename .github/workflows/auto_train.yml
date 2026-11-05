@@ -37,12 +37,12 @@ jobs:
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
         run: python training/data_prep.py
 
-      - name: 训练与导出
-        working-directory: models
-        run: |
-          python training/train.py
-          python conversion/to_onnx.py
-          python training/golden_set.py
+        - name: 训练与导出
+          working-directory: models
+          run: |
+            python training/train.py
+            python conversion/to_onnx.py
+            python training/golden_set.py
 
         - name: 🛡️ 跨语言特征一致性校验 (E5)
           run: |
