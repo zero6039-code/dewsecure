@@ -148,5 +148,8 @@
   "phish_passkey_tip": "セキュリティのヒント：このサイトはパスワードを盗もうとしています。Passkey（パスキー）を使用してログインしてください。実際のドメインにバインドされているため、クローンページの影響を受けません。",
   "leak_title": "セキュリティ警告：DewSecureがデータ漏洩をブロックしました",
   "leak_desc": "このページはパスワードをサードパーティのサーバー ({host}) に送信しようとしました。",
-  "leak_btn": "了解しました"
+  "leak_btn": "了解しました",
+  "phish_download_smuggling_title": "🚨 悪意のあるスクリプトをブロック",
+  "phish_download_smuggling_desc": "DewSecureは、ページ上のスクリプトによって生成されたインラインペイロード ({filename}) をブロックしました。これはネットワークフィルターを回避するための典型的なHTMLスマグリング手法です。",
+  "phish_download_smuggling_file": "難読化されたローカルペイロード"
 }

@@ -148,5 +148,8 @@
   "phish_passkey_tip": "Sicherheitstipp: Diese Website versucht, Ihr Passwort zu stehlen. Verwenden Sie Passkey zum Anmelden. Er ist an die echte Domain gebunden und immun gegen Klon-Seiten.",
   "leak_title": "Sicherheitswarnung: DewSecure hat Datenleck blockiert",
   "leak_desc": "Diese Seite hat versucht, Ihr Passwort an einen Drittanbieter-Server ({host}) zu senden.",
-  "leak_btn": "Verstanden"
+  "leak_btn": "Verstanden",
+  "phish_download_smuggling_title": "🚨 Bösartiges Skript blockiert",
+  "phish_download_smuggling_desc": "DewSecure hat eine von Skripten generierte Inline-Nutzlast blockiert ({filename}). Dies ist eine typische HTML-Schmuggel-Technik.",
+  "phish_download_smuggling_file": "Verschleierte lokale Nutzlast"
 }

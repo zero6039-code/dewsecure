@@ -148,5 +148,8 @@
   "phish_passkey_tip": "安全建议：该网站试图窃取您的密码。请优先使用 Passkey（通行密钥）登录，它绑定真实域名，对克隆页天然免疫。",
   "leak_title": "安全警告：DewSecure 已拦截数据外传",
   "leak_desc": "当前页面试图将您的密码发送到第三方服务器 ({host})。",
-  "leak_btn": "我知道了"
+  "leak_btn": "我知道了",
+  "phish_download_smuggling_title": "🚨 已拦截恶意脚本走私",
+  "phish_download_smuggling_desc": "DewSecure 拦截了网页脚本在本地生成的伪装载荷 ({filename})。这是攻击者绕过网络检测的典型手段。",
+  "phish_download_smuggling_file": "隐藏的本地载荷"
 }

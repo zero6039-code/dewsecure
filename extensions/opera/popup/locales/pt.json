@@ -148,5 +148,8 @@
   "phish_passkey_tip": "Dica de segurança: Este site está tentando roubar sua senha. Use o Passkey para fazer login; ele está vinculado ao domínio real e é imune a páginas clonadas.",
   "leak_title": "Alerta de segurança: DewSecure bloqueou o vazamento",
   "leak_desc": "Esta página tentou enviar sua senha para um servidor de terceiros ({host}).",
-  "leak_btn": "Entendi"
+  "leak_btn": "Entendi",
+  "phish_download_smuggling_title": "🚨 Script malicioso bloqueado",
+  "phish_download_smuggling_desc": "O DewSecure bloqueou um payload embutido gerado por scripts na página ({filename}). Esta é uma técnica típica de contrabando de HTML.",
+  "phish_download_smuggling_file": "Payload local ofuscado"
 }

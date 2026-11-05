@@ -475,12 +475,52 @@ chrome.downloads.onDeterminingFilename.addListener((item, suggest) => {
 
     // 🛡️ N-4 修复：提取真正的文件名（取路径最后一段）
     const rawName = (item.filename || item.suggestedFilename || '');
+    
+    // 🛡️ D1 修复 1：RTL 覆盖字符检测 (如 invoice‮fdp.exe)
+    // 攻击者用这种手段在视觉上将 .exe 伪装成 .pdf
+    if (/[\u202A-\u202E\u2066-\u2069]/.test(rawName)) {
+        console.warn('🚨 [Download Guard] 检测到 RTL 覆盖字符文件名 (视觉欺骗) 强制拦截:', rawName);
+        suggest();
+        chrome.downloads.cancel(item.id).catch(() => {});
+        chrome.downloads.erase({ id: item.id }).catch(() => {});
+        showDownloadNotification('danger', rawName, '🚨 RTL 视觉欺骗拦截', '检测到文件名包含隐藏的 RTL 覆盖字符，已被强制阻断。');
+        return;
+    }
+
     const name = rawName.split(/[\\/]/).pop().toLowerCase();
     console.log('[DewSecure] 拦截下载检查:', name);
 
     if (!name) {
         suggest();
         return;
+    }
+
+    // 🛡️ D1 修复 2：HTML Smuggling (Blob/Data URL 走私) 增强版检查
+    const isLocalGeneration = rawUrl.startsWith('blob:') || rawUrl.startsWith('data:');
+    if (isLocalGeneration) {
+        // 针对 Blob/Data 下载，我们不再依赖 UUID 文件名，直接看 MIME 和后缀
+        const safeLocalExts = ['.png', '.jpg', '.jpeg', '.gif', '.svg', '.webp', '.pdf', '.txt', '.csv', '.zip', '.mp4', '.mp3'];
+        const isSafeExt = safeLocalExts.some(ext => name.endsWith(ext));
+        const isSafeMime = item.mime && (
+            item.mime.startsWith('image/') || 
+            item.mime === 'application/pdf' || 
+            item.mime === 'text/plain' ||
+            item.mime === 'text/csv'
+        );
+
+        // 如果后缀和 MIME 都不在安全名单内，直接拦截！
+        if (!isSafeExt && !isSafeMime) {
+            console.warn('🚨 [Download Guard] 检测到 HTML Smuggling (Blob/Data URL 走私)，强制拦截:', rawUrl);
+            suggest();
+            chrome.downloads.cancel(item.id).catch(() => {});
+            chrome.downloads.erase({ id: item.id }).catch(() => {});
+            chrome.tabs.create({ url: chrome.runtime.getURL(`warning.html?type=download&reason=smuggling&filename=${encodeURIComponent(name)}&url=${encodeURIComponent(rawUrl)}`) });
+            showDownloadNotification('danger', name, 
+                bgDict.phish_download_smuggling_title || '🚨 Malicious Script Blocked', 
+                (bgDict.phish_download_smuggling_desc || 'An inline payload disguised as an executable was blocked.').replace('{filename}', 'Obfuscated Payload')
+            );
+            return;
+        }
     }
 
     // 2. 检查双扩展名 (如 invoice.pdf.exe)

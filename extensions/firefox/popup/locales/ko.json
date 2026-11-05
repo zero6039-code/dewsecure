@@ -148,5 +148,8 @@
   "phish_passkey_tip": "보안 팁: 이 사이트는 비밀번호를 훔치려고 합니다. Passkey(패스키)를 사용하여 로그인하세요. 실제 도메인에 바인딩되어 있으므로 복제 페이지에 영향을 받지 않습니다.",
   "leak_title": "보안 경고: DewSecure가 데이터 유출을 차단했습니다",
   "leak_desc": "이 페이지에서 비밀번호를 타사 서버({host})로 전송하려고 시도했습니다.",
-  "leak_btn": "확인"
+  "leak_btn": "확인",
+  "phish_download_smuggling_title": "🚨 악성 스크립트 차단됨",
+  "phish_download_smuggling_desc": "DewSecure가 페이지의 스크립트에 의해 생성된 인라인 페이로드({filename})를 차단했습니다. 이는 네트워크 필터를 우회하는 전형적인 HTML 스머글링 기법입니다.",
+  "phish_download_smuggling_file": "난독화된 로컬 페이로드"
 }

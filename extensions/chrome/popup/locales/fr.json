@@ -148,5 +148,8 @@
   "phish_passkey_tip": "Conseil de sécurité : Ce site tente de voler votre mot de passe. Utilisez Passkey pour vous connecter ; il est lié au domaine réel et immunisé contre les pages clonées.",
   "leak_title": "Alerte de sécurité : DewSecure a bloqué la fuite",
   "leak_desc": "Cette page a tenté d'envoyer votre mot de passe à un serveur tiers ({host}).",
-  "leak_btn": "J'ai compris"
+  "leak_btn": "J'ai compris",
+  "phish_download_smuggling_title": "🚨 Script malveillant bloqué",
+  "phish_download_smuggling_desc": "DewSecure a bloqué une charge utile en ligne générée par des scripts sur la page ({filename}). C'est une technique typique de contrebande HTML.",
+  "phish_download_smuggling_file": "Charge utile locale obscurcie"
 }

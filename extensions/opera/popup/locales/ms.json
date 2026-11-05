@@ -148,5 +148,8 @@
   "phish_passkey_tip": "Petua Keselamatan: Laman ini cuba mencuri kata laluan anda. Gunakan Passkey untuk log masuk; ia terikat pada domain sebenar dan kebal terhadap halaman klon.",
   "leak_title": "Amaran Keselamatan: DewSecure Menyekat Kebocoran Data",
   "leak_desc": "Halaman ini cuba menghantar kata laluan anda ke pelayan pihak ketiga ({host}).",
-  "leak_btn": "Faham"
+  "leak_btn": "Faham",
+  "phish_download_smuggling_title": "🚨 Skrip Berniat Jahat Disekat",
+  "phish_download_smuggling_desc": "DewSecure menyekat muatan sebaris yang dijana oleh skrip pada halaman ({filename}). Ini adalah teknik penyeludupan HTML biasa.",
+  "phish_download_smuggling_file": "Muatan Tempatan yang Dikaburkan"
 }
