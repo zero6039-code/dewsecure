@@ -18,7 +18,7 @@ jobs:
           cache-dependency-path: models/training/requirements.txt
       
       - name: 缓存威胁情报源
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: models/data/cache
           key: intel-cache-v1
