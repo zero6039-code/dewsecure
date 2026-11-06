@@ -10,7 +10,7 @@ jobs:
   train:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
@@ -87,7 +87,7 @@ jobs:
     # 🔒 全自动发布，依靠 gate.py 做自动化门禁拦截（若失败，流水线标红并发送通知）
     # environment: production 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       
       - name: 下载训练好的模型
         uses: actions/download-artifact@v4
