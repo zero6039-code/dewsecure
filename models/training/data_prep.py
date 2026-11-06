@@ -243,9 +243,14 @@ def mark_feedbacks_as_processed():
     }
     
     try:
-        # 批量更新所有 pending 的数据为 processed
+        # 🛡️ M1 修复：这里使用时间戳过滤（假设拉取逻辑是在 1 小时前），防止把刚提交的新数据误标记
+        # 注意：如果服务端支持，最好使用 ID 列表更新。这里采用简单的时间窗口作为后备方案。
+        import datetime
+        an_hour_ago = (datetime.datetime.utcnow() - datetime.timedelta(hours=1)).isoformat() + "Z"
+        
+        # 批量更新（只更新早于 1 小时前提交的 pending 数据）
         res = requests.patch(
-            f"{supabase_url}/rest/v1/reports?status=eq.pending",
+            f"{supabase_url}/rest/v1/reports?status=eq.pending&created_at=lte.{an_hour_ago}",
             headers=headers,
             json={"status": "processed"},
             timeout=30
@@ -319,6 +324,10 @@ def build_dataset():
         'criteo.com', 'criteo.net', 'taboola.com', 'outbrain.com',
         'twitter.com', 'x.com', 'linkedin.com', 'tiktok.com',
         'yandex.ru', 'mc.yandex.ru', 'hotjar.com', 'mixpanel.com',
+        # 🛡️ 修复：加入底层 CDN 与安全服务商，防止因 StevenBlack 列表误伤导致模型特征污染
+        'cloudflare.com', 'cloudflareinsights.com', 'amazonaws.com',
+        'azure.com', 'microsoft.com', 'apple.com', 'github.com',
+        'jsdelivr.net', 'unpkg.com', 'gstatic.com', 'cdnjs.cloudflare.com'
     }
     legit -= KNOWN_TRACKERS
     print(f"  → 剔除已知追踪方后: {len(legit)} 个")
@@ -340,33 +349,36 @@ def build_dataset():
     # 🌟 融合用户真实反馈
     missed_feedbacks, false_feedbacks = fetch_supabase_feedbacks()
     
-    # 🚀 闭环：将误拦反馈写入 hard_rules.json，准备自动提 PR
+    # 🛡️ M-13 修复：不再直接写入生产环境的 hard_rules.json，防止被恶意反馈投毒
+    # 改为写入独立的 pending 文件，必须人工审核（提 PR）后才可合并
     if false_feedbacks or missed_feedbacks:
-        hard_rules_path = os.path.join(os.path.dirname(__file__), 'hard_rules.json')
-        if os.path.exists(hard_rules_path):
-            with open(hard_rules_path, 'r', encoding='utf-8') as f:
-                rules = json.load(f)
-            
-            # 将新的误拦加入 safe，漏拦加入 block
-            new_safe = set(rules.get("hard_safe", []))
-            new_block = set(rules.get("hard_block", []))
-            
-            for fb in false_feedbacks:
-                if fb not in new_safe:
-                    new_safe.add(fb)
-                    print(f"  [规则闭环] 自动加入白名单草稿: {fb}")
-                    
-            for mb in missed_feedbacks:
-                if mb not in new_block:
-                    new_block.add(mb)
-                    print(f"  [规则闭环] 自动加入黑名单草稿: {mb}")
-            
-            # 重新写回
-            rules["hard_safe"] = list(new_safe)
-            rules["hard_block"] = list(new_block)
-            with open(hard_rules_path, 'w', encoding='utf-8') as f:
-                json.dump(rules, f, indent=2, ensure_ascii=False)
-            print("  -> hard_rules.json 已更新，等待 Actions 提 PR")
+        pending_path = os.path.join(os.path.dirname(__file__), 'pending_feedback_rules.json')
+        pending_rules = {"hard_safe": [], "hard_block": []}
+        if os.path.exists(pending_path):
+            try:
+                with open(pending_path, 'r', encoding='utf-8') as f:
+                    pending_rules = json.load(f)
+            except Exception:
+                pass
+        
+        new_safe = set(pending_rules.get("hard_safe", []))
+        new_block = set(pending_rules.get("hard_block", []))
+        
+        for fb in false_feedbacks:
+            if fb not in new_safe:
+                new_safe.add(fb)
+                print(f"  [人工审核草稿] 加入白名单待审核: {fb}")
+                
+        for mb in missed_feedbacks:
+            if mb not in new_block:
+                new_block.add(mb)
+                print(f"  [人工审核草稿] 加入黑名单待审核: {mb}")
+        
+        pending_rules["hard_safe"] = list(new_safe)
+        pending_rules["hard_block"] = list(new_block)
+        with open(pending_path, 'w', encoding='utf-8') as f:
+            json.dump(pending_rules, f, indent=2, ensure_ascii=False)
+        print("  -> pending_feedback_rules.json 已更新，等待维护者人工审核合并")
     
     # 🔒 安全网 3：误拦的绝对保护，黑名单里绝对不能有
     for d in false_feedbacks:
@@ -447,24 +459,29 @@ def build_dataset():
     df.loc[df["domain"].apply(is_hard_block), "label"] = 2
     print(f"  → 已强制执行金标后缀覆写 (绝对保护)")
     
-    # 找出所有的 Tracker 样本
-    trackers_df = df[df['label'] == 2]
-    if not trackers_df.empty:
-        print(f"⚖️ 对 {len(trackers_df)} 个 Tracker 样本进行 5 倍过采样...")
-        # 直接复制 4 份并拼接到原数据上
-        for _ in range(4):
-            df = pd.concat([df, trackers_df], ignore_index=True)
-    
-    # 打乱顺序
+    # 🛡️ E1 修复：先划分数据集，再对训练集进行过采样，防止测试集被污染
     df = df.sample(frac=1, random_state=42).reset_index(drop=True)
-
+    
     split = int(len(df) * 0.8)
-    df[:split].to_csv(os.path.join(DATA_DIR, "train.csv"), index=False)
-    df[split:].to_csv(os.path.join(DATA_DIR, "test.csv"), index=False)
+    train_df = df[:split].copy()
+    test_df = df[split:].copy()
 
-    print(f"\n训练集: {len(df[:split])} 条")
-    print(f"测试集: {len(df[split:])} 条")
-    print(f"标签分布:\n{df['label'].value_counts().sort_index()}")
+    # 找出训练集中的 Tracker 样本进行过采样
+    train_trackers = train_df[train_df['label'] == 2]
+    if not train_trackers.empty:
+        print(f"⚖️ 对训练集中的 {len(train_trackers)} 个 Tracker 样本进行 2 倍过采样...")
+        # 🛡️ 强制 2 倍过采样（复制 1 次）
+        for _ in range(1):
+            train_df = pd.concat([train_df, train_trackers], ignore_index=True)
+        train_df = train_df.sample(frac=1, random_state=42).reset_index(drop=True)
+
+    train_df.to_csv(os.path.join(DATA_DIR, "train.csv"), index=False)
+    test_df.to_csv(os.path.join(DATA_DIR, "test.csv"), index=False)
+
+    print(f"\n训练集 (过采样后): {len(train_df)} 条")
+    print(f"测试集 (原始真实分布): {len(test_df)} 条")
+    print(f"训练集标签分布:\n{train_df['label'].value_counts().sort_index()}")
+    print(f"测试集标签分布:\n{test_df['label'].value_counts().sort_index()}")
 
     # 🌟 提取并写入 CSV 成功后，标记数据库状态，防止重复训练
     mark_feedbacks_as_processed()

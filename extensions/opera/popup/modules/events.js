@@ -3,6 +3,50 @@ import { renderLoggedInView } from '../account-ui.js';
 import { updateSiteInfo, updateUserUI, renderTodayLogs, renderTotalStats } from './ui-render.js';
 import { updateSiteSwitch, switchView } from '../views.js';
 
+
+// 🔒 毛玻璃 Toast 提示组件
+function showGlassToast(message) {
+    const toast = document.createElement('div');
+    toast.style.cssText = `
+        position: fixed;
+        top: 20px;
+        left: 50%;
+        transform: translateX(-50%);
+        background: rgba(30, 30, 30, 0.75);
+        color: #fff;
+        padding: 12px 24px;
+        border-radius: 12px;
+        font-size: 14px;
+        font-weight: 500;
+        z-index: 999999;
+        backdrop-filter: blur(12px);
+        -webkit-backdrop-filter: blur(12px);
+        box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        opacity: 0;
+        transition: opacity 0.3s ease, transform 0.3s ease;
+        pointer-events: none;
+        text-align: center;
+        max-width: 80%;
+        word-wrap: break-word;
+    `;
+    toast.textContent = message;
+    document.body.appendChild(toast);
+
+    // 触发动画
+    requestAnimationFrame(() => {
+        toast.style.opacity = '1';
+        toast.style.transform = 'translate(-50%, 5px)';
+    });
+
+    // 3秒后自动消失
+    setTimeout(() => {
+        toast.style.opacity = '0';
+        toast.style.transform = 'translate(-50%, 0)';
+        setTimeout(() => toast.remove(), 300);
+    }, 3000);
+}
+
 export function bindMiscEvents() {
     // 语言切换
     document.querySelectorAll('.lang-option').forEach(btn => {
@@ -180,8 +224,22 @@ export function bindMiscEvents() {
         const t = window.t || ((k) => k);
         const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
         if (!tab || !tab.url) return;
-        const host = new URL(tab.url).hostname;
         
+        let host = new URL(tab.url).hostname;
+        
+        // 🛡️ 核心修复：如果当前是警告页，直接提取真实域名用于缓存判断
+        if (tab.url.includes('warning.html')) {
+            const urlParams = new URL(tab.url).searchParams;
+            const realDomain = urlParams.get('domain') || urlParams.get('url');
+            if (realDomain && realDomain !== 'Known Malicious Site') {
+                try {
+                    host = new URL(realDomain.startsWith('http') ? realDomain : `https://${realDomain}`).hostname;
+                } catch(e) {
+                    host = realDomain;
+                }
+            }
+        }
+
         const cacheKey = `last_report_${host}_${type}`;
         const { [cacheKey]: lastTime } = await chrome.storage.local.get(cacheKey);
         
@@ -205,21 +263,33 @@ export function bindMiscEvents() {
         btn.disabled = true;
         btn.innerText = t('feedback_submitting') || '⏳ Submitting...';
         
-        chrome.runtime.sendMessage({ type: 'REPORT_FEEDBACK', feedbackType: type }, (res) => {
+        chrome.runtime.sendMessage({ type: 'REPORT_FEEDBACK', feedbackType: type, domain: host }, (res) => {
             const success = res && res.ok;
             if (success) {
                 chrome.storage.local.set({ [cacheKey]: Date.now() });
             }
             
-            btn.innerText = success 
-                ? (t('feedback_thanks') || '✅ Thanks!') 
-                : (t('feedback_failed') || '❌ Failed');
+            if (success) {
+                btn.innerText = t('feedback_thanks') || '✅ Thanks!';
+            } else {
+                // 🔒 M1 修复：识别未登录错误并弹出毛玻璃提示
+                if (res && res.error && res.error.toLowerCase().includes('login')) {
+                    showGlassToast(t('feedback_login_required') || 'Please log in to submit feedback.');
+                    btn.innerText = originalText; // 恢复原状，而不是显示 Failed
+                    btn.disabled = false;
+                    return; // 跳过后续的 3 秒恢复逻辑，直接返回
+                } else {
+                    btn.innerText = t('feedback_failed') || '❌ Failed';
+                }
+            }
                 
             // 统一在 3 秒后还原并解除禁用
-            setTimeout(() => { 
-                btn.innerText = originalText; 
-                btn.disabled = false; 
-            }, 3000);
+            if (success || btn.innerText !== originalText) {
+                setTimeout(() => { 
+                    btn.innerText = originalText; 
+                    btn.disabled = false; 
+                }, 3000);
+            }
         });
     }
 

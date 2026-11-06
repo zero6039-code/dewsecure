@@ -11,13 +11,15 @@ const buildOptions = {
         'src/background.js',
         'src/content.js',
         'src/inject.js',
-        'src/offscreen.js',
         'popup/popup.js',
     ],
     bundle: true,
     outdir: 'dist',
     format: 'esm',
     target: 'chrome110',
+    platform: 'browser', // 🌟 强制指定为浏览器环境
+    mainFields: ['browser', 'module', 'main'], // 🌟 优先解析 ESM 导出
+    conditions: ['browser', 'import', 'default'],
     sourcemap: watch,
     minify: !watch,
     logLevel: 'info',
@@ -42,7 +44,6 @@ function copyStatic() {
         ['popup/index.html', 'dist/popup/index.html'],
         ['popup/popup.css', 'dist/popup/popup.css'],
         ['popup/i18n.js', 'dist/popup/i18n.js'],
-        ['src/offscreen.html', 'dist/src/offscreen.html'],
         ['warning.html', 'dist/warning.html'],
         ['warning.js', 'dist/warning.js'],
     ];
@@ -74,7 +75,7 @@ function copyStatic() {
     // 3. 全量拷贝 src 目录下的非入口模块（防止动态 import 找不到文件）
     const srcFiles = fs.readdirSync('src');
     for (const file of srcFiles) {
-        if (!['background.js', 'content.js', 'inject.js', 'offscreen.js'].includes(file)) {
+        if (!['background.js', 'content.js', 'inject.js'].includes(file)) {
             const srcPath = path.join('src', file);
             const destPath = path.join('dist/src', file);
             if (fs.statSync(srcPath).isDirectory()) {

@@ -2,40 +2,34 @@ name: Auto Train Model
 
 on:
   schedule:
-    - cron: '0 18 * * *' # 每天 UTC 18 点（即本地凌晨 2 点）自动运行
-  workflow_dispatch: # 允许手动点击触发
+    - cron: '0 18 * * *'
+  workflow_dispatch:
 
 jobs:
+  # 阶段 1：纯训练环境（无签名私钥，仅拉取数据和训练）
   train:
     runs-on: ubuntu-latest
-    permissions:
-      contents: write
     steps:
       - uses: actions/checkout@v4
-        with:
-          token: ${{ secrets.GITHUB_TOKEN }}
-
       - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
           cache: 'pip'
           cache-dependency-path: models/training/requirements.txt
-
-      # 🚀 方案三：缓存数据集，大幅提升 CI 速度
+      
       - name: 缓存威胁情报源
         uses: actions/cache@v4
         with:
           path: models/data/cache
           key: intel-cache-v1
-          restore-keys: |
-            intel-cache-
+          restore-keys: intel-cache-
 
       - name: 安装 Python 依赖
         run: |
           pip install -r models/training/requirements.txt
-          pip install onnx skl2onnx onnxruntime pynacl
+          pip install onnx skl2onnx onnxruntime
 
-      - name: 下载数据集 (含 Supabase 反馈拉取与标记)
+      - name: 下载数据集 (需要 Supabase Service Key)
         working-directory: models
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
@@ -43,119 +37,112 @@ jobs:
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
         run: python training/data_prep.py
 
-      - name: 训练模型
+      - name: 训练与导出
         working-directory: models
-        run: python training/train.py
+        run: |
+          python training/train.py
+          python conversion/to_onnx.py
+          python training/golden_set.py
 
-      - name: 导出 ONNX 与 JSON
-        working-directory: models
-        run: python conversion/to_onnx.py
+      - name: 🛡️ 跨语言特征一致性校验 (E5)
+        run: |
+          # 1. 生成 Python 端的基准特征向量 (包含 Punycode 兼容)
+          python models/training/gen_test_vectors.py
+          # 2. 进入扩展目录，运行 Node.js 脚本比对 Python 与 JS 的特征哈希
+          cd extensions/chrome
+          node test_consistency.js
 
-      - name: 🛡 金标集防御校验 (防投毒)
-        working-directory: models
-        run: python training/golden_set.py
-
-      - name: 读取模型元信息
+      - name: 读取版本与指标
         id: meta
         working-directory: models
         run: |
-          if [ ! -f weights/model_meta.json ]; then
-            echo "❌ model_meta.json 不存在"
-            exit 1
-          fi
           MACRO_F1=$(python -c "import json; print(round(json.load(open('weights/model_meta.json'))['macroF1'], 4))")
-          VERSION="V${{ github.run_number }}.$(date -u +%y%m%d)"
+          VERSION="V${{ github.run_number }}.$(date -u +%Y%m%d)"
           echo "macro_f1=$MACRO_F1" >> $GITHUB_OUTPUT
           echo "version=$VERSION" >> $GITHUB_OUTPUT
-          echo "✅ 模型 Macro F1: $MACRO_F1"
-          echo "✅ 版本: $VERSION"
+
+      - name: 🛡️ 回归与质量门禁校验
+        working-directory: models
+        run: |
+          if [ ! -f "weights/baseline_meta.json" ]; then
+            echo "⚠️ 缺少 baseline_meta.json，跳过对比，仅校验绝对阈值"
+            echo '{"macroF1": 0.0}' > weights/baseline_meta.json
+          fi
+          python training/gate.py --meta weights/model_meta.json --baseline weights/baseline_meta.json --min-macro-f1 0.80
+
+      - name: 将模型产物上传为 Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: trained-model
+          path: |
+            models/weights/classifier_int8.onnx
+            models/weights/model_meta.json
+            models/weights/weights.json
+          retention-days: 1
+
+  # 阶段 2：签名与发布环境（无第三方包，仅包含密钥）
+  publish:
+    needs: train
+    runs-on: ubuntu-latest
+    # 🔒 全自动发布，依靠 gate.py 做自动化门禁拦截（若失败，流水线标红并发送通知）
+    # environment: production 
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: 下载训练好的模型
+        uses: actions/download-artifact@v4
+        with:
+          name: trained-model
+          path: models/weights/
+
+      - name: 安装仅用于签名的依赖
+        run: pip install pynacl
 
       - name: 🔐 计算哈希并使用 Ed25519 签名
         working-directory: models
         env:
-          ED25519_PRIVATE_KEY: ${{ secrets.ED25519_PRIVATE_KEY }}
-          VERSION: ${{ steps.meta.outputs.version }}
-        run: python training/sign_model.py
-
-      - name: 安装 rclone (使用官方最新版避免 R2 501 错误)
+          ED25519_PRIVATE_KEY: ${{ secrets.ED25519_MODEL_KEY }}
         run: |
-          wget https://downloads.rclone.org/v1.68.1/rclone-v1.68.1-linux-amd64.deb
-          sudo dpkg -i rclone-v1.68.1-linux-amd64.deb
-          rclone version
+          export VERSION="V${{ github.run_number }}.$(date -u +%Y%m%d)"
+          echo "正在签名的版本: $VERSION"
+          echo "VERSION=$VERSION" >> $GITHUB_ENV
+          python training/sign_model.py
+
+      - name: 安装 rclone (安全校验版)
+        run: |
+          wget https://downloads.rclone.org/v1.68.1/rclone-v1.68.1-linux-amd64.zip
+          # 🔒 M-14 修复：校验和硬编码，防止同源篡改
+          EXPECTED_SHA="34f34743b1831523cd2e0aff74447b717e2d62fe1b598e91703899e0c0689568"
+          ACTUAL_SHA=$(sha256sum rclone-v1.68.1-linux-amd64.zip | awk '{print $1}')
+          if [ "$EXPECTED_SHA" != "$ACTUAL_SHA" ]; then
+            echo "❌ SHA256 mismatch! Security risk."
+            exit 1
+          fi
+          unzip -q rclone-v1.68.1-linux-amd64.zip
+          sudo cp rclone-v1.68.1-linux-amd64/rclone /usr/local/bin/
+          sudo chmod +x /usr/local/bin/rclone
 
       - name: 配置 rclone
         run: |
           mkdir -p ~/.config/rclone
-          echo "[r2]" > ~/.config/rclone/rclone.conf
-          echo "type = s3" >> ~/.config/rclone/rclone.conf
-          echo "provider = Cloudflare" >> ~/.config/rclone/rclone.conf
-          echo "access_key_id = ${{ secrets.R2_ACCESS_KEY_ID }}" >> ~/.config/rclone/rclone.conf
-          echo "secret_access_key = ${{ secrets.R2_SECRET_ACCESS_KEY }}" >> ~/.config/rclone/rclone.conf
-          echo "endpoint = ${{ secrets.R2_ENDPOINT }}" >> ~/.config/rclone/rclone.conf
-          echo "no_check_bucket = true" >> ~/.config/rclone/rclone.conf
+          cat > ~/.config/rclone/rclone.conf << RCLONE_EOF
+          [r2]
+          type = s3
+          provider = Cloudflare
+          access_key_id = ${{ secrets.R2_ACCESS_KEY_ID }}
+          secret_access_key = ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          endpoint = ${{ secrets.R2_ENDPOINT }}
+          no_check_bucket = true
+          RCLONE_EOF
 
-      - name: 上传模型到 R2 - 双轨 ONNX 与 JSON
+      - name: 上传模型到 R2
         run: |
-          # 上传 ONNX
-          rclone copy models/weights/classifier_int8.onnx \
-            r2:${{ secrets.R2_BUCKET }}/canary/ --s3-no-check-bucket --s3-no-head --s3-chunk-size 5M --s3-upload-concurrency 2
-          # 上传 Meta (含双端签名)
-          rclone copy models/weights/model_meta.json \
-            r2:${{ secrets.R2_BUCKET }}/canary/ --s3-no-check-bucket --s3-no-head --s3-chunk-size 5M --s3-upload-concurrency 2
-          # 上传纯 JS 权重
-          rclone copy models/weights/weights.json \
-            r2:${{ secrets.R2_BUCKET }}/canary/ --s3-no-check-bucket --s3-no-head --s3-chunk-size 5M --s3-upload-concurrency 2
+          # 1. 上传至 canary 目录（供 Worker 立即使用，注意必须包含 weights.json）
+          rclone copy models/weights/classifier_int8.onnx r2:${{ secrets.R2_BUCKET }}/canary/ --s3-no-check-bucket
+          rclone copy models/weights/weights.json r2:${{ secrets.R2_BUCKET }}/canary/ --s3-no-check-bucket
+          rclone copy models/weights/model_meta.json r2:${{ secrets.R2_BUCKET }}/canary/ --s3-no-check-bucket
           
-          # 上传至版本目录备份
-          rclone copy models/weights/classifier_int8.onnx \
-            r2:${{ secrets.R2_BUCKET }}/${{ steps.meta.outputs.version }}/ --s3-no-check-bucket --s3-no-head --s3-chunk-size 5M --s3-upload-concurrency 2
-          rclone copy models/weights/weights.json \
-            r2:${{ secrets.R2_BUCKET }}/${{ steps.meta.outputs.version }}/ --s3-no-check-bucket --s3-no-head --s3-chunk-size 5M --s3-upload-concurrency 2
-
-          echo "=== canary 目录内容 ==="
-          rclone ls r2:${{ secrets.R2_BUCKET }}/canary/ --s3-no-check-bucket
-
-      - name: 🚀 检查是否需要提交规则反馈 PR
-        id: check_rules
-        run: |
-          if git diff --quiet models/training/hard_rules.json; then
-            echo "changed=false" >> $GITHUB_OUTPUT
-          else
-            echo "changed=true" >> $GITHUB_OUTPUT
-            git diff models/training/hard_rules.json
-          fi
-
-      - name: 🛡 自动生成规则更新 PR
-        if: steps.check_rules.outputs.changed == 'true'
-        uses: peter-evans/create-pull-request@v6
-        with:
-          token: ${{ secrets.GITHUB_TOKEN }}
-          commit-message: "chore(rules): auto-apply feedback to hard_rules.json"
-          title: "🤖 Feedback Loop: Auto-generated Exception Rules"
-          body: |
-            这是一个根据用户反馈自动生成的白名单/黑名单 PR。
-            请人工审查 `hard_rules.json` 中的变更是否合理，确认没有恶意投毒后再合并。
-          branch: auto-feedback-rules
-          delete-branch: true
-          add-paths: models/training/hard_rules.json
-
-      - name: 记录训练历史（不包含模型文件）
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: ${{ steps.meta.outputs.version }}
-          name: "Model ${{ steps.meta.outputs.version }} (F1=${{ steps.meta.outputs.macro_f1 }})"
-          body: |
-            Auto-trained 3-class model
-
-            - Macro F1: ${{ steps.meta.outputs.macro_f1 }}
-            - Trained at: ${{ github.event.repository.updated_at }}
-            - Model file size: 49 KB (INT8) / < 1 MB (JSON)
-            - Delivery: Cloudflare R2 (private, presigned URL only)
-
-            ⚠️ Model files are NOT attached to this release.
-            ⚠️ Model is distributed via R2 with 60-second presigned URLs.
-          draft: true
-          files: |
-            models/weights/model_meta.json
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # 2. 上传至版本目录（用于记录和回滚）
+          rclone copy models/weights/classifier_int8.onnx r2:${{ secrets.R2_BUCKET }}/${{ env.VERSION }}/ --s3-no-check-bucket
+          rclone copy models/weights/weights.json r2:${{ secrets.R2_BUCKET }}/${{ env.VERSION }}/ --s3-no-check-bucket
+          rclone copy models/weights/model_meta.json r2:${{ secrets.R2_BUCKET }}/${{ env.VERSION }}/ --s3-no-check-bucket

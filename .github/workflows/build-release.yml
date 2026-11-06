@@ -15,7 +15,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: main
+          ref: ${{ github.ref }}
           fetch-depth: 0
 
       - name: Setup Node.js
@@ -25,9 +25,9 @@ jobs:
 
       - name: Install Dependencies & Build (All Platforms)
         run: |
-          cd extensions/chrome && npm install && node build.js && cd ../..
-          cd extensions/firefox && npm install && node build.js && cd ../..
-          cd extensions/opera && npm install && node build.js && cd ../..
+          cd extensions/chrome && npm ci && node build.js && cd ../..
+          cd extensions/firefox && npm ci && node build.js && cd ../..
+          cd extensions/opera && npm ci && node build.js && cd ../..
 
       - name: Get Version & Prepare Release Directory
         id: get_version

@@ -4,20 +4,15 @@ import { sha512 } from '@noble/hashes/sha512';
 // 🔒 核心修复：在 Service Worker 中必须显式注入 SHA-512 引擎，否则验签永远返回 false
 ed.etc.sha512Sync = (...m) => sha512(ed.etc.concatBytes(...m));
 
-
 // 🔒 S-03: Ed25519 公钥（32字节 hex 字符串，无 0x）
-// ⚠️ 请替换为你自己后端生成的正式公钥
 const ED25519_PUBLIC_KEY_HEX = '259eab8b493845eb78e345a139584c6812272d7183c7da29f774dea2d443fe77'; 
 
-/**
- * DewSecure 模型管理器（纯云端验证版）
- */
 const DB_NAME = 'dewsecure_models';
 const DB_VERSION = 1;
 const STORE_NAME = 'models';
 const CACHE_META_KEY = 'latest_meta';
 
-const WORKER_API_URL = 'https://dewsecure-api.zero6039.workers.dev/api';
+const WORKER_API_URL = 'https://api.dewsecure.com/api';
 
 let dbPromise = null;
 
@@ -83,6 +78,63 @@ export async function clearModelCache() {
     } catch (e) {}
 }
 
+// 🔒 H-6 修复：确保 V100 >= V99
+function parseVer(v) {
+    if (!v) return 0;
+    const m = String(v).match(/V?(\d+)/i);
+    return m ? parseInt(m[1], 10) : 0;
+}
+
+// 🔒 M-8 修复：精确校验 {coef: [3][16418], intercept: [3]} 结构
+function isValidModelShape(modelJson) {
+    if (!modelJson || typeof modelJson !== 'object') return false;
+
+    const coef = modelJson.coef;
+    const intercept = modelJson.intercept;
+
+    // 1. 检查 coef 是否存在且为数组
+    if (!Array.isArray(coef) || coef.length !== 3) {
+        console.warn('[ModelManager] coef 格式非法或缺失');
+        return false;
+    }
+
+    // 2. 检查 intercept 是否存在且为数组
+    if (!Array.isArray(intercept) || intercept.length !== 3) {
+        console.warn('[ModelManager] intercept 格式非法或缺失');
+        return false;
+    }
+
+    // 3. 检查每个类别的权重维度是否为 16418
+    for (let i = 0; i < 3; i++) {
+        if (!Array.isArray(coef[i]) || coef[i].length !== 16418) {
+            console.warn(`[ModelManager] coef[${i}] 维度非法: 预期 16418, 实际 ${coef[i]?.length}`);
+            return false;
+        }
+    }
+
+    // 4. 抽样检查数值有限性（防止 NaN/Infinity 投毒）
+    const isFiniteCheck = (arr) => {
+        for (let i = 0; i < arr.length; i++) {
+            if (!Number.isFinite(arr[i])) return false;
+        }
+        return true;
+    };
+
+    if (!intercept.every(Number.isFinite)) {
+        console.warn('[ModelManager] intercept 包含非法数值');
+        return false;
+    }
+
+    for (let i = 0; i < 3; i++) {
+        if (!isFiniteCheck(coef[i])) {
+            console.warn(`[ModelManager] coef[${i}] 包含 NaN/Infinity`);
+            return false;
+        }
+    }
+
+    return true;
+}
+
 export async function checkAndUpdateModel() {
     try {
         console.log('[ModelManager] 🔍 检查模型更新...');
@@ -111,15 +163,19 @@ export async function checkAndUpdateModel() {
             cache: 'no-store'
         });
 
+        const localMeta = await dbGet(CACHE_META_KEY);
+
+        // 🔒 M-8 修复：仅在鉴权彻底失败 (401/403) 时清空本地缓存
         if (modelResp.status === 401 || modelResp.status === 403) {
             console.warn('🛡️ [ModelManager] 鉴权失败：Token 无效或已过期，执行清理。');
             await clearModelCache();
             return { updated: false, meta: null };
         }
 
+        // 🔒 M-8 修复：其他网络错误保留本地已验签模型，防止 CDN 故障导致 AI 瘫痪
         if (!modelResp.ok) {
-            console.warn('[ModelManager] 下载模型失败:', modelResp.status);
-            return { updated: false, meta: null };
+            console.warn('[ModelManager] 下载模型失败，保留本地模型:', modelResp.status);
+            return { updated: false, meta: localMeta };
         }
 
         // 3. 获取版本、哈希与签名信息
@@ -129,18 +185,16 @@ export async function checkAndUpdateModel() {
         const channel = modelResp.headers.get('X-Model-Channel') || 'latest';
         console.log(`[ModelManager] 📡 当前分配通道: ${channel}`);
 
-        // 🔒 S-03 修复 A：强制要求哈希和签名存在
         if (remoteVersion === 'unknown' || !remoteSha256 || !signatureB64) {
-            console.error('[ModelManager] ❌ 拒绝更新：缺少版本号、哈希或签名头！(回退包内默认模型)');
-            await clearModelCache(); // 🔒 清理本地缓存
-            return { updated: false, meta: null, error: 'Missing security headers' };
+            console.error('[ModelManager] ❌ 拒绝更新：缺少版本号、哈希或签名头！(保留本地缓存)');
+            return { updated: false, meta: localMeta, error: 'Missing security headers' };
         }
 
-        // 🔒 S-03 修复 B：版本单调性检查（防降级攻击）
-        const localMeta = await dbGet(CACHE_META_KEY);
+        // 🔒 H-6 修复：版本单调性检查（防降级攻击）
         if (localMeta && localMeta.trainedAt) {
-            // 简单的字符串/数字比较。如果是纯数字时间戳，直接比较大小；如果是版本字符串，确保严格递增
-            if (remoteVersion <= localMeta.trainedAt) {
+            const remoteSeq = parseVer(remoteVersion);
+            const localSeq = parseVer(localMeta.trainedAt);
+            if (remoteSeq <= localSeq) {
                 console.log(`[ModelManager] 🛡️ 拒绝降级：本地 (${localMeta.trainedAt}) >= 远程 (${remoteVersion})`);
                 return { updated: false, meta: localMeta };
             }
@@ -150,14 +204,19 @@ export async function checkAndUpdateModel() {
         const modelBuffer = await modelResp.arrayBuffer();
         const actualHash = await computeSHA256(modelBuffer);
         if (actualHash !== remoteSha256) {
-            console.error('[ModelManager] ❌ SHA-256 校验失败！文件损坏或被篡改。(回退包内默认模型)');
-            await clearModelCache();
-            return { updated: false, meta: null, error: 'SHA-256 mismatch' };
+            console.error('[ModelManager] ❌ SHA-256 校验失败！(保留本地缓存)');
+            return { updated: false, meta: localMeta, error: 'SHA-256 mismatch' };
         }
         
         // 🔧 解析 JSON 权重
         const modelText = new TextDecoder().decode(modelBuffer);
         const modelJson = JSON.parse(modelText);
+
+        // 🔒 M-8 修复：校验权重形状和有效性
+        if (!isValidModelShape(modelJson)) {
+            console.error('[ModelManager] ❌ 模型权重格式非法或包含 NaN！(保留本地缓存)');
+            return { updated: false, meta: localMeta, error: 'Invalid model shape' };
+        }
 
         // 🔒 S-03 修复 C：Ed25519 签名校验
         try {
@@ -165,28 +224,18 @@ export async function checkAndUpdateModel() {
             const msgStr = `${remoteVersion}:${remoteSha256}`;
             const msgBytes = new TextEncoder().encode(msgStr);
             
-            // 解析 Base64 签名
             const sigBytes = Uint8Array.from(atob(signatureB64.trim()), c => c.charCodeAt(0));
-            
-            // 解析 Hex 公钥
             const pubKeyBytes = new Uint8Array(ED25519_PUBLIC_KEY_HEX.match(/.{1,2}/g).map(byte => parseInt(byte, 16)));
 
-            // 🔍 打印前端到底拿到了什么
-            console.log('🔍 [DEBUG] 待验原文:', msgStr);
-            console.log('🔍 [DEBUG] 签名长度:', sigBytes.length, '(应为 64)');
-            console.log('🔍 [DEBUG] 公钥长度:', pubKeyBytes.length, '(应为 32)');
-
-            // 执行校验
             const isValid = await ed.verifyAsync(sigBytes, msgBytes, pubKeyBytes);
             if (!isValid) {
-                console.error('[ModelManager] ❌ 签名校验失败！模型来源不可信。(回退包内默认模型)');
-                await clearModelCache(); // 🔒 签名不对，直接扬了旧缓存
-                return { updated: false, meta: null, error: 'Signature verification failed' };
+                console.error('[ModelManager] ❌ 签名校验失败！(保留本地缓存)');
+                return { updated: false, meta: localMeta, error: 'Signature verification failed' };
             }
             console.log('[ModelManager] ✅ 签名校验通过！');
         } catch (sigErr) {
             console.error('[ModelManager] ❌ 签名解析异常:', sigErr);
-            return { updated: false, meta: null, error: 'Invalid signature format' };
+            return { updated: false, meta: localMeta, error: 'Invalid signature format' };
         }
 
         // 6. 缓存
@@ -195,9 +244,12 @@ export async function checkAndUpdateModel() {
         await dbPut(CACHE_META_KEY, newMeta);
 
         console.log('[ModelManager] ✅ 模型已更新:', remoteVersion);
+        chrome.runtime.sendMessage({ type: 'MODEL_UPDATED' }).catch(() => {});
         return { updated: true, meta: newMeta };
     } catch (e) {
         console.warn('[ModelManager] 检查更新失败:', e);
-        return { updated: false, meta: null, error: String(e) };
+        // 🔒 M-8 修复：发生异常时不再返回 null 并清空缓存
+        const fallbackMeta = await dbGet(CACHE_META_KEY);
+        return { updated: false, meta: fallbackMeta, error: String(e) };
     }
 }

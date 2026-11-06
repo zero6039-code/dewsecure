@@ -1,6 +1,27 @@
 import { getCurrentUser } from '../../src/authManager.js';
 import { updateSiteSwitch, disableSiteSwitch } from '../views.js';
 
+// 🛡️ S-13 修复：HTML 实体转义，防止恶意 URL 注入 XSS
+function escapeHTML(str) {
+    if (!str) return '';
+    return String(str).replace(/[&<>'"]/g, 
+        tag => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[tag])
+    );
+}
+
+
+// 🛡️ M-6 终极修复：兼容历史遗留的缺失 domain 的旧数据
+function extractDomain(log) {
+    if (log.domain && log.domain !== '未知') return log.domain;
+    if (!log.url) return '未知';
+    try {
+        if (log.url.startsWith('http')) return new URL(log.url).hostname;
+        return log.url.split('/')[0];
+    } catch (e) {
+        return '未知';
+    }
+}
+
 export function getTypeText(type) { 
     const t = window.t || (window.i18n && window.i18n.t) || ((k) => k); 
     const map = { dnr: "type_dnr", tracker: "type_tracker", ad: "type_ad", "dom-hidden": "type_dom_hidden" }; 
@@ -38,13 +59,21 @@ export async function updateSiteInfo() {
 }
 
 export async function renderTodayLogs() {
-    const res = await chrome.storage.local.get('dewsecure_logs');
-    const logs = Array.isArray(res.dewsecure_logs) ? res.dewsecure_logs : [];
+    const [resLogs, resStats] = await Promise.all([
+        chrome.storage.local.get('dewsecure_logs'),
+        chrome.storage.local.get('dewsecure_stats')
+    ]);
+    const logs = Array.isArray(resLogs.dewsecure_logs) ? resLogs.dewsecure_logs : [];
+    const stats = resStats.dewsecure_stats || {};
     const todayStr = new Date().toDateString();
     const todayLogs = logs.filter(l => l.date === todayStr);
 
+    // 🛡️ 修复：获取真实的今日拦截总数，如果大于日志条数，显示“+”
+    const realTodayBlocked = stats.date === todayStr ? stats.todayBlocked : 0;
+    const displayCount = realTodayBlocked > todayLogs.length ? `${todayLogs.length}+` : todayLogs.length;
+    
     const badge = document.getElementById('logCountBadge');
-    if (badge) badge.textContent = `${todayLogs.length} ${window.t('log_items')}`;
+    if (badge) badge.textContent = `${displayCount} ${window.t('log_items')}`;
 
     const list = document.getElementById('logsList');
     if (!list) return;
@@ -56,8 +85,9 @@ export async function renderTodayLogs() {
 
     const grouped = {};
     todayLogs.forEach(log => {
-        if (!grouped[log.domain]) grouped[log.domain] = [];
-        grouped[log.domain].push(log);
+        const d = extractDomain(log);
+        if (!grouped[d]) grouped[d] = [];
+        grouped[d].push(log);
     });
 
     const sortedDomains = Object.keys(grouped).map(domain => ({
@@ -72,7 +102,7 @@ export async function renderTodayLogs() {
         const innerHTML = item.records.map(r => {
             const rTime = new Date(r.ts).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
             return `<div style="display: flex; justify-content: space-between; padding: 6px 10px; font-size: 11px; color: #6b7280; border-bottom: 1px solid rgba(0,0,0,0.05);">
-                <span>${r.url || '未知路径'}</span>
+                <span>${escapeHTML(r.url || '未知路径')}</span>
                 <span>${rTime}</span>
             </div>`;
         }).join('');
@@ -81,7 +111,7 @@ export async function renderTodayLogs() {
         <details class="hover-card" style="background: rgba(255,255,255,0.6); border-radius: 8px; margin-bottom: 8px; overflow: hidden;">
             <summary style="display: flex; justify-content: space-between; align-items: center; padding: 10px; outline: none; list-style: none;">
                 <div style="flex: 1; overflow: hidden;">
-                    <div style="font-weight: 600; font-size: 13px; color: #1c1c1e; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${item.domain}</div>
+                    <div style="font-weight: 600; font-size: 13px; color: #1c1c1e; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${escapeHTML(item.domain)}</div>
                     <div style="font-size: 11px; color: #6b7280;">${getTypeText(firstRecord.type)}</div>
                 </div>
                 <div style="display: flex; align-items: center; gap: 8px;">
@@ -105,8 +135,9 @@ export async function renderTotalStats() {
 
     const domainCounts = {};
     logs.forEach(log => {
-        if (log.domain && log.domain !== '未知') {
-            domainCounts[log.domain] = (domainCounts[log.domain] || 0) + 1;
+        const d = extractDomain(log);
+        if (d && d !== '未知') {
+            domainCounts[d] = (domainCounts[d] || 0) + 1;
         }
     });
 
@@ -122,7 +153,7 @@ export async function renderTotalStats() {
     list.innerHTML = topDomains.map((item, index) => {
         return `<div class="hover-card" style="display: flex; justify-content: space-between; align-items: center; padding: 10px; background: rgba(255,255,255,0.6); border-radius: 8px;">
             <div style="font-size: 13px; font-weight: 500; color: #1c1c1e;">
-                <span style="color: #6b7280; margin-right: 5px;">${index + 1}</span> ${item[0]}
+                <span style="color: #6b7280; margin-right: 5px;">${index + 1}</span> ${escapeHTML(item[0])}
             </div>
             <div style="font-size: 13px; font-weight: bold; color: #58a6ff;">${item[1]}</div>
         </div>`;
@@ -171,7 +202,7 @@ export async function updateUserUI(user) {
         
         if (!isPremium) {
             switchEl.checked = false;
-            switchEl.disabled = true;
+            switchEl.disabled = true; // 🔒 F3 确保免费用户强制关闭
             if (container) {
                 container.style.opacity = '0.4';
                 container.style.pointerEvents = 'none';

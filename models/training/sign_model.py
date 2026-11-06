@@ -7,8 +7,8 @@ def main():
     meta_path = 'weights/model_meta.json'
     
     if not os.path.exists(onnx_path) or not os.path.exists(meta_path):
-        print("❌ 模型或元信息文件不存在")
-        return
+        import sys
+        sys.exit("❌ 模型或元信息文件不存在, 拒绝签名")
 
     # 1. 计算 ONNX 哈希
     with open(onnx_path, 'rb') as f:

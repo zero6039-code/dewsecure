@@ -5,7 +5,7 @@ import path from 'path';
 const watch = process.argv.includes('--watch');
 
 const buildOptions = {
-    entryPoints: ['src/background.js', 'src/content.js', 'src/inject.js', 'src/offscreen.js'],
+    entryPoints: ['src/background.js', 'src/content.js', 'src/inject.js'],
     outbase: '.', 
     bundle: true,
     outdir: 'dist',
@@ -28,6 +28,8 @@ function syncFromChrome() {
     if (fs.existsSync('../chrome/popup')) fs.cpSync('../chrome/popup', 'popup', { recursive: true, force: true, filter: filterFn });
     if (fs.existsSync('../chrome/rules')) fs.cpSync('../chrome/rules', 'rules', { recursive: true, force: true, filter: filterFn });
     if (fs.existsSync('../chrome/icons')) fs.cpSync('../chrome/icons', 'icons', { recursive: true, force: true, filter: filterFn });
+    if (fs.existsSync('../chrome/warning.html')) fs.copyFileSync('../chrome/warning.html', 'warning.html');
+    if (fs.existsSync('../chrome/warning.js'))   fs.copyFileSync('../chrome/warning.js',   'warning.js');
     console.log('✅ 同步完成！');
 }
 
@@ -41,6 +43,13 @@ function generateFirefoxManifest() {
     delete chrome.offscreen; 
     delete chrome.side_panel;
     delete chrome.externally_connectable;
+    delete chrome.key; // Firefox 通过 gecko.id 识别，不支持 key
+    if (chrome.web_accessible_resources) {
+        chrome.web_accessible_resources = chrome.web_accessible_resources.map(r => {
+            delete r.use_dynamic_url; // Chrome 专属，Firefox 不支持会报警告
+            return r;
+        });
+    }
     if (chrome.permissions) {
         chrome.permissions = chrome.permissions.filter(p => p !== 'offscreen' && p !== 'sidePanel');
     }
@@ -95,6 +104,8 @@ function copyStatic() {
     if (fs.existsSync('popup')) fs.cpSync('popup', 'dist/popup', { recursive: true, force: true });
     if (fs.existsSync('icons')) fs.cpSync('icons', 'dist/icons', { recursive: true, force: true });
     if (fs.existsSync('rules')) fs.cpSync('rules', 'dist/rules', { recursive: true, force: true });
+    if (fs.existsSync('warning.html')) fs.copyFileSync('warning.html', 'dist/warning.html');
+    if (fs.existsSync('warning.js'))   fs.copyFileSync('warning.js',   'dist/warning.js');
     
     if (fs.existsSync('src')) {
         const srcFiles = fs.readdirSync('src');

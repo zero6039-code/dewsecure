@@ -1,23 +1,22 @@
 {
   "manifest_version": 3,
   "name": "DewSecure - Content Optimizer",
-  "version": "1.2.6",
+  "version": "1.2.7",
   "description": "On-device AI + 110,000+ rules. Stop phishing redirects, trackers, and intrusive popups. Privacy-first.",
   "permissions": [
     "declarativeNetRequest",
     "declarativeNetRequestFeedback",
     "storage",
     "alarms",
-    "tabs",
-    "webNavigation"
+    "webNavigation",
+    "downloads",
+    "notifications"
   ],
   "host_permissions": [
-    "<all_urls>",
-    "https://cdn.dewsecure.com/*",
-    "https://dewsecure-api.zero6039.workers.dev/*"
+    "<all_urls>"
   ],
   "content_security_policy": {
-    "extension_pages": "script-src 'self'; object-src 'self'; connect-src *;"
+    "extension_pages": "script-src 'self'; object-src 'self'; connect-src 'self' https://api.dewsecure.com https://*.supabase.co https://cdn.dewsecure.com https://dewsecure-api.zero6039.workers.dev;"
   },
   "background": {
     "scripts": [
@@ -33,7 +32,8 @@
       "js": [
         "src/content.js"
       ],
-      "run_at": "document_start"
+      "run_at": "document_start",
+      "all_frames": true
     },
     {
       "matches": [
@@ -43,7 +43,8 @@
         "src/inject.js"
       ],
       "run_at": "document_start",
-      "world": "MAIN"
+      "world": "MAIN",
+      "all_frames": true
     }
   ],
   "declarative_net_request": {
@@ -102,6 +103,11 @@
         "id": "annoyances",
         "enabled": false,
         "path": "rules/annoyances.json"
+      },
+      {
+        "id": "allowlist",
+        "enabled": true,
+        "path": "rules/allowlist.json"
       }
     ]
   },
@@ -120,18 +126,18 @@
     },
     "default_popup": "popup/index.html"
   },
-  "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAtkg6OlWuWqV789Hzr8YhO0Yd3mhbSHNsCfpBjW79EBq5TYUW0HumDVrJgPPIczuK2BROHafk1wSm1l5l2+axaimccYfDGpn3hTRrHBmuY+OneZqORp90etBEX9sraOlcWp8wONRX5daHuGvtArUB+gsiktT3su1LzsjU//YrS07qDe1dIPYlrRFkksK/clmq/gkPE/wQxj+J2aMXcUuenjpd+4CsIssW4y+5T4Es4WizuKqj96i9ryilbm3vBI9uw8cn6ki5F7Ogf49l/lrGb3Dn1p8HUaqjygSKgq2bIYW/cRIoZDaC/2TxrZ0TKmInXPlIHL/8mOpOI1D5sRTxSwIDAQAB",
   "web_accessible_resources": [
     {
       "resources": [
         "warning.html",
-        "warning.js"
+        "src/content.css"
       ],
       "matches": [
         "<all_urls>"
       ]
     }
   ],
+  "minimum_chrome_version": "114",
   "sidebar_action": {
     "default_panel": "popup/index.html",
     "default_icon": {

@@ -1,3 +1,7 @@
+import { getCachedModel } from '../modelManager.js';
+import { HARD_SAFE_DOMAINS, HARD_BLOCK_DOMAINS, AI_BLOCK_RESOURCE_TYPES } from './aiConfig.js';
+import { checkThreatFilter } from './threatIntel.js'; // 🛡️ N-12 修复：引入威胁情报作为真实信号
+
 // 辅助函数：FNV-1a 哈希
 function fnv1a(str) {
     let hash = 0xcbf29ce484222325n;
@@ -8,6 +12,17 @@ function fnv1a(str) {
     }
     return hash;
 }
+
+// 🚀 性能优化：32 位 FNV-1a 哈希（避免 BigInt 开销）
+// 64 位 FNV-1a 对 16384 取模只取决于低 14 位，因此 32 位 Math.imul 模拟完全等价
+function fnv1a32(str) {
+    let hash = 0x84222325;
+    for (let i = 0; i < str.length; i++) {
+        hash = Math.imul(hash ^ str.charCodeAt(i), 0x1b3);
+    }
+    return hash;
+}
+
 // 辅助函数：计算熵值
 function calculateEntropy(s) {
     if (!s) return 0.0;
@@ -104,66 +119,267 @@ export function extractFeaturesFromUrl(url) {
     return Array.from(features);
 }
 
+// ==========================================
+// 🚀 性能优化：稀疏特征提取（M-7 稠密向量优化）
+// 返回 { buckets: Map<bucketIdx, count>, structs: [[idx, val], ...] }
+// 只包含非零项，避免构造 16418 维稠密数组与 Array.from
+// 与 extractFeaturesFromUrl 输出在数学上等价（同一 n-gram 桶、同一结构特征索引）
+// ==========================================
+export function extractSparseFeatures(url) {
+    const url_lower = url.toLowerCase();
+
+    // 1. n-gram 桶计数（Map 聚合，同桶累加）
+    const buckets = new Map();
+    const maxI = url_lower.length - 3;
+    for (let i = 0; i <= maxI; i++) {
+        const ngram = url_lower.substring(i, i + 3);
+        const hash = fnv1a32(ngram);
+        const bucket = hash & 0x3FFF;
+        buckets.set(bucket, (buckets.get(bucket) || 0) + 1);
+    }
+
+    // 2. 结构特征（严格对齐 features.py，偏移 o=16384）
+    const structs = [];
+    const o = 16384;
+    const count = (str, ch) => str.split(ch).length - 1;
+    const containsAny = (s, kws) => kws.some(kw => s.includes(kw)) ? 1.0 : 0.0;
+    const push = (idx, val) => { if (val !== 0) structs.push([idx, val]); };
+
+    push(o + 0, url_lower.length);
+    push(o + 1, count(url_lower, "."));
+    push(o + 2, count(url_lower, "/"));
+    push(o + 3, count(url_lower, "-"));
+    push(o + 4, count(url_lower, "_"));
+    push(o + 5, count(url_lower, "?"));
+    push(o + 6, count(url_lower, "="));
+    push(o + 7, count(url_lower, "&"));
+    push(o + 8, count(url_lower, "%"));
+
+    push(o + 9,  containsAny(url_lower, ["ad", "ads", "advert"]));
+    push(o + 10, containsAny(url_lower, ["track", "tracking"]));
+    push(o + 11, containsAny(url_lower, ["analytics", "stats"]));
+    push(o + 12, containsAny(url_lower, ["banner", "banners"]));
+    push(o + 13, containsAny(url_lower, ["popup", "popunder"]));
+    push(o + 14, containsAny(url_lower, ["click", "clicks"]));
+    push(o + 15, containsAny(url_lower, ["pixel", "beacon"]));
+    push(o + 16, containsAny(url_lower, ["doubleclick", "googlesyndication"]));
+    push(o + 17, containsAny(url_lower, ["facebook", "fbcdn"]));
+    push(o + 18, containsAny(url_lower, ["google", "gstatic"]));
+
+    push(o + 19, url_lower.endsWith(".com") ? 1.0 : 0.0);
+    push(o + 20, url_lower.endsWith(".net") ? 1.0 : 0.0);
+    push(o + 21, url_lower.endsWith(".org") ? 1.0 : 0.0);
+    push(o + 22, url_lower.endsWith(".io")  ? 1.0 : 0.0);
+    push(o + 23, url_lower.endsWith(".cn")  ? 1.0 : 0.0);
+
+    push(o + 24, url_lower.startsWith("https")  ? 1.0 : 0.0);
+    push(o + 25, url_lower.startsWith("http://") ? 1.0 : 0.0);
+
+    const digitCount = (url.match(/\d/g) || []).length;
+    push(o + 26, digitCount / Math.max(url_lower.length, 1));
+
+    const upperCount = (url.match(/[A-Z]/g) || []).length;
+    push(o + 27, upperCount / Math.max(url_lower.length, 1));
+
+    push(o + 28, count(url_lower, "/"));
+    push(o + 29, count(url_lower, "&") + count(url_lower, "?"));
+
+    const parts = url_lower.split("/");
+    if (parts.length > 2) {
+        const host = parts[2].split(":")[0];
+        push(o + 30, host.length);
+        push(o + 31, isIpAddress(url_lower) ? 1.0 : 0.0);
+        push(o + 32, Math.max(0, count(host, ".") - 1));
+    }
+
+    push(o + 33, calculateEntropy(url_lower));
+
+    return { buckets, structs };
+}
+
 const AI_CHECKED_DOMAINS = new Set();
-export async function runAICheck(url) {
+// 📊 信号 3：记录该域名在多少个不同站点中被请求
+const HOST_REF_COUNT = new Map();
+export function recordHostRef(host) {
+    HOST_REF_COUNT.set(host, (HOST_REF_COUNT.get(host) || 0) + 1);
+    if (HOST_REF_COUNT.size > 5000) HOST_REF_COUNT.clear(); // 防内存泄漏
+}
+
+
+let cachedWeights = null;
+let aiCheckedDomainsLoaded = false;
+let saveDomainsTimer = null;
+
+async function loadCheckedDomains() {
+    if (aiCheckedDomainsLoaded) return;
     try {
-        const domain = new URL(url).hostname;
+        const res = await chrome.storage.session.get('ai_checked_domains');
+        if (res && Array.isArray(res.ai_checked_domains)) {
+            res.ai_checked_domains.forEach(d => AI_CHECKED_DOMAINS.add(d));
+        }
+    } catch (e) {}
+    aiCheckedDomainsLoaded = true;
+}
+
+function scheduleSaveDomains() {
+    if (saveDomainsTimer) return;
+    saveDomainsTimer = setTimeout(() => {
+        saveDomainsTimer = null;
+        if (!chrome.storage.session) return;
+        chrome.storage.session.set({ ai_checked_domains: Array.from(AI_CHECKED_DOMAINS) }).catch(() => {});
+    }, 1000);
+}
+
+export function invalidateAIModelCache() {
+    cachedWeights = null;
+    console.log('🔄 [AI] 模型缓存已清除，等待下次加载');
+} // 🚀 M-7 修复：内存级模型缓存
+export async function runAICheck(url, tabId = null, isThirdParty = false) {
+    try {
+        await loadCheckedDomains(); // 🚀 恢复休眠前的状态
+        const domain = isThirdParty ? url : new URL(url).hostname;
         if (AI_CHECKED_DOMAINS.has(domain)) return;
+        
         // 🔧 防御性微调：防止 Set 无限膨胀导致内存泄漏
         if (AI_CHECKED_DOMAINS.size > 5000) {
             AI_CHECKED_DOMAINS.clear();
         }
-        AI_CHECKED_DOMAINS.add(domain);
-        const features = extractFeaturesFromUrl(domain); // 🔧 P1-B Step1: 归一化为 hostname，对齐训练分布
-        const response = await chrome.runtime.sendMessage({ target: 'offscreen', type: 'CLASSIFY', features });
-        if (!response || !response.probs) return;
-        const probs = response.probs;
+        // 🛡️ N-12 修复：不在这里立刻加入去重集合，等确认需要拦截或信号达到 3 时再加
+        // 这样可以允许第三方请求多次进入，累积 HOST_REF_COUNT
+
+        // 🛑 防线 0：前端硬拦截 (与规则层对齐，命中直接拦截，不消耗 AI 算力)
+        
+        if (HARD_BLOCK_DOMAINS.some(d => domain === d || domain.endsWith('.' + d))) {
+            console.log(`🛑 [AI] 命中绝对黑名单，交由网络层/规则层处理: ${domain}`);
+            return;
+        }
+
+        // 🚀 稀疏化：只取非零 n-gram 桶与结构特征，不建 16418 维稠密数组
+        const { buckets, structs } = extractSparseFeatures(domain);
+
+        // 🚀 M-7 修复：内存级缓存，避免每次从 IndexedDB 反序列化整份权重
+        if (!cachedWeights) {
+            const cached = await getCachedModel();
+            if (!cached || !cached.weights) return;
+            cachedWeights = cached.weights;
+            console.log('⚡ [AI] 模型权重已加载至内存缓存');
+        }
+
+        const { coef, intercept } = cachedWeights;
+        // 🚀 稀疏化：以 intercept 初始化，仅累加非零特征，无 16418 次全量扫描
+        const logits = [intercept[0], intercept[1], intercept[2]];
+
+        for (const [bucket, cnt] of buckets) {
+            logits[0] += coef[0][bucket] * cnt;
+            logits[1] += coef[1][bucket] * cnt;
+            logits[2] += coef[2][bucket] * cnt;
+        }
+        for (const [idx, val] of structs) {
+            logits[0] += coef[0][idx] * val;
+            logits[1] += coef[1][idx] * val;
+            logits[2] += coef[2][idx] * val;
+        }
+
+        // Softmax 转为概率
+        const maxLogit = Math.max(...logits);
+        const exps = logits.map(l => Math.exp(l - maxLogit));
+        const sumExps = exps.reduce((a, b) => a + b, 0);
+        const probs = exps.map(e => e / sumExps);
         const maxIdx = probs.indexOf(Math.max(...probs));
         const classes = ['Normal', 'Ad', 'Tracker']; // 🔒 P-01 修复：模型只有 3 类
         const classification = classes[maxIdx];
-        
-        // 🔒 安全网 1：如果网站在白名单里，直接放行
+
+        // 🔒 安全网 1：如果开关关闭或网站在白名单里，直接放行
         const settings = await chrome.storage.local.get('dewsecure_settings').then(r => r.dewsecure_settings || {});
+        if (settings.aiEnabled === false) return; // 尊重前端开关
         const isWhitelisted = (settings.whitelist || []).some(d => domain === d || domain.endsWith('.' + d)) ||
                               (settings.tempWhitelist || []).some(d => domain === d || domain.endsWith('.' + d));
         if (isWhitelisted) {
-            console.log(`🛡️ [AI安全网] ${domain} 在白名单中，跳过拦截。`);
             return;
         }
 
         // 🔒 P-01: 暂时移除 Phishing 分支，等待未来加入钓鱼训练数据
         if (classification === 'Ad' || classification === 'Tracker') {
             // 🔒 安全网 2：严禁拦截 main_frame (防止网页白屏死锁)
-            // 只拦截高危子资源，且降低拦截概率，仅当置信度极高（>80%）时才拦截子资源
             const confidence = probs[maxIdx];
             if (confidence < 0.8) {
-                console.log(`[AI] 置信度不足 (${confidence.toFixed(2)})，放弃拦截: ${domain}`);
+                // console.log(`[AI] 置信度不足 (${confidence.toFixed(2)})，放弃拦截: ${domain}`);
                 return;
             }
+
+            // 🌟 防线 1：AI 拦截前置豁免检查 (绝对白名单)
             
-            // 🌟 防线 1：AI 拦截前置豁免检查
-            if (domain === 'dewsecure.com' || domain.endsWith('.dewsecure.com') || domain.includes('zero6039')) {
-                console.log('🛡️ [AI] 拦截命中官方域名，已强制放行。');
+            if (HARD_SAFE_DOMAINS.some(d => domain === d || domain.endsWith('.' + d))) return;
+            if (domain === 'dewsecure.com' || domain.endsWith('.dewsecure.com')) return;
+
+            // 🛡️ F1 修复：只对第三方请求执行拦截。
+            if (!isThirdParty) {
+                console.log(`🛡️ [AI] 发现可疑主页 (${domain})，但为防白屏，不执行拦截。`);
                 return;
             }
-            
-            // 🌟 核心架构级修复：彻底废弃 DNR 网络级阻断（防止白屏误杀）
-            // 改为发送消息给 content.js，进行安全的 DOM 级别软隐藏
-            const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
-            if (tabs[0] && tabs[0].id) {
-                chrome.tabs.sendMessage(tabs[0].id, { 
-                    type: 'HIDE_AI_AD', 
-                    domain: domain 
-                }).catch(() => {});
+
+            // ==========================================
+            // 🚀 M-7 核心重构：多信号交叉验证 (3 种独立信号)
+            // ==========================================
+            const signals = ['模型置信度'];
+            let finalConfidence = confidence;
+
+            // 信号 2：跨站引用频率 (被 >= 3 个站点引用)
+            const refCount = HOST_REF_COUNT.get(domain) || 0;
+            if (refCount >= 3) {
+                signals.push(`跨站引用(${refCount}次)`);
+                finalConfidence = Math.min(1.0, finalConfidence + 0.05);
             }
-            console.log(`🛡️ [AI] 已触发 DOM 软隐藏: ${domain} (绝不阻断网络)`);
+
+            // 🛡️ N-12 修复：信号 3：真实调用本地威胁情报库
+            if (checkThreatFilter(domain)) { 
+                signals.push('命中本地威胁情报');
+                finalConfidence = 1.0; // 直接最高置信度
+            }
+
+            // 🛡️ N-12 修复：现在才加入去重集合
+            // 如果是第三方且信号不足（如 refCount 只有 1），允许后续再次评估
+            if (!isThirdParty || (HOST_REF_COUNT.get(domain) || 0) >= 3 || finalConfidence >= 0.95) {
+                AI_CHECKED_DOMAINS.add(domain);
+                scheduleSaveDomains();
+            }
+
+            if (signals.length >= 3 && finalConfidence >= 0.95) {
+                // 🛡️ 满足三信号交叉验证，执行硬拦截
+                // 🛡️ N-12 修复：使用递增计数器分配 ID，避免碰撞
+                const { nextAIRuleId = 8000000 } = await chrome.storage.session.get('nextAIRuleId');
+                const ruleId = nextAIRuleId;
+                await chrome.storage.session.set({ nextAIRuleId: ruleId + 1 });
+
+                await chrome.declarativeNetRequest.updateSessionRules({
+                    removeRuleIds: [ruleId],
+                    addRules: [{
+                        id: ruleId,
+                        priority: 2000000,
+                        action: { type: 'block' },
+                        condition: {
+                            requestDomains: [domain],
+                            resourceTypes: AI_BLOCK_RESOURCE_TYPES
+                        }
+                    }]
+                }).catch(e => console.warn('[AI] DNR 规则注入失败:', e));
+
+                console.log(`🛡️ [AI] 已对 ${domain} 实施硬拦截 (信号: ${signals.join(', ')} | 置信度: ${finalConfidence.toFixed(2)})`);
+            } else {
+                // 💡 置信度高，但信号不足，进入“建议规则”管线
+                if (finalConfidence >= 0.95) {
+                    console.log(`💡 [AI] 发现高度可疑域名 ${domain}，信号不足 (${signals.join(', ')})，转入人工审核建议。`);
+                    chrome.storage.local.get('ai_suggested_rules').then(res => {
+                        const list = res.ai_suggested_rules || [];
+                        if (!list.some(r => r.domain === domain)) {
+                            list.push({ domain, reason: signals.join(', '), score: finalConfidence, ts: Date.now() });
+                            chrome.storage.local.set({ ai_suggested_rules: list.slice(-50) });
+                        }
+                    });
+                } else {
+                    console.log(`🛡️ [AI] 发现可疑第三方 (${domain})，置信度不足或信号不够，仅观察。`);
+                }
+            }
         }
     } catch(e) {}
 }
-
-// 🌟 自动容错：如果模型首次下载失败（如网络波动），静默处理，下次再试
-chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
-    if (msg.type === 'OFFSCREEN_ERROR') {
-        console.warn('⚠️ [Offscreen] 模型加载失败，已静默忽略，等待下次心跳重试。');
-    }
-});

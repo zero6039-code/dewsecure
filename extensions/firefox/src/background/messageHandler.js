@@ -1,49 +1,142 @@
+import { syncRules, RANGE, getOrCreateRuleIdUnsafe, removeRuleIdMappingUnsafe, withLock } from './dnrOwner.js';
 import { getSettings, SETTINGS_KEY, STATS_KEY, LOG_KEY } from './settings.js';
 import { getInstallationId } from '../deviceManager.js';
 import { recordBlock, getMatchedStats } from './stats.js';
+import { getDomain } from 'tldts';
+import { jwtPayload } from '../authManager.js'; // 🔒 M-3 修复：引入安全解析工具
 
-// 🔒 正确的 DNR 规则集列表（必须与 manifest.json 完全一致）
-const ALL_DNR_RULESETS = [
-    'ads_1a', 'ads_1b', 'ads_2', 'ads_3', 'ads_4',
-    'trackers_1a', 'trackers_1b', 'trackers_2a', 'trackers_2b',
-    'anti_affiliate', 'annoyances'
-];
+// 🔒 分离广告与追踪器规则集，实现独立开关
+const ADS_RULESETS = ['ads_1a', 'ads_1b', 'ads_2', 'ads_3', 'ads_4', 'anti_affiliate'];
+const TRACKER_RULESETS = ['trackers_1a', 'trackers_1b', 'trackers_2a', 'trackers_2b'];
+const EXTRA_RULESETS = ['annoyances']; // 'privacy' 由 background.js 动态注入，不走静态规则集
 
-// 🔒 辅助函数：统一处理 DNR 规则的开启/关闭
-async function updateDNRRulesets(isEnabled) {
+export async function updateDNRRulesets(dnrEnabled, blockTrackers) {
     try {
+        const enable = [];
+        const disable = [];
+
+        // 🛡️ B5 修复：检查 DNR 全局可用额度（精确比对，不再一刀切 30000）
+        let hasEnoughQuota = true;
+        if (dnrEnabled && chrome.declarativeNetRequest.getAvailableStaticRuleCount) {
+            try {
+                const quota = await chrome.declarativeNetRequest.getAvailableStaticRuleCount();
+                // DewSecure 追踪器规则集约 40000 条，如果剩余额度不够加载它，再降级
+                const neededTrackersQuota = 40000; 
+                if (quota < neededTrackersQuota) {
+                    hasEnoughQuota = false;
+                    console.warn(`⚠️ [DNR] 全局可用额度 (${quota}) 不足以加载追踪器规则 (${neededTrackersQuota})，已静默降级。请提示用户关闭其他拦截插件。`);
+                    blockTrackers = false; // 精确关闭
+                }
+            } catch (e) {
+                console.warn('无法获取 DNR 额度，采用默认策略', e);
+            }
+        }
+
+        if (dnrEnabled) enable.push(...ADS_RULESETS, ...EXTRA_RULESETS);
+        else disable.push(...ADS_RULESETS, ...EXTRA_RULESETS);
+
+        if (dnrEnabled && blockTrackers) enable.push(...TRACKER_RULESETS);
+        else disable.push(...TRACKER_RULESETS);
+
         await chrome.declarativeNetRequest.updateEnabledRulesets({
-            enableRulesetIds: isEnabled ? ALL_DNR_RULESETS : [],
-            disableRulesetIds: isEnabled ? [] : ALL_DNR_RULESETS
+            enableRulesetIds: enable,
+            disableRulesetIds: disable
         });
-        console.log(`✅ [DNR] 规则集已${isEnabled ? '启用' : '禁用'}`);
+        console.log(`✅ [DNR] 规则集已更新 (广告:${dnrEnabled}, 追踪器:${blockTrackers}, 额度充足:${hasEnoughQuota})`);
     } catch (e) {
         console.warn('❌ [DNR] 规则集更新失败:', e);
     }
 }
 
-// 🔒 S-07: 允许通过 UPDATE_SETTING_KEY 修改的合法键
-const ALLOWED_SETTING_KEYS = new Set([
+// 🛡️ N-13 修复：仅允许通过 UPDATE_SETTING_KEY/UPDATE_SETTINGS 修改基础布尔开关
+// whitelist、tempWhitelist、dailyUsed 等敏感数据必须走各自专用的消息路径（且需经 isValidWhitelistDomain）
+const SIMPLE_KEYS = new Set([
     'dnrEnabled', 'antiHijackEnabled', 'phishingEnabled', 'intelEnabled', 'aiFourEnabled', 
     'aiEnabled', 'antiBypassEnabled', 'blockTrackers', 'hideCookieNotices', 
-    'hideAdPlaceholders', 'blockSocialTrackers', 'whitelist', 'tempWhitelist',
-    'dailyLimit', 'dailyUsed', 'lastResetDate'
+    'hideAdPlaceholders', 'blockSocialTrackers', 'shareThreatCandidates'
 ]);
 
+// 🔒 H3 修复：直接使用 tldts 校验，彻底解决公共后缀缺失问题
+function isValidWhitelistDomain(domain) {
+    if (typeof domain !== 'string' || domain.length > 253 || !/^[a-z0-9.-]+$/i.test(domain)) return false;
+    if (/^\d{1,3}(\.\d{1,3}){3}$/.test(domain)) return false; // 拒绝 IP
+    
+    const parts = domain.split('.');
+    // 拒绝单段域名，且 TLD 长度必须至少为 2（过滤掉 a.b 这种非法域名）
+    if (parts.length < 2 || parts[parts.length - 1].length < 2) return false; 
+
+    const reg = getDomain(domain.toLowerCase(), { allowPrivateDomains: true });
+    return reg !== null && (domain === reg || domain.endsWith('.' + reg));
+}
+
+// 🔒 M2 修复：特权消息必须来自扩展内部页面
+function isPrivilegedSender(sender) {
+    if (!sender) return false;
+    const extUrl = chrome.runtime.getURL('');
+    return !!(sender.url && sender.url.startsWith(extUrl));
+}
+
+function isExtensionSender(sender) {
+    if (!sender) return false;
+    if (sender.id === chrome.runtime.id) return true;
+    if (sender.url && (sender.url.startsWith('chrome-extension://') || sender.url.startsWith('moz-extension://'))) return true;
+    return false;
+}
+
+function getETLD1(host) {
+    if (!host) return host;
+    if (/^\d{1,3}(\.\d{1,3}){3}$/.test(host)) return host;
+    return getDomain(host, { allowPrivateDomains: true }) || host;
+}
+
+// 🛡️ C2 修复：getOrCreateRuleId 已移至 dnrOwner.js 的串行队列中
+
+// 🔒 H-3 修复：清理过期临时白名单
+async function cleanExpiredTempWhitelist(settings) {
+    let changed = false;
+    const now = Date.now();
+    const expiry = settings.tempWhitelistExpiry || {};
+    
+    // 🛡️ C2 修复：防止历史脏数据（undefined）导致 filter 报错崩溃
+    settings.tempWhitelist = (settings.tempWhitelist || []).filter(domain => {
+        if (expiry[domain] && expiry[domain] < now) {
+            delete expiry[domain];
+            changed = true;
+            return false;
+        }
+        return true;
+    });
+    settings.tempWhitelistExpiry = expiry;
+    if (changed) {
+        await chrome.storage.local.set({ [SETTINGS_KEY]: settings });
+    }
+    return settings;
+}
+
 export async function handleMessage(message, sender) {
-    // 🔒 S-07: 拒绝非扩展内部发出的消息，防止恶意网页通过 content.js 篡改内部状态
-    const isExtensionSender = sender?.id === chrome.runtime.id || 
-                              (sender?.url && (sender.url.startsWith('chrome-extension://') || sender.url.startsWith('moz-extension://')));
-    if (!isExtensionSender) {
+    if (!isExtensionSender(sender)) {
         console.warn('❌ [拦截] 拒绝非扩展来源的消息:', message?.type, 'Sender:', sender?.url || sender?.id);
         return { error: 'Unauthorized sender' };
+    }
+
+    const privilegedTypes = [
+        'UPDATE_SETTING_KEY', 'UPDATE_SETTINGS', 
+        'ADD_WHITELIST', 'REMOVE_WHITELIST', 
+        'ADD_TEMP_WHITELIST', 'REMOVE_TEMP_WHITELIST',
+        'REPORT_FEEDBACK',
+        'GET_LOGS', 'GET_STATS' // 🛡️ C1 修复：仅允许特权页面读取日志与统计
+    ];
+    if (privilegedTypes.includes(message.type) && !isPrivilegedSender(sender)) {
+        console.warn('❌ [拦截] 拒绝非特权页面调用:', message.type);
+        return { error: 'Privileged sender required' };
     }
 
     switch (message.type) {
         case 'DOM_AD_HIDDEN':
             try {
                 const host = new URL(message.url).hostname;
-                const settings = await getSettings();
+                let settings = await getSettings();
+                settings = await cleanExpiredTempWhitelist(settings);
                 const isWhitelisted = (settings.whitelist || []).some(d => host === d || host.endsWith('.' + d)) ||
                                       (settings.tempWhitelist || []).some(d => host === d || host.endsWith('.' + d));
                 if (!isWhitelisted) await recordBlock(host + '/dom-hidden', 'dom-hidden');
@@ -53,63 +146,80 @@ export async function handleMessage(message, sender) {
             let { [LOG_KEY]: rawLogs } = await chrome.storage.local.get(LOG_KEY);
             return Array.isArray(rawLogs) ? rawLogs : [];
         case 'ADD_TEMP_WHITELIST':
-            // 🔒 S-07: 补全域名格式校验
-            if (typeof message.domain !== 'string' || !/^[a-z0-9.-]+$/i.test(message.domain)) {
-                return { ok: false, error: '格式非法' };
+            if (!isValidWhitelistDomain(message.domain)) {
+                return { ok: false, error: '格式非法或公共后缀' };
             }
-            try {
-                const settings = await getSettings();
-                if (!settings.tempWhitelist.includes(message.domain)) {
-                    settings.tempWhitelist.push(message.domain);
+            // 🛡️ C2 修复：使用 withLock 串行化，彻底解决并发覆盖问题
+            return await withLock(async () => {
+                try {
+                    let settings = await getSettings();
+                    settings = await cleanExpiredTempWhitelist(settings);
+                    if (!settings.tempWhitelistExpiry) settings.tempWhitelistExpiry = {};
+
+                    if (!settings.tempWhitelist.includes(message.domain)) {
+                        settings.tempWhitelist.push(message.domain);
+                    }
+                    settings.tempWhitelistExpiry[message.domain] = Date.now() + 24 * 60 * 60 * 1000;
                     await chrome.storage.local.set({ [SETTINGS_KEY]: settings });
-                }
-                if (message.domain === 'dewsecure.com' || message.domain.endsWith('.dewsecure.com')) return;
-                const ruleId = Math.floor(Math.abs(message.domain.split('').reduce((a,b)=>((a<<5)-a)+b.charCodeAt(0),0)) % 1000000) + 10000;
-                await chrome.declarativeNetRequest.updateSessionRules({
-                    removeRuleIds: [ruleId],
-                    // 🔒 F-03 终极修复：摒弃容易失效的 allowAllRequests，改用最高优先级的全类型 allow
-                    addRules: [{ 
-                        id: ruleId, 
-                        priority: 2147483647, 
-                        action: { type: 'allow' }, 
-                        condition: { 
-                            // 🛡️ 核心修复：必须用 requestDomains 才能放行主框架（main_frame）
-                            requestDomains: [message.domain], 
-                            // 放行所有资源类型，彻底阻断静态规则的干扰
-                            resourceTypes: [
-                                "main_frame", "sub_frame", "stylesheet", "script", "image", 
-                                "font", "object", "xmlhttprequest", "ping", "csp_report", 
-                                "media", "websocket", "webtransport", "webbundle", "other"
-                            ] 
-                        } 
-                    }]
-                });
-                return { ok: true };
-            } catch (e) { return { ok: false, error: e.message }; }
+                    
+                    if (message.domain === 'dewsecure.com' || message.domain.endsWith('.dewsecure.com')) return { ok: true };
+                    
+                    const ruleId = await getOrCreateRuleIdUnsafe(message.domain);
+                    await chrome.declarativeNetRequest.updateSessionRules({
+                        removeRuleIds: [ruleId],
+                        addRules: [{ 
+                            id: ruleId, 
+                            priority: 2147483647, 
+                            action: { type: 'allow' },
+                            condition: { 
+                                requestDomains: [message.domain], 
+                                resourceTypes: [
+                                    "main_frame", "sub_frame", "stylesheet", "script", "image", 
+                                    "font", "object", "xmlhttprequest", "ping", "csp_report", 
+                                    "media", "websocket", "webtransport", "webbundle", "other"
+                                ] 
+                            } 
+                        }]
+                    });
+                    return { ok: true };
+                } catch (e) { return { ok: false, error: e.message }; }
+            });
         case 'REMOVE_TEMP_WHITELIST':
             try {
-                const settings = await getSettings();
+                let settings = await getSettings();
                 settings.tempWhitelist = settings.tempWhitelist.filter(d => d !== message.domain);
+                if (settings.tempWhitelistExpiry) delete settings.tempWhitelistExpiry[message.domain];
                 await chrome.storage.local.set({ [SETTINGS_KEY]: settings });
-                if (message.domain === 'dewsecure.com' || message.domain.endsWith('.dewsecure.com')) return;
-                const ruleId = Math.floor(Math.abs(message.domain.split('').reduce((a,b)=>((a<<5)-a)+b.charCodeAt(0),0)) % 1000000) + 10000;
+                
+                if (message.domain === 'dewsecure.com' || message.domain.endsWith('.dewsecure.com')) return { ok: true };
+                
+                const ruleId = await getOrCreateRuleId(message.domain);
                 await chrome.declarativeNetRequest.updateSessionRules({ removeRuleIds: [ruleId] });
                 return { ok: true };
             } catch (e) { return { ok: false, error: e.message }; }
         case 'GET_STATS':
             const stats = await getMatchedStats();
-            return { stats: stats, settings: await getSettings() };
+            let sStats = await getSettings();
+            sStats = await cleanExpiredTempWhitelist(sStats);
+            return { stats: stats, settings: sStats };
         case 'REPORT_FEEDBACK':
             try {
+                // 🔒 M1 修复：强制要求登录，阻断匿名刷接口
+                const { dewsecure_user: user } = await chrome.storage.local.get('dewsecure_user');
+                if (!user || !user.token) {
+                    return { ok: false, error: 'Please login to report false positives/negatives' };
+                }
+
                 let host = message.domain;
+                let tab = null; // 🛡️ N-8 修复：提升变量作用域
                 if (!host) {
-                    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+                    [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
                     if (!tab || !tab.url) return { ok: false };
                     host = new URL(tab.url).hostname;
                 }
                 
                 // 🛡️ 修复误报逻辑：如果是在警告页（被拦截页面）触发的上报，必须提取真实的被拦截域名
-                if (!message.domain && tab.url && tab.url.includes('warning.html')) {
+                if (!message.domain && tab?.url && tab.url.includes('warning.html')) {
                     const urlParams = new URL(tab.url).searchParams;
                     const realDomain = urlParams.get('domain') || urlParams.get('url');
                     if (realDomain && realDomain !== 'Known Malicious Site') {
@@ -127,23 +237,20 @@ export async function handleMessage(message, sender) {
                     return { ok: false, error: 'Invalid domain' };
                 }
 
-                // 🔒 S-02 隐私修复：提取 eTLD+1（注册域）
-                let domainOnly = host;
-                // 🛡️ 如果是 IP 地址，直接使用 IP，绝对不能切割
-                const isIP = /^\d{1,3}(\.\d{1,3}){3}$/.test(host);
-                if (!isIP) {
-                    const hostParts = host.split('.');
-                    // 只对普通域名切割（如 a.b.com -> b.com），保留双后缀（如 .co.uk）
-                    if (hostParts.length > 2 && !host.endsWith('.co.uk') && !host.endsWith('.com.cn')) {
-                        domainOnly = hostParts.slice(-2).join('.');
-                    }
+                // 🛡️ N-8 修复：增加域名合法性校验，防止恶意伪造乱码
+                if (!isValidWhitelistDomain(getETLD1(host))) {
+                    console.warn('❌ [Report] 拒绝上报非法域名:', host);
+                    return { ok: false, error: 'Invalid domain' };
                 }
+
+                // 🔒 M1 修复：使用 getETLD1 精准提取，防止 shopee.com.my 被截断为 com.my
+                const domainOnly = getETLD1(host);
                 
-                // 🔒 修复外键冲突：恢复真实的 userId 以便通过外键和 RLS 鉴权
+                // 🔒 M-3 修复：使用统一的 jwtPayload 安全解析
                 let userId = null;
-                const { dewsecure_user: user } = await chrome.storage.local.get('dewsecure_user');
                 if (user && user.token) {
-                    try { const payload = JSON.parse(atob(user.token.split('.')[1])); userId = payload.sub; } catch (e) {}
+                    const payload = jwtPayload(user.token);
+                    if (payload) userId = payload.sub;
                 }
 
                 const SUPABASE_URL = 'https://uvbaioqqjqseapcancvi.supabase.co';
@@ -167,38 +274,40 @@ export async function handleMessage(message, sender) {
                 return { ok: res.ok };
             } catch (err) { return { ok: false }; }
         case 'GET_SETTINGS':
-            return await getSettings();
+            let sGet = await getSettings();
+            sGet = await cleanExpiredTempWhitelist(sGet);
+            return sGet;
         case 'UPDATE_SETTING_KEY':
-            // 🔒 S-07: 只允许修改白名单内的键，防止越权篡改 tier 等敏感数据
-            if (!ALLOWED_SETTING_KEYS.has(message.key)) {
-                console.warn('❌ [拦截] 拒绝写入未授权的设置键:', message.key);
-                return { ok: false, error: 'Unauthorized setting key' };
+            // 🛡️ N-13 修复：必须是简单键，且值必须是布尔型，杜绝数组/对象注入
+            if (!SIMPLE_KEYS.has(message.key) || typeof message.value !== 'boolean') {
+                console.warn('❌ [拦截] 拒绝写入未授权的设置键或非法类型:', message.key);
+                return { ok: false, error: 'Unauthorized setting key or invalid type' };
             }
             let s = await getSettings();
             s[message.key] = message.value;
             await chrome.storage.local.set({ [SETTINGS_KEY]: s });
-            
-            // 如果修改的是总开关，同步更新 DNR 规则
-            if (message.key === 'dnrEnabled') {
-                await updateDNRRulesets(message.value);
+            if (message.key === 'dnrEnabled' || message.key === 'blockTrackers') {
+                await updateDNRRulesets(s.dnrEnabled, s.blockTrackers);
             }
             return { ok: true };
         case 'UPDATE_SETTINGS':
-            // 🔒 S-07: 过滤非白名单字段，保留原有的合法字段
             let currentSettings = await getSettings();
+            let hasDnrChange = false;
             for (const key of Object.keys(message.settings)) {
-                if (ALLOWED_SETTING_KEYS.has(key)) {
+                // 🛡️ N-13 修复：过滤敏感键与非布尔值
+                if (SIMPLE_KEYS.has(key) && typeof message.settings[key] === 'boolean') {
                     currentSettings[key] = message.settings[key];
+                    if (key === 'dnrEnabled' || key === 'blockTrackers') hasDnrChange = true;
                 }
             }
             await chrome.storage.local.set({ [SETTINGS_KEY]: currentSettings });
-            if (message.settings.dnrEnabled !== undefined) {
-                await updateDNRRulesets(message.settings.dnrEnabled);
+            if (hasDnrChange) {
+                await updateDNRRulesets(currentSettings.dnrEnabled, currentSettings.blockTrackers);
             }
             return { ok: true };
         case 'ADD_WHITELIST':
             let curSettings = await getSettings();
-            if (!/^[a-z0-9.-]+$/i.test(message.domain)) return { ok: false, error: '格式非法' };
+            if (!isValidWhitelistDomain(message.domain)) return { ok: false, error: '格式非法或公共后缀' };
             if (!curSettings.whitelist.includes(message.domain)) {
                 curSettings.whitelist.push(message.domain);
                 await chrome.storage.local.set({ [SETTINGS_KEY]: curSettings });

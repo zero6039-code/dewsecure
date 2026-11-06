@@ -2,6 +2,8 @@
 // 📁 deviceManager.js
 // 职责：生成混合指纹，静默上报设备到 Supabase
 // ==========================================
+import { jwtPayload } from './authManager.js';
+
 const SUPABASE_URL = 'https://uvbaioqqjqseapcancvi.supabase.co';
 const SUPABASE_ANON_KEY = 'sb_publishable_xiiA-yt_jRKkzRdkYkoWJA_CVZjNjq8';
 const INSTALLATION_KEY = 'dewsecure_installation_id';
@@ -10,13 +12,13 @@ const LAST_REPORT_KEY = 'dewsecure_last_device_report';
 // 🌟 辅助函数：当设备超限时，给用户发送通知（带 1 小时防刷拦截）
 async function sendDeviceLimitNotification(token) {
     try {
-        // 从本地存储读取当前用户状态，判断是 Pro 还是 Family
         const { dewsecure_user: user } = await chrome.storage.local.get('dewsecure_user');
         let isFamily = user && (user.tier === 'family' || user.tier === 'sub-family');
         let limitKey = isFamily ? 'notif_device_limit_9' : 'notif_device_limit_3';
 
-        const payloadBase64 = token.split('.')[1];
-        const payload = JSON.parse(atob(payloadBase64));
+        // 🔒 M-3 修复：使用 jwtPayload
+        const payload = jwtPayload(token);
+        if (!payload || !payload.sub) return;
         const userId = payload.sub;
 
         await fetch(`${SUPABASE_URL}/rest/v1/notifications`, {
@@ -82,8 +84,12 @@ export async function reportDeviceSilently(token, force = false) {
         const installationId = await getInstallationId();
         const { browser, deviceName } = parseDeviceInfo();
 
-        const payloadBase64 = token.split('.')[1];
-        const payload = JSON.parse(atob(payloadBase64));
+        // 🔒 M-3 修复：使用 jwtPayload
+        const payload = jwtPayload(token);
+        if (!payload || !payload.sub) {
+            console.warn('❌ [DeviceManager] JWT 解析失败，无法获取 userId');
+            return { status: 'AUTH_ERROR' };
+        }
         const userId = payload.sub;
 
         const res = await fetch(`${SUPABASE_URL}/rest/v1/devices?on_conflict=user_id,fingerprint`, {
@@ -110,7 +116,6 @@ export async function reportDeviceSilently(token, force = false) {
         } else {
             const errorText = await res.text();
             if (errorText.includes('DEVICE_LIMIT_EXCEEDED')) {
-                // 🌟 核心修复：触发超限时发送通知（通过本地缓存防止1小时内重复发送骚扰用户）
                 const { last_limit_notif: lastNotif } = await chrome.storage.local.get('last_limit_notif');
                 if (!lastNotif || Date.now() - lastNotif > 60 * 60 * 1000) {
                     await sendDeviceLimitNotification(token);

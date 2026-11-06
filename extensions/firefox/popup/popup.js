@@ -92,6 +92,24 @@ async function init() {
     
     if (window.applyI18n) window.applyI18n();
     
+    // 🛡️ N-9 修复：绑定隐私设置开关
+    const privacyToggle = document.getElementById('shareThreatCandidatesToggle');
+    if (privacyToggle) {
+        // 初始化状态
+        const { dewsecure_settings } = await chrome.storage.local.get('dewsecure_settings');
+        privacyToggle.checked = dewsecure_settings?.shareThreatCandidates === true;
+        
+        // 监听变化
+        privacyToggle.addEventListener('change', async (e) => {
+            const enabled = e.target.checked;
+            const { dewsecure_settings: s = {} } = await chrome.storage.local.get('dewsecure_settings');
+            s.shareThreatCandidates = enabled;
+            await chrome.storage.local.set({ dewsecure_settings: s });
+            // 同步到后台（虽然 storage 已经改了，但触达一下 messageHandler 更好）
+            chrome.runtime.sendMessage({ type: 'UPDATE_SETTING_KEY', key: 'shareThreatCandidates', value: enabled });
+        });
+    }
+    
     // 启动时强制核实一次状态
     await window.syncUserState();
 

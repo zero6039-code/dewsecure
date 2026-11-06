@@ -1,73 +1,300 @@
 import { getCurrentUser } from '../authManager.js';
 import * as ed from '@noble/ed25519';
 import { sha512 } from '@noble/hashes/sha512';
+import { sha256 } from '@noble/hashes/sha256';
+import { parse } from 'tldts';
+import { syncRules, RANGE } from './dnrOwner.js';
 
 ed.etc.sha512Sync = (...m) => sha512(ed.etc.concatBytes(...m));
-const ED25519_PUBLIC_KEY_HEX = '259eab8b493845eb78e345a139584c6812272d7183c7da29f774dea2d443fe77';
+const ED25519_PUBLIC_KEY_HEX = 'a21b4c875ab246b58adc225ddf66a054cfa7b79ed2093fcc2f97598fd1197631';
 const CACHE_KEY = 'dewsecure_intel_cache';
 
-// 🌟 核心函数：只负责把规则应用到浏览器（不涉及网络）
+// ==========================================
+// 🚀 百万级本地过滤器 (Threat Filter)
+// ==========================================
+let threatFilter = null; 
+const DB_NAME = 'dewsecure_threat_db';
+const STORE_NAME = 'filters';
+
+function getDB() {
+    return new Promise((resolve, reject) => {
+        const req = indexedDB.open(DB_NAME, 1);
+        req.onupgradeneeded = () => req.result.createObjectStore(STORE_NAME);
+        req.onsuccess = () => resolve(req.result);
+        req.onerror = () => reject(req.error);
+    });
+}
+async function saveFilterToDB(buffer, meta) {
+    const db = await getDB();
+    return new Promise((resolve) => {
+        const tx = db.transaction(STORE_NAME, 'readwrite');
+        tx.objectStore(STORE_NAME).put({ buffer, meta }, 'threat-filter');
+        tx.oncomplete = () => resolve();
+    });
+}
+async function loadFilterFromDB() {
+    const db = await getDB();
+    return new Promise((resolve) => {
+        const req = db.transaction(STORE_NAME, 'readonly').objectStore(STORE_NAME).get('threat-filter');
+        req.onsuccess = () => resolve(req.result);
+        req.onerror = () => resolve(null);
+    });
+}
+
+class FastBloomFilter {
+    constructor(arrayBuffer) {
+        const view = new DataView(arrayBuffer);
+        this.bits = view.getUint32(0, true); 
+        this.hashCount = view.getUint32(4, true);
+        this.buffer = new Uint8Array(arrayBuffer, 8); 
+    }
+    _hashes(str) {
+        let h1 = 0x811c9dc5;
+        let h2 = 0x1000193;
+        for (let i = 0; i < str.length; i++) {
+            const c = str.charCodeAt(i);
+            h1 = Math.imul(h1 ^ c, 0x01000193);
+            h2 = Math.imul(h2 ^ c, 0x01000193);
+        }
+        return [h1 >>> 0, h2 >>> 0];
+    }
+    has(str) {
+        const [h1, h2] = this._hashes(str);
+        for (let i = 0; i < this.hashCount; i++) {
+            const combinedHash = (h1 + i * h2) >>> 0;
+            const bitIndex = combinedHash % this.bits;
+            const byteIndex = bitIndex >>> 3;
+            const bitOffset = bitIndex & 7;
+            if ((this.buffer[byteIndex] & (1 << bitOffset)) === 0) {
+                return false;
+            }
+        }
+        return true;
+    }
+}
+
+// ==========================================
+// 🛡️ N-3 修复：排序哈希前缀集合（零误报）
+// 格式：'DEW1' + h(1B) + count(4B LE) + 排序的 h*count 字节 SHA-256 前缀
+// ==========================================
+class HashSetFilter {
+    constructor(ab) {
+        const dv = new DataView(ab);
+        if (dv.getUint32(0, false) !== 0x44455731) throw new Error('bad magic');
+        this.h = dv.getUint8(4);
+        this.n = dv.getUint32(5, true);
+        if (this.h < 4 || this.h > 8) throw new Error('bad h');
+        if (ab.byteLength !== 9 + this.h * this.n) throw new Error('bad size');
+        this.b = new Uint8Array(ab, 9);
+    }
+    has(host) {
+        const key = sha256(new TextEncoder().encode(host)).subarray(0, this.h);
+        let lo = 0, hi = this.n - 1;
+        while (lo <= hi) {
+            const mid = (lo + hi) >>> 1, o = mid * this.h;
+            let cmp = 0;
+            for (let i = 0; i < this.h && cmp === 0; i++) cmp = this.b[o + i] - key[i];
+            if (cmp === 0) return true;
+            if (cmp < 0) lo = mid + 1; else hi = mid - 1;
+        }
+        return false;
+    }
+}
+
+// 格式检测：前 4 字节 'DEW1' → v2；否则按 v1 Bloom 兼容
+function detectFormat(ab) {
+    if (ab.byteLength >= 9) {
+        const dv = new DataView(ab);
+        if (dv.getUint32(0, false) === 0x44455731) return 'v2';
+    }
+    return 'v1';
+}
+
+export async function initThreatFilter() {
+    try {
+        const cached = await loadFilterFromDB();
+        if (cached && cached.buffer) {
+            const fmt = detectFormat(cached.buffer);
+            if (fmt === 'v2') {
+                threatFilter = new HashSetFilter(cached.buffer);
+                console.log(`⚡ [ThreatIntel] v2 哈希前缀过滤器已加载 (${cached.buffer.byteLength} bytes)`);
+            } else {
+                threatFilter = new FastBloomFilter(cached.buffer);
+                console.log('⚡ [ThreatIntel] v1 Bloom 过滤器已加载 (兼容模式)');
+            }
+        }
+    } catch (e) {
+        console.warn('[ThreatIntel] 过滤器加载失败:', e);
+        threatFilter = null;
+    }
+}
+
+// 🛡️ B1 修复：统一主机名规范化（去尾随点、小写、去端口与 IPv6 方括号）
+export function normalizeHost(input) {
+    let h = String(input || '').trim().toLowerCase();
+    if (!h) return '';
+    if (h.includes('://')) {
+        try { h = new URL(h).hostname; } catch { return ''; }
+    }
+    if (h.startsWith('[')) {
+        const end = h.indexOf(']');
+        return end > 0 ? h.slice(1, end) : '';
+    }
+    const colon = h.lastIndexOf(':');
+    if (colon > -1 && h.indexOf(':') === colon) h = h.slice(0, colon);
+    while (h.endsWith('.')) h = h.slice(0, -1);
+    return h;
+}
+
+// 🛡️ N-3 修复：注册域回溯，防止子域绕过 (B1 升级：接入 normalizeHost)
+export function checkThreatFilter(host) {
+    if (!threatFilter) return false;
+    host = normalizeHost(host);
+    if (!host) return false;
+    const p = parse(host);
+    if (!p.domain || p.isIp) return threatFilter.has(host);
+    const labels = host.split('.');
+    const depth = labels.length - p.domain.split('.').length;
+    for (let i = 0; i <= depth; i++) {
+        if (threatFilter.has(labels.slice(i).join('.'))) return true;
+    }
+    return false;
+}
+
+// ==========================================
+// 独立下载并验证二进制过滤器
+// ==========================================
+async function updateThreatFilterBinary(userToken) {
+    try {
+        const baseUrl = 'https://api.dewsecure.com/api/intel';
+        const headers = userToken ? { 'Authorization': `Bearer ${userToken}` } : {};
+        
+        // N-2 修复：先拉元数据（几 KB），版本未变就跳过整份 bin 下载
+        const metaRes = await fetch(`${baseUrl}/threat-filter.meta.json`, { cache: 'no-store', headers });
+        if (!metaRes.ok) {
+            // 严格模式：meta 失败直接跳过，不 fallback 到 bin
+            console.warn(`⚠️ [ThreatIntel] meta 拉取失败 (HTTP ${metaRes.status})，跳过过滤器更新`);
+            return;
+        }
+        const metaData = await metaRes.json();
+        
+        // 🛡️ B3 修复：二进制过滤器版本防回滚与有效期校验
+        const cached = await loadFilterFromDB();
+        
+        // 校验 purpose (防域分隔攻击，如果服务端下发)
+        if (metaData.purpose && metaData.purpose !== 'dewsecure/filter/v1') {
+            console.error('❌ [ThreatIntel] 拒绝未知的 purpose:', metaData.purpose);
+            return;
+        }
+        // 校验 valid_until (防冻结攻击，如果服务端下发)
+        if (metaData.valid_until && Date.now() > metaData.valid_until) {
+            console.error('❌ [ThreatIntel] 拒绝过期的过滤器元数据');
+            return;
+        }
+
+        if (cached && cached.meta && threatFilter) {
+            if (metaData.version < cached.meta.version) {
+                console.warn(`🛡️ [ThreatIntel] 拒绝回滚：远端版本(${metaData.version}) < 本地版本(${cached.meta.version})`);
+                return;
+            }
+            if (metaData.version === cached.meta.version) {
+                return; // 版本相同，跳过下载
+            }
+        }
+        
+        // 版本有变（或首次安装），才下载整份 bin
+        const binRes = await fetch(`${baseUrl}/threat-filter.bin`, { cache: 'no-store', headers });
+        if (!binRes.ok) {
+            console.warn(`⚠️ [ThreatIntel] bin 拉取失败 (HTTP ${binRes.status})`);
+            return;
+        }
+        const binBuffer = await binRes.arrayBuffer();
+        
+        // 哈希校验
+        const binHash = await crypto.subtle.digest('SHA-256', binBuffer).then(buf => Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, '0')).join(''));
+        if (binHash !== metaData.sha256) {
+            console.error('❌ [ThreatIntel] 过滤器哈希校验失败');
+            return;
+        }
+        
+        // 验签 (兼容旧的 version:sha256 与新的 purpose:version:sha256)
+        const msg = metaData.purpose ? `${metaData.purpose}:${metaData.version}:${metaData.sha256}` : `${metaData.version}:${metaData.sha256}`;
+        const sigBytes = Uint8Array.from(atob(metaData.signature.trim()), c => c.charCodeAt(0));
+        const pubKeyBytes = new Uint8Array(ED25519_PUBLIC_KEY_HEX.match(/.{1,2}/g).map(b => parseInt(b, 16)));
+        
+        if (!(await ed.verifyAsync(sigBytes, new TextEncoder().encode(msg), pubKeyBytes))) {
+            console.error('❌ [ThreatIntel] 过滤器签名校验失败');
+            return;
+        }
+        
+        // 保存并加载（按格式选择实现）
+        await saveFilterToDB(binBuffer, metaData);
+        const fmt = detectFormat(binBuffer);
+        if (fmt === 'v2') {
+            threatFilter = new HashSetFilter(binBuffer);
+            console.log(`🛡️ [ThreatIntel] 成功更新 v2 哈希前缀过滤器 (Version: ${metaData.version}, Size: ${(binBuffer.byteLength/1024/1024).toFixed(2)} MB)`);
+        } else {
+            threatFilter = new FastBloomFilter(binBuffer);
+            console.log(`🛡️ [ThreatIntel] 成功更新 v1 Bloom 过滤器 (Version: ${metaData.version}, Size: ${(binBuffer.byteLength/1024/1024).toFixed(2)} MB)`);
+        }
+        
+    } catch (e) {
+        console.warn('⚠️ [ThreatIntel] 更新二进制过滤器异常:', e);
+    }
+}
+
+// ==========================================
+// 🛡️ N-1 修复：情报规则只管理 RANGE.intel 段
+// ==========================================
+const HARD_SAFE = ['github.com', 'githubusercontent.com', 'github.io', 'gitlab.com', 'npmjs.com', 'cloudflare.com', 'microsoft.com', 'apple.com', 'dewsecure.com', 'google.com', 'youtube.com', 'facebook.com', 'dropbox.com', 'dropboxusercontent.com'];
+// 🛡️ B4 修复：redirect 属于不安全规则，硬上限为 5000。
+// 优先读取浏览器原生常量，回退到 4900（留 100 余量给隐私/挖矿等动态规则）。
+const MAX_INTEL_RULES = (chrome.declarativeNetRequest && chrome.declarativeNetRequest.MAX_NUMBER_OF_UNSAFE_DYNAMIC_RULES) || 4900;
+
 async function applyRulesToDNR() {
     const user = await getCurrentUser();
     const isPro = user && user.tier !== 'free';
     const { dewsecure_settings: settings } = await chrome.storage.local.get('dewsecure_settings');
     const isEnabled = settings?.intelEnabled !== false;
 
-    // 先清理现有的动态规则
-    const existing = await chrome.declarativeNetRequest.getDynamicRules();
-    if (existing.length > 0) {
-        await chrome.declarativeNetRequest.updateDynamicRules({
-            removeRuleIds: existing.map(r => r.id)
-        });
-    }
-
-    // 如果未登录、非 PRO 或开关关闭，清空后直接返回（实现瞬间放行）
+    // 非 Pro 或关闭：只清空 intel 段，绝不动其他模块的规则
     if (!isPro || !isEnabled) {
-        console.log('⏸️ [ThreatIntel] 开关已关闭或非 PRO，已清空拦截规则。');
+        await syncRules(RANGE.intel, []);
         return;
     }
 
-    // 如果是打开的，从本地缓存读取规则并注入
     const { [CACHE_KEY]: cache } = await chrome.storage.local.get(CACHE_KEY);
-    if (cache && cache.rulesData) {
-        // 🛡️ 绝对豁免名单，防止云端情报误杀核心开发者生态
-        const HARD_SAFE = [
-            'github.com', 'githubusercontent.com', 'github.io', 'gitlab.com', 
-            'npmjs.com', 'cloudflare.com', 'microsoft.com', 'apple.com', 
-            'dewsecure.com', 'google.com', 'youtube.com', 'facebook.com'
-        ];
+    if (!cache || !cache.rulesData) return;
 
-        // 将 block 改为 redirect
-        const processedRules = cache.rulesData.map(rule => {
-            if (rule.condition && rule.condition.resourceTypes) {
-                rule.condition.resourceTypes = ["main_frame", "sub_frame"];
-            }
-            const domain = rule.condition.requestDomains[0];
-            
-            // 🛡️ 核心修复：如果是大厂白名单，直接返回 null（后面会被过滤）
-            if (!domain || HARD_SAFE.some(d => domain === d || domain.endsWith('.' + d))) {
-                return null;
-            }
-            
-            return {
-                ...rule,
-                action: {
-                    type: 'redirect',
-                    redirect: {
-                        extensionPath: `/warning.html?type=intel&domain=${encodeURIComponent(domain)}`
-                    }
-                }
-            };
-        }).filter(r => r !== null);
+    const newRules = [];
+    for (const rule of cache.rulesData) {
+        const domain = normalizeHost(rule.condition?.requestDomains?.[0]);
+        if (!domain) continue; 
+        if (HARD_SAFE.some(d => domain === d || domain.endsWith('.' + d))) continue;
+        
+        // 🛡️ B4 修复：触达上限时记录警告，避免静默截断
+        if (newRules.length >= MAX_INTEL_RULES) {
+            console.warn(`⚠️ [ThreatIntel] 动态规则已达安全上限 (${MAX_INTEL_RULES} 条)，部分最新情报被截断。`);
+            break;
+        }
 
-        await chrome.declarativeNetRequest.updateDynamicRules({
-            addRules: processedRules
+        // 显式重映射 ID 到 RANGE.intel 段（不依赖服务端 id 策略），深拷贝 condition 防止改写缓存
+        newRules.push({
+            id: RANGE.intel[0] + newRules.length,
+            priority: rule.priority ?? 2000000,
+            action: { type: 'redirect', redirect: { extensionPath: `/warning.html?type=intel&domain=${encodeURIComponent(domain)}` } },
+            condition: {
+                ...rule.condition,
+                resourceTypes: ["main_frame", "sub_frame"],
+            },
         });
-        console.log(`✅ [ThreatIntel] 已从本地缓存恢复 ${processedRules.length} 条拦截规则！`);
     }
+    await syncRules(RANGE.intel, newRules);
 }
 
-// 🌟 核心函数：负责去云端拉取最新数据并缓存
+// ==========================================
+// 主入口
+// ==========================================
 export async function updateThreatIntel() {
     try {
         const user = await getCurrentUser();
@@ -76,29 +303,48 @@ export async function updateThreatIntel() {
         const isEnabled = settings?.intelEnabled !== false;
 
         if (!isPro || !isEnabled) {
-            // 没权限或没开，直接清理 DNR 即可，不联网
             await applyRulesToDNR();
             return;
         }
 
         console.log('📡 [ThreatIntel] 正在拉取云端最新情报...');
-        const baseUrl = 'https://dev.dewsecure.com/api/intel';
         
-        const [rulesRes, sigRes] = await Promise.all([
-            fetch(`${baseUrl}/threat-rules`, { cache: 'no-store' }),
-            fetch(`${baseUrl}/threat-rules.sig`, { cache: 'no-store' })
-        ]);
+        // 🚀 1. 优先下载并更新百万级过滤器（独立逻辑，不受版本回放影响）
+        await updateThreatFilterBinary(user?.token);
 
-        if (!rulesRes.ok || !sigRes.ok) throw new Error(`HTTP Error`);
+        // 🚀 2. 更新传统 DNR 规则（N-2：先拉 .sig，版本未变则跳过整份 rules 下载）
+        const baseUrl = 'https://api.dewsecure.com/api/intel';
+        const headers = user?.token ? { 'Authorization': `Bearer ${user.token}` } : {};
 
-        const rulesData = await rulesRes.json();
+        // 先拉签名元数据（几 KB）
+        const sigRes = await fetch(`${baseUrl}/threat-rules.sig`, { cache: 'no-store', headers });
+        if (!sigRes.ok) throw new Error(`sig HTTP ${sigRes.status}`);
         const sigData = await sigRes.json();
 
-        // 验签
-        const rulesText = JSON.stringify(rulesData, null, 2);
-        const actualHash = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(rulesText))
-            .then(buf => Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, '0')).join(''));
+        // 🛡️ B3 修复：规则文件版本防回滚与有效期校验
+        if (sigData.purpose && sigData.purpose !== 'dewsecure/rules/v1') {
+            console.error('❌ [ThreatIntel] 拒绝未知的 rules purpose:', sigData.purpose);
+            return;
+        }
+        if (sigData.valid_until && Date.now() > sigData.valid_until) {
+            console.error('❌ [ThreatIntel] 拒绝过期的 rules 元数据');
+            return;
+        }
 
+        const { [CACHE_KEY]: localCache } = await chrome.storage.local.get(CACHE_KEY);
+        if (localCache && localCache.sigData && localCache.sigData.version) {
+            if (sigData.version <= localCache.sigData.version) {
+                console.warn(`🛡️ [ThreatIntel] 拒绝回放：远端版本(${sigData.version}) <= 本地版本(${localCache.sigData.version})`);
+                return; 
+            }
+        }
+
+        // 版本有变，才拉整份 rules
+        const rulesRes = await fetch(`${baseUrl}/threat-rules`, { cache: 'no-store', headers });
+        if (!rulesRes.ok) throw new Error(`rules HTTP ${rulesRes.status}`);
+        const rulesBuffer = await rulesRes.arrayBuffer();
+        
+        const actualHash = await crypto.subtle.digest('SHA-256', rulesBuffer).then(buf => Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, '0')).join(''));
         if (actualHash !== sigData.sha256) throw new Error('SHA-256 mismatch');
 
         const msgStr = `${sigData.version}:${sigData.sha256}`;
@@ -110,15 +356,12 @@ export async function updateThreatIntel() {
         }
 
         console.log('✅ [ThreatIntel] 签名校验通过，写入本地缓存...');
-        // 🌟 缓存到本地
+        const rulesData = JSON.parse(new TextDecoder().decode(rulesBuffer));
         await chrome.storage.local.set({ [CACHE_KEY]: { rulesData, sigData } });
-        
-        // 应用规则
         await applyRulesToDNR();
 
     } catch (e) {
         console.warn('❌ [ThreatIntel] 拉取失败:', e);
-        // 网络失败时，如果开关是开的，尽量恢复本地已有缓存
         await applyRulesToDNR(); 
     }
 }

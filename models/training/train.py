@@ -16,7 +16,7 @@ def prepare_dataset():
 
     # 🔥 动态随机种子：每次运行都会产生不同的随机数，保证抽样数据每次都不一样！
     # 这样既保证了每次跑分的独立性，也能覆盖到更多数据。
-    dynamic_seed = int(time.time()) % 100000 
+    dynamic_seed = 42  # 🛡️ E4 修复：锁定随机种子，确保每次训练结果可复现 
     
     # 🛡️ 核心修复 1：修正路径读取
     hard_rules_path = os.path.join(os.path.dirname(__file__), 'hard_rules.json')
@@ -61,92 +61,74 @@ def train_model():
     train_df, test_df = prepare_dataset()
 
     N_FEATURES = 16418
-    CHUNK_SIZE = 10000
+    CHUNK_SIZE = 5000
+    EPOCHS = 5
 
-    print("🔬 正在分块提取训练集特征...")
-    X_train = np.zeros((len(train_df), N_FEATURES), dtype=np.float32)
-    # 🛡️ 核心修复：强制转为整数，防止 pandas 把 label 推断为浮点数导致 sklearn 报错
-    y_train = train_df["label"].astype(int).values
+    # ==========================================
+    # 🛡️ 性能优化：特征只提取一次，转为稀疏矩阵
+    # ==========================================
+    print("🔬 正在提取训练集特征 (仅执行一次)...")
+    from scipy.sparse import csr_matrix
     
-    total_chunks = (len(train_df) + CHUNK_SIZE - 1) // CHUNK_SIZE
-    for i in range(total_chunks):
-        start = i * CHUNK_SIZE
-        end = min((i + 1) * CHUNK_SIZE, len(train_df))
-        chunk = train_df.iloc[start:end]
-        
-        for j, domain in enumerate(chunk["domain"]):
-            X_train[start + j] = extract_features(domain)
-        print(f"✅ 特征提取进度: Chunk {i+1}/{total_chunks}")
+    # 提取所有特征，存入列表
+    # 提取所有特征，存入列表
+    X_list = [extract_features(d) for d in tqdm(train_df["domain"], desc="Train Features")]
+    # 🛡️ 最安全、最高效的稀疏矩阵构建方式，彻底避免 vstack 的维度错位
+    X_train = csr_matrix(X_list)
+    y_train = train_df["label"].astype(int).values
 
-    print("🔬 正在提取测试集特征...")
-    X_test = np.zeros((len(test_df), N_FEATURES), dtype=np.float32)
-    y_test = test_df["label"].values
-    for i, domain in enumerate(tqdm(test_df["domain"], desc="Test")):
-        X_test[i] = extract_features(domain)
+    print("🔬 正在提取测试集特征 (仅执行一次)...")
+    X_test_list = [extract_features(d) for d in tqdm(test_df["domain"], desc="Test Features")]
+    X_test = csr_matrix(X_test_list)
+    y_test = test_df["label"].astype(int).values
 
     print("🚀 正在初始化 SGD 增量学习模型...")
     classes = np.array([0, 1, 2])
-    
-    # 🛡️ 核心修复：防止因抽样导致某个类别完全缺失，强行注入一根假数据补齐
-    missing_classes = set(classes) - set(np.unique(y_train))
-    if missing_classes:
-        print(f"⚠️ 警告：训练集中缺少类别 {missing_classes}，强制补齐防崩溃")
-        for c_miss in missing_classes:
-            y_train = np.append(y_train, c_miss)
-            X_train = np.vstack([X_train, np.zeros(N_FEATURES, dtype=np.float32)])
-            
-    class_weights_arr = compute_class_weight('balanced', classes=classes, y=y_train)
-    class_weight_dict = {cls: weight for cls, weight in zip(classes, class_weights_arr)}
     
     model = SGDClassifier(
         loss='log_loss', 
         penalty='l2', 
         alpha=1e-5, 
         max_iter=100, 
-        random_state=42, # 模型内部迭代依然固定，保证收敛稳定
-        class_weight=class_weight_dict
+        random_state=42 
     )
 
-    # 🔥 关键神技：多轮 Epoch + 每轮随机洗牌 (Shuffle)
-    # 这彻底打破了数据固定顺序带来的过拟合，让模型学到更普适的规律！
-    EPOCHS = 5 
     print(f"🏃 开始 {EPOCHS} 轮打乱顺序训练...")
-    
     for epoch in range(EPOCHS):
-        print(f"🔄 第 {epoch+1} 轮训练...")
-        # 每一轮都打乱数据索引，让模型忘记上一轮的死板顺序
-        indices = np.random.permutation(len(X_train))
+        # 只打乱索引，不重新提取特征
+        indices = np.random.permutation(X_train.shape[0])
         X_shuffled = X_train[indices]
         y_shuffled = y_train[indices]
         
-        # 分块喂给模型
-        for i in range(0, len(X_shuffled), CHUNK_SIZE):
-            X_chunk = X_shuffled[i:i+CHUNK_SIZE]
-            y_chunk = y_shuffled[i:i+CHUNK_SIZE]
+        print(f"🔄 第 {epoch+1} 轮训练...")
+        
+        total_chunks = (len(y_shuffled) + CHUNK_SIZE - 1) // CHUNK_SIZE
+        for i in range(total_chunks):
+            start = i * CHUNK_SIZE
+            end = min((i + 1) * CHUNK_SIZE, len(y_shuffled))
             
+            X_chunk = X_shuffled[start:end]
+            y_chunk = y_shuffled[start:end]
+
             if epoch == 0 and i == 0:
                 model.partial_fit(X_chunk, y_chunk, classes=classes)
             else:
                 model.partial_fit(X_chunk, y_chunk)
-                
-        # 释放临时变量
-        del X_shuffled, y_shuffled
 
-    print("📈 正在评估模型...")
+    print("📈 正在评估模型 (一次性预测)...")
     y_pred = model.predict(X_test)
-    
+
     target_names = ['Normal', 'Ad', 'Tracker']
     try:
         print(classification_report(y_test, y_pred, target_names=target_names, zero_division=0))
     except:
         print(classification_report(y_test, y_pred, zero_division=0))
-    
+
     macro_f1 = f1_score(y_test, y_pred, average='macro')
     
     os.makedirs("weights", exist_ok=True)
     np.savez("weights/classifier_weights.npz", coef=model.coef_, intercept=model.intercept_)
     
-    # 🔧 P2-C: 记录真实标签分布，README 不再宣称 98.75%
     label_dist = train_df["label"].value_counts().sort_index().to_dict()
     with open("weights/model_meta.json", "w") as f:
         json.dump({

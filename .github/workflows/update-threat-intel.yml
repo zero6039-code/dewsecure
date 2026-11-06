@@ -18,21 +18,38 @@ jobs:
       - name: 安装签名依赖
         run: pip install pynacl
 
-      - name: 下载最新威胁情报
+      - name: 安装 Python 依赖
+        run: pip install pynacl
+
+      - name: 下载并生成传统 DNR 规则 (Top 5000)
         env:
           URLHAUS_AUTH_KEY: ${{ secrets.URLHAUS_AUTH_KEY }}
-          ED25519_PRIVATE_KEY: ${{ secrets.ED25519_PRIVATE_KEY }}
+          ED25519_PRIVATE_KEY: ${{ secrets.ED25519_INTEL_KEY }}
         run: python scripts/download_threat_intel.py
+
+      - name: 构建百万级威胁情报过滤器 (Binary Bloom Filter)
+        env:
+          URLHAUS_AUTH_KEY: ${{ secrets.URLHAUS_AUTH_KEY }}
+          ED25519_PRIVATE_KEY: ${{ secrets.ED25519_INTEL_KEY }}
+        run: python scripts/build_threat_filter.py
 
       - name: 校验产物
         run: |
           [ -f threat-rules.json ] || (echo "❌ threat-rules.json 未生成" && exit 1)
           [ -f threat-rules.json.sig ] || (echo "❌ threat-rules.json.sig 未生成（签名失败）" && exit 1)
-          echo "✅ 产物完整：threat-rules.json + threat-rules.json.sig"
+          [ -f threat-filter.bin ] || (echo "❌ threat-filter.bin 未生成" && exit 1)
+          [ -f threat-filter.meta.json ] || (echo "❌ threat-filter.meta.json 未生成" && exit 1)
+          echo "✅ 产物完整：DNR JSON + Binary Filter 均生成成功"
 
-      - name: 安装 rclone
+      - name: 安装 rclone (安全校验版)
         run: |
           wget https://downloads.rclone.org/v1.68.1/rclone-v1.68.1-linux-amd64.deb
+          EXPECTED_SHA="$(wget -qO- https://downloads.rclone.org/v1.68.1/SHA256SUMS | grep 'rclone-v1.68.1-linux-amd64.deb' | awk '{print $1}')"
+          ACTUAL_SHA=$(sha256sum rclone-v1.68.1-linux-amd64.deb | awk '{print $1}')
+          if [ "$EXPECTED_SHA" != "$ACTUAL_SHA" ]; then
+            echo "❌ SHA256 mismatch!"
+            exit 1
+          fi
           sudo dpkg -i rclone-v1.68.1-linux-amd64.deb
 
       - name: 配置 rclone
@@ -68,8 +85,8 @@ jobs:
       - name: 上传到 R2
         if: steps.diff.outputs.skip != 'true'
         run: |
-          rclone copy threat-rules.json r2:${{ secrets.R2_BUCKET }}/intel/ \
-            --s3-no-check-bucket --s3-no-head --s3-chunk-size 5M
-          rclone copy threat-rules.json.sig r2:${{ secrets.R2_BUCKET }}/intel/ \
-            --s3-no-check-bucket --s3-no-head --s3-chunk-size 5M
-          echo "✅ 已上传 threat-rules.json + threat-rules.json.sig"
+          rclone copy threat-rules.json r2:${{ secrets.R2_BUCKET }}/intel/ --s3-no-check-bucket --s3-no-head --s3-chunk-size 5M
+          rclone copy threat-rules.json.sig r2:${{ secrets.R2_BUCKET }}/intel/ --s3-no-check-bucket --s3-no-head --s3-chunk-size 5M
+          rclone copy threat-filter.bin r2:${{ secrets.R2_BUCKET }}/intel/ --s3-no-check-bucket --s3-no-head --s3-chunk-size 5M
+          rclone copy threat-filter.meta.json r2:${{ secrets.R2_BUCKET }}/intel/ --s3-no-check-bucket --s3-no-head --s3-chunk-size 5M
+          echo "✅ 已上传所有威胁情报产物 (JSON + BIN)"
