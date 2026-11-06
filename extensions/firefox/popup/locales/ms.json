@@ -151,5 +151,11 @@
   "leak_btn": "Faham",
   "phish_download_smuggling_title": "🚨 Skrip Berniat Jahat Disekat",
   "phish_download_smuggling_desc": "DewSecure menyekat muatan sebaris yang dijana oleh skrip pada halaman ({filename}). Ini adalah teknik penyeludupan HTML biasa.",
-  "phish_download_smuggling_file": "Muatan Tempatan yang Dikaburkan"
+  "phish_download_smuggling_file": "Muatan Tempatan yang Dikaburkan",
+  "warn_btn_force_download": "Saya faham risikonya, paksa muat turun",
+  "warn_btn_downloading": "Memulakan muat turun...",
+  "warn_btn_bypassing": "Memintas...",
+  "warn_alert_bypass_fail": "Gagal memintas, sila cuba lagi!",
+  "warn_title_affiliate": "Pautan Promosi Berniat Jahat Disekat",
+  "warn_desc_affiliate": "DewSecure menyekat URL ini kerana ia mengandungi penjejakan atau parameter ahli gabungan yang agresif."
 }

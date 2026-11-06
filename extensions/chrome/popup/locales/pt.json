@@ -151,5 +151,11 @@
   "leak_btn": "Entendi",
   "phish_download_smuggling_title": "🚨 Script malicioso bloqueado",
   "phish_download_smuggling_desc": "O DewSecure bloqueou um payload embutido gerado por scripts na página ({filename}). Esta é uma técnica típica de contrabando de HTML.",
-  "phish_download_smuggling_file": "Payload local ofuscado"
+  "phish_download_smuggling_file": "Payload local ofuscado",
+  "warn_btn_force_download": "Entendo o risco, forçar download",
+  "warn_btn_downloading": "Iniciando download...",
+  "warn_btn_bypassing": "Ignorando...",
+  "warn_alert_bypass_fail": "Falha ao ignorar, por favor tente novamente!",
+  "warn_title_affiliate": "Link Promocional Malicioso Bloqueado",
+  "warn_desc_affiliate": "O DewSecure bloqueou esta URL porque ela contém rastreamento agressivo ou parâmetros de afiliados."
 }

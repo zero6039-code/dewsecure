@@ -151,5 +151,11 @@
   "leak_btn": "J'ai compris",
   "phish_download_smuggling_title": "🚨 Script malveillant bloqué",
   "phish_download_smuggling_desc": "DewSecure a bloqué une charge utile en ligne générée par des scripts sur la page ({filename}). C'est une technique typique de contrebande HTML.",
-  "phish_download_smuggling_file": "Charge utile locale obscurcie"
+  "phish_download_smuggling_file": "Charge utile locale obscurcie",
+  "warn_btn_force_download": "Je comprends le risque, forcer le téléchargement",
+  "warn_btn_downloading": "Démarrage du téléchargement...",
+  "warn_btn_bypassing": "Contournement...",
+  "warn_alert_bypass_fail": "Échec du contournement, veuillez réessayer !",
+  "warn_title_affiliate": "Lien promotionnel malveillant bloqué",
+  "warn_desc_affiliate": "DewSecure a bloqué cette URL car elle contient des paramètres de suivi ou d'affiliation agressifs."
 }

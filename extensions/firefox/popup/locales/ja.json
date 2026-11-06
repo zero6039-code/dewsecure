@@ -151,5 +151,11 @@
   "leak_btn": "了解しました",
   "phish_download_smuggling_title": "🚨 悪意のあるスクリプトをブロック",
   "phish_download_smuggling_desc": "DewSecureは、ページ上のスクリプトによって生成されたインラインペイロード ({filename}) をブロックしました。これはネットワークフィルターを回避するための典型的なHTMLスマグリング手法です。",
-  "phish_download_smuggling_file": "難読化されたローカルペイロード"
+  "phish_download_smuggling_file": "難読化されたローカルペイロード",
+  "warn_btn_force_download": "リスクを理解し、強制的にダウンロードする",
+  "warn_btn_downloading": "ダウンロードを開始しています...",
+  "warn_btn_bypassing": "バイパス中...",
+  "warn_alert_bypass_fail": "バイパスに失敗しました。もう一度お試しください！",
+  "warn_title_affiliate": "悪意のあるプロモーションリンクをブロックしました",
+  "warn_desc_affiliate": "DewSecureは、このURLに悪質なトラッキングまたはアフィリエイトパラメータが含まれているため、ブロックしました。"
 }

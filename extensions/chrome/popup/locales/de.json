@@ -151,5 +151,11 @@
   "leak_btn": "Verstanden",
   "phish_download_smuggling_title": "🚨 Bösartiges Skript blockiert",
   "phish_download_smuggling_desc": "DewSecure hat eine von Skripten generierte Inline-Nutzlast blockiert ({filename}). Dies ist eine typische HTML-Schmuggel-Technik.",
-  "phish_download_smuggling_file": "Verschleierte lokale Nutzlast"
+  "phish_download_smuggling_file": "Verschleierte lokale Nutzlast",
+  "warn_btn_force_download": "Ich verstehe das Risiko, herunterladen erzwingen",
+  "warn_btn_downloading": "Download wird gestartet...",
+  "warn_btn_bypassing": "Umgehe...",
+  "warn_alert_bypass_fail": "Umgehung fehlgeschlagen, bitte erneut versuchen!",
+  "warn_title_affiliate": "Bösartiger Werbelink blockiert",
+  "warn_desc_affiliate": "DewSecure hat diese URL blockiert, da sie aggressives Tracking oder Affiliate-Parameter enthält."
 }
