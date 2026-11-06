@@ -50,11 +50,11 @@ dev-chrome:
 
 # 构建 Android APK
 build-android:
-    @if [ -d "android" ]; then cd android && ./gradlew assembleRelease; else echo "⚠️ 未找到 android 目录，跳过构建"; fi
+    @if [ -d "android" ]; then @if [ -d "android" ]; then cd android && ./gradlew assembleRelease; else echo "⚠️ 未找到 android 目录，跳过构建"; fi; else echo "⚠️ 未找到 android 目录，跳过构建"; fi
 
 # 构建 Android Debug
 build-android-debug:
-    @if [ -d "android" ]; then cd android && ./gradlew assembleDebug; else echo "⚠️ 未找到 android 目录，跳过构建"; fi
+    @if [ -d "android" ]; then @if [ -d "android" ]; then cd android && ./gradlew assembleDebug; else echo "⚠️ 未找到 android 目录，跳过构建"; fi; else echo "⚠️ 未找到 android 目录，跳过构建"; fi
 
 # 生成 Kotlin 绑定
 gen-kotlin:
@@ -116,4 +116,4 @@ run-server:
 clean:
     cargo clean
     rm -rf extensions/chrome/dist extensions/firefox/dist extensions/opera/dist
-    @if [ -d "android" ]; then cd android && ./gradlew clean; else echo "⚠️ 未找到 android 目录，跳过清理"; fi
+    @if [ -d "android" ]; then @if [ -d "android" ]; then cd android && ./gradlew clean; else echo "⚠️ 未找到 android 目录，跳过清理"; fi; else echo "⚠️ 未找到 android 目录，跳过清理"; fi
