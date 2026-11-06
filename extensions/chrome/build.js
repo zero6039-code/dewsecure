@@ -39,8 +39,17 @@ async function build() {
 
 function copyStatic() {
     // 1. 基础文件拷贝
+    // 自动处理 manifest.json 剥离 key 字段
+    if (fs.existsSync('manifest.json')) {
+        const manifest = JSON.parse(fs.readFileSync('manifest.json', 'utf8'));
+        delete manifest.key; // 商店不允许出现 key
+        fs.mkdirSync('dist', { recursive: true });
+        fs.writeFileSync('dist/manifest.json', JSON.stringify(manifest, null, 2));
+    }
+
     const files = [
-        ['manifest.json', 'dist/manifest.json'],
+        // 移除原有的 manifest 自动拷贝
+
         ['popup/index.html', 'dist/popup/index.html'],
         ['popup/popup.css', 'dist/popup/popup.css'],
         ['popup/i18n.js', 'dist/popup/i18n.js'],
