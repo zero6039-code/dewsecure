@@ -288,10 +288,27 @@ window.__dewsecureDict = window.__dewsecureDict || {};
     const nativeLocationAssign = window.location.assign;
 
     let dwSettings = { antiHijackEnabled: true, antiBypassEnabled: true, blockSocialTrackers: true };
+    
+    // 🛡️ A2 终极修复：验证动态 Token，无视伪造消息
+    let validToken = null;
+
     window.addEventListener('message', (e) => {
         if (e.source !== window || e.origin !== location.origin) return;
+        if (!e.data) return;
 
-        if (e.data && e.data.type === 'DEWSECURE_PAUSE') {
+        // 1. 接收真实 Token
+        if (e.data.type === 'DEWSECURE_INIT_TOKEN') {
+            validToken = e.data.token;
+            return;
+        }
+
+        // 2. 校验 Token，无 Token 或 Token 错误的一律丢弃（页面伪造无效）
+        if (validToken && e.data.token !== validToken) {
+            // console.log('[DewSecure] 丢弃伪造消息:', e.data.type);
+            return;
+        }
+
+        if (e.data.type === 'DEWSECURE_PAUSE') {
             pausedByExtension = true;
             try {
                 Object.defineProperty(window, 'open', { value: nativeWindowOpen, writable: true, configurable: true });
@@ -300,7 +317,7 @@ window.__dewsecureDict = window.__dewsecureDict || {};
             }
             console.log('[DewSecure Inject] 主世界已挂起，恢复原生 API');
         }
-        if (e.data && e.data.type === 'DEWSECURE_SETTINGS') {
+        if (e.data.type === 'DEWSECURE_SETTINGS') {
             dwSettings = e.data.settings || {};
         }
     });
@@ -320,7 +337,7 @@ window.__dewsecureDict = window.__dewsecureDict || {};
         }
 
         // H-1 修复：只拦第三方广告主机或已知联盟参数
-        const AD_HOSTS = /(^|\.)(doubleclick\.net|googlesyndication\.com|propellerads\.com|adsterra\.com|1xbet\.com|1xlite\.com|omguk\.com)$/i;
+        const AD_HOSTS = /(^|\.)(doubleclick\.net|googlesyndication\.com|propellerads\.com|adsterra\.com|1xbet\.com|1xlite\.com|omguk\.com|omgt3\.com)$/i;
         const AFFILIATE_PARAMS = ['mmp_pid', 'Allianceid', 'uls_trackid', 'a_aid', 'a_bid', 'affiliate_id', 'from_affiliate', 'tag_aff_id', 'tag_aff_type'];
 
         const isAdUrl = (raw) => {
@@ -367,8 +384,11 @@ window.__dewsecureDict = window.__dewsecureDict || {};
 
             const hookedOpen = function(url, target, features) {
                 if (!isPaused() && isSkidrow) {
-                    console.warn('[DewSecure] 彻底封锁 Skidrow 弹窗:', url);
-                    return null;
+                    // 🛡️ 行为特征秒杀：Skidrow 上的任何跨域 popup 一律秒杀
+                    if (url && !String(url).startsWith(location.origin) && !String(url).includes('skidrowreloaded.com')) {
+                        console.warn('[DewSecure] 彻底封锁 Skidrow 跨域弹窗:', url);
+                        return null;
+                    }
                 }
                 if (!isPaused() && isAdUrl(url)) {
                     console.warn('[DewSecure] 拦截恶意/劫持弹窗:', url);
@@ -402,11 +422,12 @@ window.__dewsecureDict = window.__dewsecureDict || {};
             HTMLAnchorElement.prototype.click = function() {
                 if (!isPaused()) {
                     if (isAdUrl(this.href)) return;
-                    if (this.target === '_blank' && this.href && !this.href.startsWith(location.origin)) {
+                    // 任何非 _self 的 target (如 _blank, 自定义窗口名) 且是跨域链接，全部拦截
+                    if (this.target && this.target !== '_self' && this.href && !this.href.startsWith(location.origin)) {
                         if (window.event && window.event.isTrusted) {
-                            // 真实点击放行，交由 security.js 后台秒杀
+                            // 真实点击放行
                         } else {
-                            console.warn('[DewSecure] 拦截脚本模拟的 _blank 弹窗:', this.href);
+                            console.warn('[DewSecure] 拦截脚本模拟的跨域弹窗:', this.href);
                             return;
                         }
                     }
@@ -455,8 +476,10 @@ window.__dewsecureDict = window.__dewsecureDict || {};
                 }
                 if (window.location.hostname.includes('skidrowreloaded.com')) {
                     if (target.tagName === 'A' && target.href && !target.href.startsWith(location.origin)) {
-                        if (target.target === '_blank' || e.ctrlKey || e.metaKey) {
-                            console.warn('[DewSecure] 彻底封杀 Skidrow 恶意跳转点击:', target.href);
+                        // 🛡️ 行为特征秒杀：在 Skidrow 上，只要是跨域 <a> 标签，不管是不是真实点击，只要想开新窗口或带追踪参数，全部封杀
+                        const isTracking = AFFILIATE_PARAMS.some(p => target.href.includes(p)) || target.href.includes('utm_');
+                        if ((target.target && target.target !== '_self') || e.ctrlKey || e.metaKey || isTracking) {
+                            console.warn('[DewSecure] 根据行为特征彻底封杀恶意跳转:', target.href);
                             e.preventDefault(); e.stopImmediatePropagation();
                         }
                     }
@@ -473,6 +496,20 @@ window.__dewsecureDict = window.__dewsecureDict || {};
                 el.removeAttribute('href'); el.style.setProperty('pointer-events', 'none', 'important'); el.dataset.dwKilled = 'true';
             } else if (el.tagName === 'FORM' && el.action && isAdUrl(el.action)) {
                 el.removeAttribute('action'); el.style.setProperty('pointer-events', 'none', 'important'); el.dataset.dwKilled = 'true';
+            } 
+            // 🛡️ 行为特征秒杀：拦截全屏透明点击劫持
+            else if (el.tagName === 'A' && el.href) {
+                try {
+                    const style = window.getComputedStyle(el);
+                    // 如果是一个面积巨大、并且完全透明的链接（典型点击劫持）
+                    if (parseFloat(style.opacity) < 0.1 && 
+                        (parseInt(style.width) > window.innerWidth * 0.5 || parseInt(style.height) > window.innerHeight * 0.5)) {
+                        console.warn('[DewSecure] 检测到点击劫持(Clickjacking) 透明层，已摧毁:', el.href);
+                        el.removeAttribute('href'); 
+                        el.style.setProperty('pointer-events', 'none', 'important'); 
+                        el.dataset.dwKilled = 'true';
+                    }
+                } catch (e) {}
             }
         };
 

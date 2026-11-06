@@ -242,6 +242,10 @@
 
     // ===== 核心初始化 =====
     function init() {
+        // 🛡️ A2 修复：生成唯一的随机 Token，防止页面伪造消息
+        const msgToken = Math.random().toString(36).substring(2, 15);
+        window.postMessage({ type: 'DEWSECURE_INIT_TOKEN', token: msgToken }, location.origin);
+
         const skipDomains = ['google.com', 'youtube.com', 'facebook.com', 'twitter.com', 'x.com', 'instagram.com', 'wired.com'];
         if (inList(window.location.hostname, skipDomains)) {
             console.log('🛡️ [DewSecure] 核心站点豁免 DOM 清理，防止 SPA 崩溃。');
@@ -257,7 +261,7 @@
                 if ((settings.whitelist || []).some(m) || (settings.tempWhitelist || []).some(m)) {
                     document.documentElement.setAttribute('data-dewsecure-paused', 'true');
                     console.log('🛡️ [DewSecure] 命中白名单，已停止注入 CSS 与 Hook。');
-                    window.postMessage({ type: 'DEWSECURE_PAUSE' }, '*');
+                    window.postMessage({ type: 'DEWSECURE_PAUSE', token: msgToken }, location.origin);
                     return;
                 }
 
@@ -267,7 +271,7 @@
                     antiBypassEnabled: settings.antiBypassEnabled,
                     blockSocialTrackers: settings.blockSocialTrackers
                 };
-                window.postMessage({ type: 'DEWSECURE_SETTINGS', settings: safeSettings }, location.origin);
+                window.postMessage({ type: 'DEWSECURE_SETTINGS', settings: safeSettings, token: msgToken }, location.origin);
 
                 // 🛡️ 读取语言包并发送给主世界 (inject.js)
                 try {
