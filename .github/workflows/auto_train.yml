@@ -71,7 +71,7 @@ jobs:
           python training/gate.py --meta weights/model_meta.json --baseline weights/baseline_meta.json --min-macro-f1 0.80
 
       - name: 将模型产物上传为 Artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: trained-model
           path: |
