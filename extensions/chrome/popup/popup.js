@@ -37,6 +37,7 @@ window.syncUserState = async function syncUserState() {
     
     if (reportRes && reportRes.status === 'LIMIT_EXCEEDED') {
         console.warn("🚫 [Popup] 设备数已满，强制回退 Free 并弹窗。");
+        window._deviceLimitReached = true; // 🚀 核心修复：阻止后续登录成功渲染
         
         // 🌟 回归原始逻辑：刷新UI，隐藏登录框，弹窗，然后立即返回
         updateUserUI(null); 
@@ -51,6 +52,7 @@ window.syncUserState = async function syncUserState() {
 
     // 🌟 只要不是明确超额（无论是成功、网络错误、或者是同设备心跳更新），彻底解除封印！
     console.log("✅ [Popup] 设备已就绪，解除超限锁定");
+    window._deviceLimitReached = false; // 🚀 重置标志
     await chrome.storage.local.remove('dewsecure_device_limit_reached');
 
     // 🌟 解除超限时，隐藏静态弹窗

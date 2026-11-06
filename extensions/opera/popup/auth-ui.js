@@ -23,6 +23,15 @@ export function showAuthStep(step) {
             otpInput.classList.remove('error');
         }
     }
+
+    // 🚀 核心修复：当切回邮箱界面时，强制重置发送按钮，防止卡在 "..." 无法点击
+    if (step === 'email') {
+        const btnSend = document.getElementById('sendOtpBtn');
+        if (btnSend) {
+            btnSend.disabled = false;
+            btnSend.textContent = window.t ? window.t('auth_send_otp') : '发送验证码';
+        }
+    }
 }
 
 // 初始化认证交互
@@ -129,12 +138,17 @@ export function initAuthUI() {
                 }
                 
                 // 如果设备满了，syncUserState 会设置 _deviceLimitReached，此时绝不能渲染已登录界面
-                if (!window._deviceLimitReached) {
-                    const user = await getCurrentUser();
-                    if (user) {
-                        showAuthStep('logged-in');
-                        renderLoggedInView(user);
-                    }
+                if (window._deviceLimitReached) {
+                    // 🚀 核心修复：直接终止，把舞台交给弹窗
+                    btnVerify.disabled = false;
+                    btnVerify.textContent = window.t ? window.t('auth_verify') : '验证';
+                    return; 
+                }
+
+                const user = await getCurrentUser();
+                if (user) {
+                    showAuthStep('logged-in');
+                    renderLoggedInView(user);
                 }
             } else {
                 if (otpHint) { otpHint.textContent = res.error || '验证失败，请检查验证码'; otpHint.style.color = '#f85149'; otpHint.style.display = 'block'; }

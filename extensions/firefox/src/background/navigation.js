@@ -5,6 +5,7 @@ import { runAICheck } from './ai.js';
 import { checkThreatFilter } from './threatIntel.js';
 import { HARD_SAFE_DOMAINS } from './aiConfig.js';
 import { getCurrentUser } from '../authManager.js';
+import { extractFeatures } from '../phishScoutFeatures.js'; // 🎣 引入影子特征提取器
 
 // 🔒 H1 修复：使用扩展自身 URL 前缀判断，不再用子串匹配（防止 ?warning.html / #warning.html 绕过）
 const EXT_ORIGIN = chrome.runtime.getURL('');
@@ -116,6 +117,22 @@ export function initNavigation() {
                 if (s.phishingEnabled !== true) {
                     return;
                 }
+
+                // ==========================================
+                // 🎣 PhishScout 影子模式：只提取并记录，不干涉原有拦截逻辑
+                // ==========================================
+                try {
+                    const features = extractFeatures(details.url);
+                    if (features.length === 579) {
+                        // 仅做本地日志记录，供后续提取分析和训练树模型
+                        console.debug('🎣 [PhishScout Shadow] 提取特征成功:', details.url, '前 5 维特征:', Array.from(features.slice(0, 5)));
+                    } else {
+                        console.warn('🎣 [PhishScout Shadow] 特征维度异常:', features.length);
+                    }
+                } catch (err) {
+                    console.warn('🎣 [PhishScout Shadow] 特征提取失败:', err);
+                }
+                // ==========================================
 
                 // 🚨 执行钓鱼检测（分级处置）
                 // 兼容旧版本直接返回 boolean 的情况，如果有 assess 则调用 assess

@@ -121,6 +121,7 @@ export async function reportDeviceSilently(token, force = false) {
                     await sendDeviceLimitNotification(token);
                     await chrome.storage.local.set({ last_limit_notif: Date.now() });
                 }
+                
                 return { status: 'LIMIT_EXCEEDED' };
             } else if (res.status === 401) {
                 return { status: 'AUTH_ERROR' };

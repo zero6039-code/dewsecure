@@ -41,8 +41,8 @@ export function showDeviceLimitModal(t) {
             document.removeEventListener('click', handleModalClick, true);
             if (modal) modal.remove();
             await chrome.storage.local.remove('dewsecure_device_limit_reached');
-            // 触发重新渲染，回到未登录界面
-            import('../popup.js').then(m => { if (m.syncUserState) m.syncUserState(); }).catch(()=>{});
+            await chrome.storage.local.remove('dewsecure_user'); // 🚀 清理 Token
+            location.reload();
         }
         // 跳转 Dashboard
         if (e.target.id === 'btnGoDashboard' || e.target.closest('#btnGoDashboard')) {
@@ -91,6 +91,10 @@ export function showDeviceLimitModal(t) {
             } catch (err) {
                 chrome.tabs.create({ url: 'https://dewsecure.com/dashboard.html' });
             }
+            
+            await chrome.storage.local.remove('dewsecure_user'); // 🚀 清理 Token
+            // 🚀 跳转后重载插件 UI，确保返回时可以直接重新输入邮箱
+            setTimeout(() => { location.reload(); }, 500);
         }
     };
     document.addEventListener('click', handleModalClick, true);
