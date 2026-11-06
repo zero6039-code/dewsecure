@@ -11,7 +11,7 @@
     "update-rules": "node scripts/convert-rules.js"
   },
   "devDependencies": {
-    "chokidar": "^3.6.0",
+    "chokidar": "^6.0.0",
     "esbuild": "^0.24.0",
     "javascript-obfuscator": "^5.9.0"
   },
