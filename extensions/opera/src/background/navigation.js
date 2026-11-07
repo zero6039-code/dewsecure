@@ -29,6 +29,7 @@ export function initNavigation() {
         const blockedTabs = new Map(); 
 
         chrome.webNavigation.onBeforeNavigate.addListener(async (details) => {
+            // 1. 警告页自身处理逻辑（略）
             if (isOwnWarningPage(details.url) && details.frameId === 0) {
                 try {
                     const urlParams = new URL(details.url).searchParams;
@@ -54,6 +55,7 @@ export function initNavigation() {
 
             if (details.frameId !== 0 || !details.url.startsWith('http')) return;
 
+            // 2. 防循环拦截机制
             if (blockedTabs.has(details.tabId)) {
                 const lastUrl = blockedTabs.get(details.tabId);
                 if (lastUrl === details.url) {
@@ -66,6 +68,7 @@ export function initNavigation() {
                 const urlObj = new URL(details.url);
                 const host = urlObj.hostname;
 
+                // 3. 白名单与豁免检查
                 const isHardSafeDomain = (h) => HARD_SAFE_DOMAINS.some(d => h === d || h.endsWith('.' + d));
                 if (isHardSafeDomain(host)) return;
 
@@ -75,6 +78,7 @@ export function initNavigation() {
 
                 if ((s.whitelist || []).some(matchDomain) || (s.tempWhitelist || []).some(matchDomain)) return;
 
+                // 4. 本地威胁情报拦截
                 if (checkThreatFilter(host)) {
                     const warningUrl = chrome.runtime.getURL(`warning.html?type=intel&domain=${encodeURIComponent(host)}`);
                     blockedTabs.set(details.tabId, details.url);
@@ -82,36 +86,63 @@ export function initNavigation() {
                     return;
                 }
 
+                // 5. PRO 用户与开关检测
                 const user = await getCurrentUser();
                 const isPro = user && ['pro', 'trial', 'family', 'premium'].includes(user.tier);
                 if (!isPro || s.phishingEnabled !== true) return;
 
-                // 🎣 PhishScout 影子模式
-                try {
-                    const features = extractFeatures(details.url);
-                    const prob = predict(phishModel, features);
-                    console.debug(`🎣 [PhishScout Shadow] URL: ${details.url} | 概率: ${prob.toFixed(4)}`);
-                } catch (err) {
-                    console.warn('🎣 [PhishScout Shadow] 推理失败:', err);
-                }
-
+                // 6. 🚨 核心 AI + 规则引擎融合检测
                 const phishingModule = await import('./phishingDetector.js');
-                let isPhish = false;
-                let reasons = [];
+                
+                // 提取现有规则引擎结果
+                let heurFlag = false;
+                let heurScore = 0;
+                let heurReasons = [];
 
                 if (phishingModule.assess) {
                     const finding = phishingModule.assess(details.url);
-                    if (finding.flag) {
-                        isPhish = true;
-                        reasons = finding.reasons;
-                    }
+                    heurFlag = finding.flag;
+                    heurScore = finding.score || finding.reasons?.length || (finding.flag ? 2 : 0);
+                    heurReasons = finding.reasons || [];
                 } else if (phishingModule.detectBrandPhishing(details.url)) {
-                    isPhish = true;
-                    reasons = ['brand-mismatch'];
+                    heurFlag = true;
+                    heurScore = 2; // 模拟默认分数
+                    heurReasons = ['brand-mismatch'];
                 }
 
+                // 提取本地 AI 概率
+                let aiProb = 0;
+                try {
+                    const features = extractFeatures(details.url);
+                    aiProb = predict(phishModel, features);
+                } catch (err) {
+                    console.warn('🎣 [PhishScout] 推理失败:', err);
+                }
+
+                let isPhish = false;
+                let reasons = [...heurReasons];
+
+                // ======= 🧠 融合决策逻辑 =======
+                // 1. 规则引擎直接命中高危
+                if (heurFlag) {
+                    isPhish = true;
+                } 
+                // 2. 极高 AI 概率 + 规则引擎有嫌疑
+                else if (aiProb >= 0.95 && heurScore >= 1) {
+                    isPhish = true;
+                    if (reasons.length === 0) reasons.push('ai-high-confidence');
+                }
+                // 3. 高 AI 概率 + 规则引擎极度可疑
+                else if (aiProb >= 0.85 && heurScore >= 2) {
+                    isPhish = true;
+                    if (reasons.length === 0) reasons.push('ai-rule-fusion');
+                }
+
+                // 打印最终决策过程，方便调试
+                console.debug(`🛡️ [Fusion] URL: ${details.url} | AI概率: ${aiProb.toFixed(4)} | 规则得分: ${heurScore} | 最终拦截: ${isPhish}`);
+
                 if (isPhish) {
-                    console.log('🚨 [Security] 检测到品牌钓鱼，执行强制拦截:', details.url, '理由:', reasons);
+                    console.log('🚨 [Security] 拦截钓鱼网站:', details.url, '理由:', reasons);
                     const reasonStr = encodeURIComponent(reasons.join(', '));
                     const warningUrl = chrome.runtime.getURL(`warning.html?url=${encodeURIComponent(details.url)}&isPro=false&reasons=${reasonStr}`);
                     blockedTabs.set(details.tabId, details.url);
