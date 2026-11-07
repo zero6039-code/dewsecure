@@ -26,3 +26,10 @@ lto = true
 codegen-units = 1
 strip = true
 panic = "abort"
+
+# A0-6a：UniFFI 绑定生成专用 profile
+# release 的 strip = true 会剥离 UniFFI 元数据 section，导致 uniffi-bindgen --library 静默失败
+# strip = "debuginfo" 只剥离 debug 信息，保留自定义 section 和符号表
+[profile.uniffi]
+inherits = "release"
+strip = "debuginfo"
