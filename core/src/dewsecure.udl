@@ -57,6 +57,7 @@ enum BlockDecision {
     "Allow",
     "BlockAd",
     "BlockTracker",
+    "BlockMining",
 };
 
 dictionary BlockResult {
