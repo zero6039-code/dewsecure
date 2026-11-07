@@ -1,0 +1,31 @@
+{
+  "totalDim": 579,
+  "ngram": { "size": 512, "nMin": 3, "nMax": 5, "valueType": "binary", "hash": "fnv1a32_variant_0x811c9dc5_0x01000193_mod512" },
+  "struct": {
+    "offset": 0,
+    "size": 67,
+    "fields": [
+      "url_length", "dash_count", "digit_count", "subdomain_depth",
+      "has_proto", "non_alnum_count", "entropy_full", "path_segments",
+      "host_length", "is_ip", "has_at", "double_slash",
+      "tld_length", "common_tld", "query_equal_count", "path_length",
+      "kw_count_full", "brand_in_host", "kw_in_path", "kw_count_dup",
+      "punycode", "non_std_port", "percent_encoded_count", "hex_ip",
+      "upper_ratio", "www_count", "max_digit_run", "max_label_length",
+      "label_count", "domain_in_path", "query_length", "query_equal_dup",
+      "dangerous_ext", "deep_subdomain", "repeated_chars",
+      "reserved_0", "reserved_1",
+      "non_ascii_host", "cyrillic_host", "min_levenshtein",
+      "kw_in_subdomain", "keyword_as_domain", "kw_in_sub_only",
+      "risky_tld", "lookalike_tld", "short_tld", "dot_count",
+      "many_labels", "domain_length", "first_subdomain_length",
+      "first_subdomain_entropy", "first_subdomain_vowel_ratio",
+      "suspicious_first_subdomain", "domain_digit_ratio",
+      "octal_ip", "numeric_host", "numeric_host_no_dot",
+      "other_proto", "has_at_dup", "open_redirect_param",
+      "url_in_path", "is_free_host", "free_host_with_brand",
+      "repeated_pairs", "has_emoji", "kw_in_query",
+      "host_is_shortener"
+    ]
+  }
+}

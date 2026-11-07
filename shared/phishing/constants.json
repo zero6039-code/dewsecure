@@ -1,0 +1,35 @@
+{
+  "_source": "extensions/chrome/src/phishScoutFeatures.js",
+  "shorteners": [
+    "bit.ly", "tinyurl.com", "t.co", "goo.gl", "ow.ly", "is.gd", "buff.ly",
+    "adf.ly", "bit.do", "mcaf.ee", "su.pr", "ity.im", "q.gs", "po.st",
+    "bc.vc", "u.to", "j.mp", "buzurl.com", "cutt.us", "u.bb", "yourls.org",
+    "x.co", "prettylinkpro.com", "scrnch.me", "filourl.com", "vzturl.com",
+    "qr.net", "1url.com", "tweez.me", "v.gd", "tr.im"
+  ],
+  "suspiciousTlds": [
+    "tk", "ml", "ga", "cf", "gq", "xyz", "top", "work", "click", "link",
+    "country", "stream", "download", "win", "bid", "loan", "review", "faith",
+    "party", "science", "gdn", "racing", "accountant", "date", "men", "cricket"
+  ],
+  "freeHosts": [
+    "000webhostapp.com", "weebly.com", "wixsite.com", "blogspot.com",
+    "wordpress.com", "github.io", "netlify.app", "vercel.app",
+    "herokuapp.com", "firebaseapp.com", "web.app", "glitch.me",
+    "repl.co", "ngrok.io", "serveo.net", "localtunnel.me",
+    "pagekite.me", "tunnelto.dev"
+  ],
+  "suspiciousKeywords": [
+    "login", "signin", "verify", "secure", "account", "update",
+    "banking", "confirm", "password", "credential", "wallet", "billing",
+    "invoice", "support", "unlock", "recover", "alert", "suspended",
+    "limited", "webscr", "cmd", "paypal", "apple", "microsoft",
+    "google", "amazon", "netflix", "facebook", "instagram", "whatsapp",
+    "maybank", "cimb", "grab", "touchngo", "boost", "shopeepay"
+  ],
+  "openRedirectParams": [
+    "url=", "redirect=", "next=", "return=", "goto=", "dest=",
+    "r=", "u=", "link=", "target=", "redir=", "redirect_uri=",
+    "callback=", "continue=", "window=", "to=", "out=", "view="
+  ]
+}

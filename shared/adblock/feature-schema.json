@@ -1,0 +1,19 @@
+{
+  "totalDim": 16418,
+  "ngram": { "size": 16384, "n": 3, "valueType": "count", "hash": "fnv1a32_variant_0x84222325_0x1b3" },
+  "struct": {
+    "offset": 16384,
+    "size": 34,
+    "fields": [
+      "url_length", "dot_count", "slash_count", "dash_count",
+      "underscore_count", "question_count", "equal_count",
+      "amp_count", "percent_count",
+      "kw_ad", "kw_track", "kw_analytics", "kw_banner", "kw_popup",
+      "kw_click", "kw_pixel", "kw_doubleclick", "kw_facebook", "kw_google",
+      "tld_com", "tld_net", "tld_org", "tld_io", "tld_cn",
+      "is_https", "is_http", "digit_ratio", "upper_ratio",
+      "slash_count_dup", "query_mark_sum",
+      "host_length", "is_ip", "subdomain_depth", "entropy"
+    ]
+  }
+}
