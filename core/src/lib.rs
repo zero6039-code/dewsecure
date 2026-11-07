@@ -132,7 +132,21 @@ impl DewEngine {
 
         if let Some(classifier) = &self.classifier {
             let classifier = classifier.lock().unwrap_or_else(|e| e.into_inner());
-            let features = classifier::extract_features(&url);
+            
+            // 🛡️ 核心修复：剥离协议、路径、参数，只保留纯域名，确保与模型训练输入 100% 对齐
+            let clean_url = if url.starts_with("http") {
+                let parts: Vec<&str> = url.split('/').collect();
+                if parts.len() >= 3 {
+                    format!("{}://{}", parts[0], parts[2])
+                } else {
+                    url.clone()
+                }
+            } else {
+                let parts: Vec<&str> = url.split('/').collect();
+                format!("https://{}", parts[0])
+            };
+            
+            let features = classifier::extract_features(&clean_url);
             let result = classifier.predict(&features);
 
             match result {

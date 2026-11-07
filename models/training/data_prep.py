@@ -426,6 +426,8 @@ def build_dataset():
     for d in ad_list:
         label, source = classify_label_with_source(d, disconnect_map, easyprivacy_set)
         source_stats[source] += 1
+        if source == "ad_default":
+            continue  # 🛡️ 丢弃无确切 Ad 证据的域名，防止毒化决策边界
         if label == 2:
             tracker_count += 1
             tracker_sources[source] += 1
