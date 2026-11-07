@@ -1,0 +1,3 @@
+# 模型权重不入库
+weights/*.json
+!weights/.gitkeep

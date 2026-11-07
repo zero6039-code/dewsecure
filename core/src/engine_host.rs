@@ -15,6 +15,7 @@ use crate::{EngineConfig, EngineError};
 use serde::Deserialize;
 use std::collections::HashSet;
 use std::sync::{Arc, Mutex};
+use crate::model::adblock::AdblockModel;
 
 /// 域名级拦截决策。与 UDL `enum BlockDecision` 一一对应。
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -60,10 +61,15 @@ pub struct HostEngine {
     /// 用 Arc<Mutex<_>> 因为 UniFFI include_scaffolding! 模式只支持 &self 方法，
     /// 与现有 DewEngine::add_custom_rule 的模式一致。
     user_allow: Arc<Mutex<HashSet<String>>>,
+    /// T1 模型（可选，运行时通过 `set_adblock_model` 加载）
+    adblock_model: Arc<Mutex<Option<AdblockModel>>>,
 }
 
 const HARD_DOMAINS_JSON: &str =
     include_str!("../../shared/adblock/hard-domains.json");
+
+/// T1 AI 拦截阈值（与 ai.js 的 0.8 对齐）
+const AI_CONFIDENCE_THRESHOLD: f32 = 0.8;
 
 /// 统一规范化：trim + 去尾点 + lowercase。
 fn normalize_domain(s: &str) -> String {
@@ -93,6 +99,7 @@ impl HostEngine {
             block_tracker: normalize_set(parsed.block.tracker),
             mining: normalize_set(parsed.mining),
             user_allow: Arc::new(Mutex::new(HashSet::new())),
+            adblock_model: Arc::new(Mutex::new(None)),
         })
     }
 
@@ -156,7 +163,29 @@ impl HostEngine {
             };
         }
 
-        // 5. 默认放行（A0-6b-2 会在这里插入 T1 AI 判定）
+        // 5. T1 AI 推理（如果模型已加载）
+        {
+            let model_guard = self.adblock_model.lock().unwrap_or_else(|e| e.into_inner());
+            if let Some(model) = model_guard.as_ref() {
+                let features =
+                    crate::classifier::features_adblock::extract_sparse_features(&host);
+                let (decision, confidence) = model.predict(&features);
+                if confidence >= AI_CONFIDENCE_THRESHOLD && decision != BlockDecision::Allow {
+                    let reason = match decision {
+                        BlockDecision::BlockAd => "ai_ad",
+                        BlockDecision::BlockTracker => "ai_tracker",
+                        _ => "ai_other",
+                    };
+                    return BlockResult {
+                        decision,
+                        reason: reason.to_string(),
+                        confidence,
+                    };
+                }
+            }
+        }
+
+        // 6. 默认放行
         BlockResult {
             decision: BlockDecision::Allow,
             reason: "default_allow".to_string(),
@@ -201,6 +230,18 @@ impl HostEngine {
         let mut v: Vec<String> = guard.iter().cloned().collect();
         v.sort();
         v
+    }
+
+    /// A0-6b-2：运行时加载/替换 T1 模型（不在 UDL 中暴露）。
+    ///
+    /// - 本地开发：`cargo test -- --ignored` 前置加载
+    /// - 生产环境：A0-7 Kotlin 验签通过后调用
+    pub fn set_adblock_model(&self, json: &str) -> Result<(), EngineError> {
+        let model = AdblockModel::load_from_json(json)
+            .map_err(EngineError::ModelLoadFailed)?;
+        let mut guard = self.adblock_model.lock().unwrap_or_else(|e| e.into_inner());
+        *guard = Some(model);
+        Ok(())
     }
 }
 
@@ -445,5 +486,64 @@ mod tests {
         // 修改返回值不应影响内部状态
         let list2 = e.get_user_allow_list();
         assert_eq!(list2, vec!["a.com"]);
+    }
+
+    // ───────── A0-6b-2：T1 AI 分支 ─────────
+
+    fn install_all_ad_model(e: &HostEngine) {
+        // 让 Ad 类恒占优的 mock 模型：coef[1] 全 100
+        let mut coef = vec![vec![0.0f32; 16418]; 3];
+        for x in coef[1].iter_mut() {
+            *x = 100.0;
+        }
+        let model = AdblockModel::from_arrays(coef, vec![0.0f32; 3])
+            .expect("mock 模型构造失败");
+        *e.adblock_model.lock().unwrap_or_else(|err| err.into_inner()) = Some(model);
+    }
+
+    #[test]
+    fn ai_skipped_when_no_model_loaded() {
+        let e = make_engine();
+        let r = e.should_block("random-unblocked.test".to_string());
+        assert_eq!(r.decision, BlockDecision::Allow);
+        assert_eq!(r.reason, "default_allow");
+    }
+
+    #[test]
+    fn ai_branch_blocks_with_loaded_model() {
+        let e = make_engine();
+        install_all_ad_model(&e);
+
+        let r = e.should_block("random-unblocked.test".to_string());
+        assert_eq!(r.decision, BlockDecision::BlockAd);
+        assert_eq!(r.reason, "ai_ad");
+        assert!(r.confidence > 0.99);
+    }
+
+    #[test]
+    fn ai_branch_does_not_override_hard_safe() {
+        let e = make_engine();
+        install_all_ad_model(&e);
+
+        // google.com 在 hard_safe，硬规则优先于 AI
+        let r = e.should_block("google.com".to_string());
+        assert_eq!(r.decision, BlockDecision::Allow);
+        assert_eq!(r.reason, "hard_safe");
+    }
+
+    #[test]
+    fn hard_block_takes_priority_over_ai() {
+        // 证明生产路径：doubleclick.net 即使 AI 误判 Normal，
+        // 也会被 hard_block_ad 提前拦截
+        let e = make_engine();
+        // 装一个"全判 Normal"的模型：coef 全 0 → logits = intercept 全 0
+        // → softmax 均分 → argmax = 0 (Normal)
+        let coef = vec![vec![0.0f32; 16418]; 3];
+        let model = AdblockModel::from_arrays(coef, vec![0.0f32; 3]).unwrap();
+        *e.adblock_model.lock().unwrap_or_else(|err| err.into_inner()) = Some(model);
+
+        let r = e.should_block("doubleclick.net".to_string());
+        assert_eq!(r.decision, BlockDecision::BlockAd);
+        assert_eq!(r.reason, "hard_block_ad");
     }
 }

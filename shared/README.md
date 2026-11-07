@@ -95,3 +95,27 @@ Rust 侧：cargo test 跑夹具，红灯则改 Rust 逻辑
 两边绿灯后再合并
 
 不允许：改 JS 或 Rust 里的常量而不改 shared/。
+
+## 权重文件（不入库）
+
+`shared/weights/weights.json` 是 T1 线性模型权重（3×16418 `coef` + 3 `intercept`），
+**不入 git**（见 `shared/.gitignore`）。本地开发时手动从 R2 拉取并放到该路径。
+
+- 常规测试：`cargo test -p dewsecure-core` —— 自动跳过真权重测试
+- 真权重冒烟：`cargo test -p dewsecure-core -- --ignored --nocapture`
+
+## T1 AI 在 Android DNS 场景的精度限制（重要）
+
+T1 线性模型（`weights.json`）的训练数据来自**真实请求的 hostname**，
+例如 `ads.doubleclick.net`、`ssl.google-analytics.com` 这类子域名。
+模型对**裸域名**（如 `doubleclick.net`）的判别力弱，可能判为 `Normal`。
+
+Android DNS 层看到的是**裸域名**，因此：
+
+1. **高频裸域名**已在 `shared/adblock/hard-domains.json` 的 `block` 列表里，
+   命中 `hard_block_ad` / `hard_block_tracker`，**不经过 AI**
+2. **低频裸域名**（不在硬规则里的广告裸域）AI 可能漏拦——这是固有精度损失
+3. 未来 A2 需要从 R1 流水线**导出 11 万条规则的裸域名子集**，
+   扩大硬规则覆盖率，而不是依赖 AI 对裸域的泛化
+
+T2 钓鱼检测不受此影响（T2 接收完整 URL）。

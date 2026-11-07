@@ -4,3 +4,4 @@
 //! 未来：`loader`（模型加载）、`downloader`（网络下载）等可在此扩展。
 
 pub mod bundle;
+pub mod adblock;
