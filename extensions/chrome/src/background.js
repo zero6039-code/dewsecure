@@ -25,6 +25,7 @@ import { initIntelReporter } from './background/intelReporter.js';
 // 拆分出的初始化模块
 import { initMessaging } from './background/messaging.js';
 import { initNavigation } from './background/navigation.js';
+import { checkAndUpdatePhishModel } from './background/phishModelManager.js';
 import { initDownloads } from './background/downloads.js';
 import { initDevice } from './background/device.js';
 import { initSchedules } from './background/schedules.js';
@@ -52,5 +53,6 @@ initNavigation();  // tabs.onUpdated AI 检测 + webNavigation 钓鱼拦截
 initDownloads();   // 下载守卫
 initDevice();      // 设备上报 + Firefox 侧边栏
 initSchedules();   // 威胁情报 + 模型更新定时任务
-bootstrapDNR();    // DNR 规则（官方豁免 + 挖矿 + 隐私）
+bootstrapDNR();
+checkAndUpdatePhishModel();    // DNR 规则（官方豁免 + 挖矿 + 隐私）
 loadBgI18n();      // 后台多语言引擎
