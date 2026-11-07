@@ -50,6 +50,13 @@ struct BlockLists {
     tracker: Vec<String>,
 }
 
+/// domain-rules.json 的结构（DNR 导出的纯域名列表）
+#[derive(Debug, Deserialize)]
+struct DomainRulesFile {
+    ad: Vec<String>,
+    tracker: Vec<String>,
+}
+
 /// Android DNS 拦截引擎。
 pub struct HostEngine {
     _config: EngineConfig,
@@ -67,6 +74,8 @@ pub struct HostEngine {
 
 const HARD_DOMAINS_JSON: &str =
     include_str!("../../shared/adblock/hard-domains.json");
+const DOMAIN_RULES_JSON: &str =
+    include_str!("../../shared/adblock/domain-rules.json");
 
 /// T1 AI 拦截阈值（与 ai.js 的 0.8 对齐）
 const AI_CONFIDENCE_THRESHOLD: f32 = 0.8;
@@ -85,6 +94,11 @@ impl HostEngine {
                 "hard-domains.json 解析失败: {}", e
             )))?;
 
+        let parsed_domain_rules: DomainRulesFile = serde_json::from_str(DOMAIN_RULES_JSON)
+            .map_err(|e| EngineError::InitializationFailed(format!(
+                "domain-rules.json 解析失败: {}", e
+            )))?;
+
         let normalize_set = |v: Vec<String>| -> HashSet<String> {
             v.into_iter()
                 .map(|s| normalize_domain(&s))
@@ -92,11 +106,23 @@ impl HostEngine {
                 .collect()
         };
 
+        // 合并手工硬规则和 DNR 导出的域名规则
+        let mut all_ad = parsed.block.ad;
+        all_ad.extend(parsed_domain_rules.ad);
+
+        let mut all_tracker = parsed.block.tracker;
+        all_tracker.extend(parsed_domain_rules.tracker);
+
+        tracing::info!(
+            "加载规则完成: safe={}, block_ad={}, block_tracker={}, mining={}",
+            parsed.safe.len(), all_ad.len(), all_tracker.len(), parsed.mining.len()
+        );
+
         Ok(Self {
             _config: config,
             safe: normalize_set(parsed.safe),
-            block_ad: normalize_set(parsed.block.ad),
-            block_tracker: normalize_set(parsed.block.tracker),
+            block_ad: normalize_set(all_ad),
+            block_tracker: normalize_set(all_tracker),
             mining: normalize_set(parsed.mining),
             user_allow: Arc::new(Mutex::new(HashSet::new())),
             adblock_model: Arc::new(Mutex::new(None)),
