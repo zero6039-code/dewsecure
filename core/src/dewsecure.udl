@@ -71,4 +71,10 @@ interface HostEngine {
     constructor(EngineConfig config);
 
     BlockResult should_block(string domain);
+
+    // A0-6c：用户白名单（优先级最高，覆盖所有硬规则与 AI）
+    void user_allow(string domain);
+    void user_remove_allow(string domain);
+    void load_user_whitelist(sequence<string> domains);
+    sequence<string> get_user_allow_list();
 };
