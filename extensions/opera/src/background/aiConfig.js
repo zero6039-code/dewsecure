@@ -9,7 +9,9 @@ export const HARD_SAFE_DOMAINS = [
     'googleapis.com', 'forbes.com', 'forbesimg.com', 'cloudflareinsights.com', 'cnn.io',
     'discomax.com', 'max.com', 'dropbox.com', 'dropboxstatic.com', 'dropboxusercontent.com',
     'lazcdn.com', 'alicdn.com', 'mmstat.com', 'aliyuncs.com', 
-    'shopee.com.my', 'tiktok.com', 'trip.com', 'lazada.com.my'
+    'shopee.com.my', 'tiktok.com', 'trip.com', 'lazada.com.my',
+    'twitter.com', 'x.com', 'facebook.com', 'youtube.com', 'instagram.com', 
+    'linkedin.com', 'wikipedia.org', 'amazon.com', 'reddit.com'
 ];
 
 // 2. 绝对拦截（不需要模型推理，直接软隐藏）

@@ -2,145 +2,142 @@ import numpy as np
 import pandas as pd
 import os
 import json
-import time
+import gc # 🛡️ 引入垃圾回收
 from sklearn.linear_model import SGDClassifier
 from sklearn.metrics import f1_score, classification_report
-from sklearn.utils.class_weight import compute_class_weight
+from sklearn.model_selection import train_test_split
 from tqdm import tqdm
+from scipy.sparse import csr_matrix
 from features import extract_features
+
+SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+DATA_DIR = os.path.join(SCRIPT_DIR, "..", "data")
+WEIGHTS_DIR = os.path.join(SCRIPT_DIR, "..", "weights")
 
 def prepare_dataset():
     print("📦 正在加载数据集...")
-    train_df = pd.read_csv("data/train.csv")
-    test_df = pd.read_csv("data/test.csv")
+    train_df = pd.read_csv(os.path.join(DATA_DIR, "train.csv"))
+    test_df = pd.read_csv(os.path.join(DATA_DIR, "test.csv"))
 
-    # 🔥 动态随机种子：每次运行都会产生不同的随机数，保证抽样数据每次都不一样！
-    # 这样既保证了每次跑分的独立性，也能覆盖到更多数据。
-    dynamic_seed = 42  # 🛡️ E4 修复：锁定随机种子，确保每次训练结果可复现 
+    dynamic_seed = 42 
     
-    # 🛡️ 核心修复 1：修正路径读取
-    hard_rules_path = os.path.join(os.path.dirname(__file__), 'hard_rules.json')
+    hard_rules_path = os.path.join(SCRIPT_DIR, 'hard_rules.json')
     force_train = pd.DataFrame()
     if os.path.exists(hard_rules_path):
         with open(hard_rules_path, 'r', encoding='utf-8') as f:
             rules = json.load(f)
             hard_domains = set(rules.get("hard_safe", []) + rules.get("hard_block", []))
-            # 严格保证拉出来的金标数据是对应的标签，防止污染
-    force_train = train_df[train_df["domain"].isin(hard_domains)]
+            force_train = train_df[train_df["domain"].isin(hard_domains)]
     
-    # 🛡️ 核心修复 2：改用分层抽样 (Stratified Sampling)，保证类别比例绝对平衡
-    if len(train_df) > 50000:
-        print(f"🎲 使用动态种子 {dynamic_seed} 进行分层抽样 50000 条...")
-        # 按照 label 分组抽取，使用循环拼接防止 Pandas 新版机制导致 NaN
-        sampled_list = []
-        for label, group in train_df.groupby("label"):
-            n_samples = int(len(group) / len(train_df) * 50000)
-            sampled_list.append(group.sample(n=n_samples, random_state=dynamic_seed))
-        sampled = pd.concat(sampled_list).reset_index(drop=True)
-        # 将抽样数据与强制保留的金标数据合并
-        train_df = pd.concat([sampled, force_train]).drop_duplicates(subset=["domain"]).reset_index(drop=True)
-        print(f"🛡️ 已强制保留 {len(force_train)} 条金标数据，最终训练集大小: {len(train_df)}")
-    if len(test_df) > 10000:
-        test_df = test_df.sample(n=10000, random_state=dynamic_seed)
-
-    train_df = train_df.sample(frac=1, random_state=dynamic_seed).reset_index(drop=True)
-    test_df = test_df.sample(frac=1, random_state=dynamic_seed).reset_index(drop=True)
+    all_df = pd.concat([train_df, test_df]).drop_duplicates(subset=["domain"]).reset_index(drop=True)
+    train_df, test_df = train_test_split(
+        all_df, test_size=0.2, random_state=dynamic_seed, stratify=all_df["label"]
+    )
     
-    print(f"📊 最终训练集: {len(train_df)}, 测试集: {len(test_df)}")
+    train_df = pd.concat([train_df, force_train]).drop_duplicates(subset=["domain"]).reset_index(drop=True)
     
-    # 🛡️ 核心修复：强力清洗 NA 和浮点数，防患于未然
     train_df = train_df.dropna(subset=["domain", "label"]).copy()
     train_df["label"] = pd.to_numeric(train_df["label"], errors='coerce').fillna(0).astype(int)
     
     test_df = test_df.dropna(subset=["domain", "label"]).copy()
     test_df["label"] = pd.to_numeric(test_df["label"], errors='coerce').fillna(0).astype(int)
     
+    print(f"📊 最终分层训练集: {len(train_df)}, 测试集: {len(test_df)}")
     return train_df, test_df
 
 def train_model():
     train_df, test_df = prepare_dataset()
 
-    N_FEATURES = 16418
-    CHUNK_SIZE = 5000
-    EPOCHS = 5
+    # 🛡️ 缩小 Chunk Size，降低内存峰值
+    CHUNK_SIZE = 2000
+    # 🛡️ 降低 Epoch，3-5轮就足够收敛，10轮云端受不了
+    EPOCHS = 5 
+    classes = np.array([0, 1, 2])
 
-    # ==========================================
-    # 🛡️ 性能优化：特征只提取一次，转为稀疏矩阵
-    # ==========================================
-    print("🔬 正在提取训练集特征 (仅执行一次)...")
-    from scipy.sparse import csr_matrix
-    
-    # 提取所有特征，存入列表
-    # 提取所有特征，存入列表
-    X_list = [extract_features(d) for d in tqdm(train_df["domain"], desc="Train Features")]
-    # 🛡️ 最安全、最高效的稀疏矩阵构建方式，彻底避免 vstack 的维度错位
-    X_train = csr_matrix(X_list)
-    y_train = train_df["label"].astype(int).values
+    def make_url(d):
+        return f"https://{d}"
 
-    print("🔬 正在提取测试集特征 (仅执行一次)...")
-    X_test_list = [extract_features(d) for d in tqdm(test_df["domain"], desc="Test Features")]
-    X_test = csr_matrix(X_test_list)
-    y_test = test_df["label"].astype(int).values
+    custom_weights = {0: 1.0, 1: 1.0, 2: 1.5}
+    sample_weights = np.array([custom_weights[c] for c in train_df["label"].values])
+    print(f"⚖️ 平衡类别权重: {custom_weights}")
 
     print("🚀 正在初始化 SGD 增量学习模型...")
-    classes = np.array([0, 1, 2])
-    
     model = SGDClassifier(
         loss='log_loss', 
         penalty='l2', 
         alpha=1e-5, 
+        learning_rate='adaptive',
+        eta0=0.01,
         max_iter=100, 
-        random_state=42 
+        random_state=42
     )
 
-    print(f"🏃 开始 {EPOCHS} 轮打乱顺序训练...")
+    print(f"🏃 开始 {EPOCHS} 轮打乱顺序训练 (内存安全模式)...")
+    
+    train_domains = train_df["domain"].values
+    train_labels = train_df["label"].values
+    
     for epoch in range(EPOCHS):
-        # 只打乱索引，不重新提取特征
-        indices = np.random.permutation(X_train.shape[0])
-        X_shuffled = X_train[indices]
-        y_shuffled = y_train[indices]
-        
+        indices = np.random.permutation(len(train_df))
         print(f"🔄 第 {epoch+1} 轮训练...")
         
-        total_chunks = (len(y_shuffled) + CHUNK_SIZE - 1) // CHUNK_SIZE
-        for i in range(total_chunks):
+        total_chunks = (len(indices) + CHUNK_SIZE - 1) // CHUNK_SIZE
+        for i in tqdm(range(total_chunks), desc=f"Epoch {epoch+1}"):
             start = i * CHUNK_SIZE
-            end = min((i + 1) * CHUNK_SIZE, len(y_shuffled))
+            end = min((i + 1) * CHUNK_SIZE, len(indices))
             
-            X_chunk = X_shuffled[start:end]
-            y_chunk = y_shuffled[start:end]
+            chunk_idx = indices[start:end]
+            chunk_domains = train_domains[chunk_idx]
+            chunk_y = train_labels[chunk_idx]
+            chunk_w = sample_weights[chunk_idx]
+
+            # 🛡️ 生成矩阵
+            chunk_X = csr_matrix([extract_features(make_url(d)) for d in chunk_domains])
 
             if epoch == 0 and i == 0:
-                model.partial_fit(X_chunk, y_chunk, classes=classes)
+                model.partial_fit(chunk_X, chunk_y, classes=classes, sample_weight=chunk_w)
             else:
-                model.partial_fit(X_chunk, y_chunk)
+                model.partial_fit(chunk_X, chunk_y, sample_weight=chunk_w)
+            
+            # 🛡️ 核心修复：强制垃圾回收，防止云端爆内存
+            del chunk_X
+            if i % 10 == 0:
+                gc.collect()
 
-    print("📈 正在评估模型 (一次性预测)...")
-    y_pred = model.predict(X_test)
+    print("📈 正在评估模型...")
+    y_pred = []
+    test_domains = test_df["domain"].values
+    total_test_chunks = (len(test_df) + CHUNK_SIZE - 1) // CHUNK_SIZE
+    
+    for i in tqdm(range(total_test_chunks), desc="Testing"):
+        start = i * CHUNK_SIZE
+        end = min((i + 1) * CHUNK_SIZE, len(test_df))
+        chunk_domains = test_domains[start:end]
+        chunk_X = csr_matrix([extract_features(make_url(d)) for d in chunk_domains])
+        y_pred.extend(model.predict(chunk_X))
+        del chunk_X # 及时清理
 
+    y_test = test_df["label"].values
     target_names = ['Normal', 'Ad', 'Tracker']
-    try:
-        print(classification_report(y_test, y_pred, target_names=target_names, zero_division=0))
-    except:
-        print(classification_report(y_test, y_pred, zero_division=0))
+    print(classification_report(y_test, y_pred, target_names=target_names, labels=classes, zero_division=0))
 
     macro_f1 = f1_score(y_test, y_pred, average='macro')
     
-    os.makedirs("weights", exist_ok=True)
-    np.savez("weights/classifier_weights.npz", coef=model.coef_, intercept=model.intercept_)
+    os.makedirs(WEIGHTS_DIR, exist_ok=True)
+    np.savez(os.path.join(WEIGHTS_DIR, "classifier_weights.npz"), coef=model.coef_, intercept=model.intercept_)
     
     label_dist = train_df["label"].value_counts().sort_index().to_dict()
-    with open("weights/model_meta.json", "w") as f:
+    with open(os.path.join(WEIGHTS_DIR, "model_meta.json"), "w") as f:
         json.dump({
             "macroF1": float(macro_f1), 
             "trainedAt": pd.Timestamp.now().isoformat(),
             "nClasses": len(model.classes_),
-            "nFeatures": N_FEATURES,
+            "nFeatures": 16418,
             "trainSize": len(train_df),
             "testSize": len(test_df),
             "labelDist": {str(k): int(v) for k, v in label_dist.items()},
-            "featureSpecVersion": "v1.2.6-step1",
-        }, f)
+            "featureSpecVersion": "v1.2.8-domain-aligned",
+        }, f, indent=2)
         
     print(f"✅ 训练完成！Macro F1: {macro_f1:.4f}")
 

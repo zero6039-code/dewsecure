@@ -90,3 +90,10 @@ extensions/*/manifest.json
 # 威胁情报生成物
 threat-filter.bin
 threat-filter.meta.json
+
+# --- 1.2.8 本地开发屏蔽规则 ---
+venv/
+models/data/
+models/training/weights/
+*.bak-1.2.8
+*.bak-1.2.8-final

@@ -33,6 +33,15 @@ build-chrome:
 build-firefox:
     cd extensions/firefox && npm install && npm run build
 
+# 构建 Opera 扩展
+build-opera:
+    cd extensions/opera && npm install && npm run build
+
+# 一键构建所有浏览器扩展 (Chrome -> Firefox/Opera 自动同步)
+build-all-extensions: build-chrome
+    cd extensions/firefox && node build.js
+    cd extensions/opera && node build.js
+
 # 开发模式（Chrome）
 dev-chrome:
     cd extensions/chrome && npm run dev
@@ -41,11 +50,11 @@ dev-chrome:
 
 # 构建 Android APK
 build-android:
-    cd android && ./gradlew assembleRelease
+    @if [ -d "android" ]; then @if [ -d "android" ]; then cd android && ./gradlew assembleRelease; else echo "⚠️ 未找到 android 目录，跳过构建"; fi; else echo "⚠️ 未找到 android 目录，跳过构建"; fi
 
 # 构建 Android Debug
 build-android-debug:
-    cd android && ./gradlew assembleDebug
+    @if [ -d "android" ]; then @if [ -d "android" ]; then cd android && ./gradlew assembleDebug; else echo "⚠️ 未找到 android 目录，跳过构建"; fi; else echo "⚠️ 未找到 android 目录，跳过构建"; fi
 
 # 生成 Kotlin 绑定
 gen-kotlin:
@@ -106,5 +115,5 @@ run-server:
 # 清理构建产物
 clean:
     cargo clean
-    rm -rf extensions/chrome/dist extensions/firefox/dist
-    cd android && ./gradlew clean
+    rm -rf extensions/chrome/dist extensions/firefox/dist extensions/opera/dist
+    @if [ -d "android" ]; then @if [ -d "android" ]; then cd android && ./gradlew clean; else echo "⚠️ 未找到 android 目录，跳过清理"; fi; else echo "⚠️ 未找到 android 目录，跳过清理"; fi

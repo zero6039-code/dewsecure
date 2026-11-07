@@ -44,7 +44,8 @@ def validate():
     FRONTEND_HARD_SAFE = [
         'github.com', 'cloudflare.com', 'apple.com', 'microsoft.com', 
         'google.com', 'gstatic.com', 'googleapis.com', 'forbes.com', 
-        'forbesimg.com', 'cloudflareinsights.com', 'cnn.io', 'discomax.com', 'max.com'
+        'forbesimg.com', 'cloudflareinsights.com', 'cnn.io', 'discomax.com', 'max.com',
+        'twitter.com', 'x.com', 'facebook.com', 'youtube.com', 'instagram.com', 'linkedin.com'
     ]
     test_domains = [d for d in SAFE_DOMAINS if d not in FRONTEND_HARD_SAFE]
 

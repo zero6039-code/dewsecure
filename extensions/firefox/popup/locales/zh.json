@@ -151,5 +151,11 @@
   "leak_btn": "我知道了",
   "phish_download_smuggling_title": "🚨 已拦截恶意脚本走私",
   "phish_download_smuggling_desc": "DewSecure 拦截了网页脚本在本地生成的伪装载荷 ({filename})。这是攻击者绕过网络检测的典型手段。",
-  "phish_download_smuggling_file": "隐藏的本地载荷"
+  "phish_download_smuggling_file": "隐藏的本地载荷",
+  "warn_btn_force_download": "我已知晓风险，强制下载",
+  "warn_btn_downloading": "正在启动下载...",
+  "warn_btn_bypassing": "放行中...",
+  "warn_alert_bypass_fail": "放行失败，请重试！",
+  "warn_title_affiliate": "恶意推广链接已被拦截",
+  "warn_desc_affiliate": "DewSecure 拦截了该链接，因为它包含激进的追踪或联盟参数。"
 }
