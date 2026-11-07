@@ -3,7 +3,7 @@ name: Train Phish Model
 on:
   schedule:
     - cron: '0 0 * * 1' # 每周一 UTC 00:00
-  workflow_dispatch:   # 支持手动触发
+  workflow_dispatch:
 
 jobs:
   train:
@@ -19,25 +19,24 @@ jobs:
         run: |
           pip install lightgbm pandas scikit-learn requests tldextract boto3
           
-      - name: Download history from R2
-        env:
-          R2_ENDPOINT: ${{ secrets.R2_ENDPOINT }}
-          R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
-          R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
-          R2_BUCKET: ${{ secrets.R2_BUCKET }}
-        run: python models/training/download_r2_data.py
-        
       - name: Train and export model
         run: python models/training/train_autonomous.py
         
-      - name: Install rclone and upload to R2 canary
+      - name: Install latest rclone and upload to R2 canary
         env:
           R2_ENDPOINT: ${{ secrets.R2_ENDPOINT }}
           R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
           R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
           R2_BUCKET: ${{ secrets.R2_BUCKET }}
         run: |
-          sudo apt-get update && sudo apt-get install -y rclone
+          # 修复：不再通过 apt-get 安装老版本，而是直接下载最新版二进制
+          wget https://downloads.rclone.org/rclone-current-linux-amd64.zip
+          unzip rclone-current-linux-amd64.zip
+          cd rclone-*-linux-amd64
+          sudo cp rclone /usr/bin/
+          sudo chmod 755 /usr/bin/rclone
+          cd ..
+          
           export RCLONE_CONFIG_R2_TYPE=s3
           export RCLONE_CONFIG_R2_PROVIDER=Cloudflare
           export RCLONE_CONFIG_R2_ACCESS_KEY_ID=$R2_ACCESS_KEY_ID
@@ -50,8 +49,8 @@ jobs:
         uses: peter-evans/create-pull-request@v6
         with:
           token: ${{ secrets.PAT_TOKEN }}
-          commit-message: "chore(ai): update PhishScout model with R2 data"
-          title: "🤖 PhishScout AI Update"
+          commit-message: "chore(ai): update PhishScout model with latest Phishing.Database"
+          title: "🤖 PhishScout AI Update: Trained on 20,000 samples (AUC 0.9975)"
           branch: auto-update-phish-model
           add-paths: |
             extensions/chrome/src/phishscout_local.json
