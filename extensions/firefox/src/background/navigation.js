@@ -5,7 +5,9 @@ import { runAICheck } from './ai.js';
 import { checkThreatFilter } from './threatIntel.js';
 import { HARD_SAFE_DOMAINS } from './aiConfig.js';
 import { getCurrentUser } from '../authManager.js';
-import { extractFeatures } from '../phishScoutFeatures.js'; // 🎣 引入影子特征提取器
+import { extractFeatures } from '../phishScoutFeatures.js';
+import { loadModel, predict } from '../treeEval.js';
+import realModelData from '../phishscout_local.json'; // 🎣 引入影子特征提取器
 
 // 🔒 H1 修复：使用扩展自身 URL 前缀判断，不再用子串匹配（防止 ?warning.html / #warning.html 绕过）
 const EXT_ORIGIN = chrome.runtime.getURL('');
@@ -119,7 +121,37 @@ export function initNavigation() {
                 }
 
                 // ==========================================
-                // 🎣 PhishScout 影子模式：只提取并记录，不干涉原有拦截逻辑
+                // 🎣 PhishScout 影子模式：特征提取 + 本地树模型推理
+                // ==========================================
+                try {
+                    const features = extractFeatures(details.url);
+                    if (features.length === 579) {
+                        const model = loadModel(realModelData);
+                        const prob = predict(model, features);
+                        
+                        console.debug(`🎣 [PhishScout Shadow] URL: ${details.url}`);
+                        console.debug(`   - 真实模型概率: ${prob.toFixed(4)}`);
+                    }
+                } catch (err) {
+                    console.warn('🎣 [PhishScout Shadow] 处理失败:', err);
+                }
+                // ==========================================
+                try {
+                    const features = extractFeatures(details.url);
+                    if (features.length === 579) {
+                        // 加载模拟模型并推理
+                        const model = loadModel(realModelData);
+                        const prob = predict(model, features);
+                        
+                        console.debug(`🎣 [PhishScout Shadow] URL: ${details.url}`);
+                        console.debug(`   - 提取维度: ${features.length}`);
+                        console.debug(`   - 真实模型概率: ${prob.toFixed(4)}`);
+                    } else {
+                        console.warn('🎣 [PhishScout Shadow] 特征维度异常:', features.length);
+                    }
+                } catch (err) {
+                    console.warn('🎣 [PhishScout Shadow] 处理失败:', err);
+                }
                 // ==========================================
                 try {
                     const features = extractFeatures(details.url);
