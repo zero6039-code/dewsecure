@@ -1,24 +1,25 @@
-name: Train PhishScout AI Model
+name: Train Phish Model
 
 on:
   schedule:
     - cron: '0 0 1 * *' # 每月 1 号跑一次
-  workflow_dispatch:
+  workflow_dispatch:   # 支持手动触发
 
 jobs:
   train:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      
       - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
           
-      - name: 安装依赖
+      - name: Install dependencies
         run: |
           pip install lightgbm pandas scikit-learn requests tldextract boto3
           
-      - name: 从 R2 拉取历史钓鱼数据
+      - name: Download history from R2
         env:
           R2_ENDPOINT: ${{ secrets.R2_ENDPOINT }}
           R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
@@ -26,33 +27,31 @@ jobs:
           R2_BUCKET: ${{ secrets.R2_BUCKET }}
         run: python models/training/download_r2_data.py
         
-      - name: 训练与导出模型
+      - name: Train and export model
         run: python models/training/train_autonomous.py
         
-      - name: 安装 rclone 并上传至 R2 (canary 目录)
+      - name: Install rclone and upload to R2 canary
         env:
+          R2_ENDPOINT: ${{ secrets.R2_ENDPOINT }}
           R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
           R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
-          R2_ENDPOINT: ${{ secrets.R2_ENDPOINT }}
+          R2_BUCKET: ${{ secrets.R2_BUCKET }}
         run: |
-          sudo apt-get install -y rclone
-          mkdir -p ~/.config/rclone
-          cat > ~/.config/rclone/rclone.conf << RCLONE_EOF
-          [r2]
-          type = s3
-          provider = Cloudflare
-          access_key_id = ${{ secrets.R2_ACCESS_KEY_ID }}
-          secret_access_key = ${{ secrets.R2_SECRET_ACCESS_KEY }}
-          endpoint = ${{ secrets.R2_ENDPOINT }}
-          RCLONE_EOF
-          rclone copy extensions/chrome/src/phishscout_local.json r2:${{ secrets.R2_BUCKET }}/canary/ --s3-no-check-bucket
+          sudo apt-get update && sudo apt-get install -y rclone
+          export RCLONE_CONFIG_R2_TYPE=s3
+          export RCLONE_CONFIG_R2_PROVIDER=Cloudflare
+          export RCLONE_CONFIG_R2_ACCESS_KEY_ID=$R2_ACCESS_KEY_ID
+          export RCLONE_CONFIG_R2_SECRET_ACCESS_KEY=$R2_SECRET_ACCESS_KEY
+          export RCLONE_CONFIG_R2_ENDPOINT=$R2_ENDPOINT
+          
+          rclone copy extensions/chrome/src/phishscout_local.json r2:$R2_BUCKET/canary/ --s3-no-check-bucket
 
-      - name: 提交模型变更到仓库
+      - name: Create Pull Request
         uses: peter-evans/create-pull-request@v6
         with:
           token: ${{ secrets.PAT_TOKEN }}
           commit-message: "chore(ai): update PhishScout model with R2 data"
-          title: "🤖 PhishScout AI Update: Trained on Accumulated Data"
+          title: "🤖 PhishScout AI Update"
           branch: auto-update-phish-model
           add-paths: |
             extensions/chrome/src/phishscout_local.json
