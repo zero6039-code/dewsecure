@@ -1,6 +1,6 @@
 // ==========================================
 // 🌲 纯 JS 树模型推理引擎 (GBDT / LightGBM)
-// 无 WASM，无第三方依赖
+// 完美兼容 ONNX 的 base_values 和树分支容错
 // ==========================================
 
 export function loadModel(m) {
@@ -13,23 +13,27 @@ export function loadModel(m) {
         right: Int32Array.from(m.right),
         defLeft: Uint8Array.from(m.defLeft),
         val: Float64Array.from(m.val),
-        a: m.platt.a,
-        b: m.platt.b
+        baseValue: m.baseValue ?? 0,
+        a: m.platt?.a ?? 1.0,
+        b: m.platt?.b ?? 0.0
     };
 }
 
-export function predict(M, x /* 长度 M.n 的 Float32Array */) {
-    let raw = 0;
+export function predict(M, x) {
+    let raw = M.baseValue;
     for (let t = 0; t < M.roots.length; t++) {
         let i = M.roots[t];
         while (M.feat[i] >= 0) {
             const v = x[M.feat[i]];
-            // 判断是否走左子树 (如果是 NaN 则看默认方向)
-            const goLeft = Number.isNaN(v) ? M.defLeft[i] === 1 : v <= M.thr[i];
+            let goLeft;
+            if (v === undefined || Number.isNaN(v)) {
+                goLeft = M.defLeft[i] === 1;
+            } else {
+                goLeft = v <= M.thr[i];
+            }
             i = goLeft ? M.left[i] : M.right[i];
         }
         raw += M.val[i];
     }
-    // 通过 Sigmoid 函数输出 0~1 的概率
     return 1 / (1 + Math.exp(-(M.a * raw + M.b)));
 }
