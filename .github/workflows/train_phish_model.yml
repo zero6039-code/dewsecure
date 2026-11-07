@@ -35,7 +35,7 @@ jobs:
       - name: Train and export model
         run: python models/training/train_autonomous.py
         
-      - name: Install rclone and upload to R2 canary
+      - name: Install latest rclone and upload to R2 canary
         env:
           R2_ENDPOINT: ${{ secrets.R2_ENDPOINT }}
           R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
