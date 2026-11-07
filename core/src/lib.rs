@@ -9,6 +9,7 @@ uniffi::include_scaffolding!("dewsecure");
 
 pub mod anti_bypass;
 pub mod classifier;
+pub mod model;
 pub mod model_loader;
 pub mod rule_matcher;
 pub mod engine_host;
