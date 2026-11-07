@@ -1,0 +1,56 @@
+{
+  "_note": "硬规则名单。safe 为 training + runtime 合并去重（34 条），原始两组分开保留供追溯。block 拆 ad/tracker 两组。mining 单独一组。Rust 侧 HostEngine 消费 safe / block.ad / block.tracker / mining 四个列表。",
+  "_source": [
+    "models/training/hard_rules.json (safe_training, block)",
+    "extensions/chrome/src/background/aiConfig.js (safe_runtime, block, mining)"
+  ],
+  "safe": [
+    "ziffstatic.com", "cdnst.net", "speedtest.net", "ookla.com",
+    "github.com", "cloudflare.com", "apple.com", "microsoft.com", "google.com", "gstatic.com",
+    "googleapis.com", "forbes.com", "forbesimg.com", "cloudflareinsights.com", "cnn.io",
+    "discomax.com", "max.com", "dropbox.com", "dropboxstatic.com", "dropboxusercontent.com",
+    "lazcdn.com", "alicdn.com", "mmstat.com", "aliyuncs.com",
+    "shopee.com.my", "tiktok.com", "trip.com", "lazada.com.my",
+    "twitter.com", "x.com", "facebook.com", "youtube.com", "instagram.com",
+    "linkedin.com", "wikipedia.org", "amazon.com", "reddit.com",
+    "bing.com", "qq.com", "office.com", "jd.com", "taobao.com", "baidu.com"
+  ],
+  "safe_training_source": [
+    "youtube.com", "bing.com", "twitter.com", "apple.com", "qq.com",
+    "google.com", "office.com", "jd.com", "wikipedia.org", "github.com",
+    "facebook.com", "taobao.com", "amazon.com", "microsoft.com",
+    "cloudflare.com", "baidu.com"
+  ],
+  "safe_runtime_source": [
+    "ziffstatic.com", "cdnst.net", "speedtest.net", "ookla.com",
+    "github.com", "cloudflare.com", "apple.com", "microsoft.com", "google.com", "gstatic.com",
+    "googleapis.com", "forbes.com", "forbesimg.com", "cloudflareinsights.com", "cnn.io",
+    "discomax.com", "max.com", "dropbox.com", "dropboxstatic.com", "dropboxusercontent.com",
+    "lazcdn.com", "alicdn.com", "mmstat.com", "aliyuncs.com",
+    "shopee.com.my", "tiktok.com", "trip.com", "lazada.com.my",
+    "twitter.com", "x.com", "facebook.com", "youtube.com", "instagram.com",
+    "linkedin.com", "wikipedia.org", "amazon.com", "reddit.com"
+  ],
+  "block": {
+    "ad": [
+      "doubleclick.net",
+      "googlesyndication.com",
+      "adservice.google.com",
+      "taboola.com",
+      "outbrain.com",
+      "adnxs.com"
+    ],
+    "tracker": [
+      "google-analytics.com",
+      "scorecardresearch.com",
+      "criteo.com",
+      "facebook.net"
+    ]
+  },
+  "mining": [
+    "coinhive.com", "coin-hive.com", "authedmine.com", "cryptoloot.pro", "crypto-loot.com",
+    "coinimp.com", "webminepool.com", "miner.pr0gramm.com", "moneropool.com", "minero.cc",
+    "webmine.cz", "coinerra.com", "jsecoin.com", "deepminer.org", "crypto-webminer.com",
+    "nerohut.com", "coinpot.co", "mining.best"
+  ]
+}
