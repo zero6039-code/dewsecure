@@ -12,7 +12,7 @@ from features import extract_features
 # 🛡️ 核心修复：动态获取脚本绝对路径，无论在云端还是本地，路径都绝对正确
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 DATA_DIR = os.path.join(SCRIPT_DIR, "..", "data")
-WEIGHTS_DIR = os.path.join(SCRIPT_DIR, "weights")
+WEIGHTS_DIR = os.path.join(SCRIPT_DIR, "..", "weights")
 
 def prepare_dataset():
     print("📦 正在加载数据集...")
