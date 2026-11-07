@@ -1,0 +1,16 @@
+{
+  "_source": "extensions/chrome/src/background/ai.js",
+  "_note": "containsAny 的 10 组关键词，顺序对应 struct index 9-18",
+  "keywordGroups": [
+    ["ad", "ads", "advert"],
+    ["track", "tracking"],
+    ["analytics", "stats"],
+    ["banner", "banners"],
+    ["popup", "popunder"],
+    ["click", "clicks"],
+    ["pixel", "beacon"],
+    ["doubleclick", "googlesyndication"],
+    ["facebook", "fbcdn"],
+    ["google", "gstatic"]
+  ]
+}
