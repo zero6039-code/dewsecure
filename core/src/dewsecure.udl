@@ -47,3 +47,27 @@ enum EngineError {
     "ModelLoadFailed",
     "InitializationFailed",
 };
+
+// ==========================================
+// A0-6a：HostEngine（Android DNS 层主入口）
+// MVP stub：验证 UDL → Kotlin 绑定链路
+// ==========================================
+
+enum BlockDecision {
+    "Allow",
+    "BlockAd",
+    "BlockTracker",
+};
+
+dictionary BlockResult {
+    BlockDecision decision;
+    string reason;
+    float confidence;
+};
+
+interface HostEngine {
+    [Throws=EngineError]
+    constructor(EngineConfig config);
+
+    BlockResult should_block(string domain);
+};

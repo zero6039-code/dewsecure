@@ -11,6 +11,9 @@ pub mod anti_bypass;
 pub mod classifier;
 pub mod model_loader;
 pub mod rule_matcher;
+pub mod engine_host;
+
+pub use engine_host::{BlockDecision, BlockResult, HostEngine};
 
 use std::sync::Arc;
 use std::sync::Mutex;
