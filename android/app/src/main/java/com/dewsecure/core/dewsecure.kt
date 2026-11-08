@@ -740,6 +740,8 @@ internal interface UniffiForeignFutureCompleteVoid : com.sun.jna.Callback {
 
 
 
+
+
 // A JNA Library to expose the extern-C FFI definitions.
 // This is an implementation detail which will be called internally by the public API.
 
@@ -775,14 +777,14 @@ internal interface UniffiLib : Library {
     ): RustBuffer.ByValue
     fun uniffi_dewsecure_core_fn_method_dewengine_get_stats(`ptr`: Pointer,uniffi_out_err: UniffiRustCallStatus, 
     ): RustBuffer.ByValue
-    fun uniffi_dewsecure_core_fn_method_hostengine_get_stats(`ptr`: Pointer,uniffi_out_err: UniffiRustCallStatus, 
-    ): RustBuffer.ByValue
     fun uniffi_dewsecure_core_fn_clone_hostengine(`ptr`: Pointer,uniffi_out_err: UniffiRustCallStatus, 
     ): Pointer
     fun uniffi_dewsecure_core_fn_free_hostengine(`ptr`: Pointer,uniffi_out_err: UniffiRustCallStatus, 
     ): Unit
     fun uniffi_dewsecure_core_fn_constructor_hostengine_new(`config`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
     ): Pointer
+    fun uniffi_dewsecure_core_fn_method_hostengine_get_stats(`ptr`: Pointer,uniffi_out_err: UniffiRustCallStatus, 
+    ): RustBuffer.ByValue
     fun uniffi_dewsecure_core_fn_method_hostengine_get_user_allow_list(`ptr`: Pointer,uniffi_out_err: UniffiRustCallStatus, 
     ): RustBuffer.ByValue
     fun uniffi_dewsecure_core_fn_method_hostengine_load_user_whitelist(`ptr`: Pointer,`domains`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
@@ -915,6 +917,8 @@ internal interface UniffiLib : Library {
     ): Short
     fun uniffi_dewsecure_core_checksum_method_dewengine_get_stats(
     ): Short
+    fun uniffi_dewsecure_core_checksum_method_hostengine_get_stats(
+    ): Short
     fun uniffi_dewsecure_core_checksum_method_hostengine_get_user_allow_list(
     ): Short
     fun uniffi_dewsecure_core_checksum_method_hostengine_load_user_whitelist(
@@ -959,6 +963,9 @@ private fun uniffiCheckApiChecksums(lib: UniffiLib) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if (lib.uniffi_dewsecure_core_checksum_method_dewengine_get_stats() != 55824.toShort()) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
+    if (lib.uniffi_dewsecure_core_checksum_method_hostengine_get_stats() != 7941.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if (lib.uniffi_dewsecure_core_checksum_method_hostengine_get_user_allow_list() != 34129.toShort()) {
@@ -1593,6 +1600,8 @@ public object FfiConverterTypeDewEngine: FfiConverter<DewEngine, Pointer> {
 
 public interface HostEngineInterface {
     
+    fun `getStats`(): kotlin.String
+    
     fun `getUserAllowList`(): List<kotlin.String>
     
     fun `loadUserWhitelist`(`domains`: List<kotlin.String>)
@@ -1602,7 +1611,6 @@ public interface HostEngineInterface {
     fun `userAllow`(`domain`: kotlin.String)
     
     fun `userRemoveAllow`(`domain`: kotlin.String)
-    fun `getStats`(): kotlin.String
     
     companion object
 }
@@ -1695,6 +1703,18 @@ open class HostEngine: Disposable, AutoCloseable, HostEngineInterface {
         }
     }
 
+    override fun `getStats`(): kotlin.String {
+            return FfiConverterString.lift(
+    callWithPointer {
+    uniffiRustCall() { _status ->
+    UniffiLib.INSTANCE.uniffi_dewsecure_core_fn_method_hostengine_get_stats(
+        it, _status)
+}
+    }
+    )
+    }
+    
+
     override fun `getUserAllowList`(): List<kotlin.String> {
             return FfiConverterSequenceString.lift(
     callWithPointer {
@@ -1749,16 +1769,12 @@ open class HostEngine: Disposable, AutoCloseable, HostEngineInterface {
         it, FfiConverterString.lower(`domain`),_status)
 }
     }
-    override fun `getStats`(): kotlin.String {
-            return FfiConverterString.lift(
-    callWithPointer {
-    uniffiRustCall() { _status ->
-    UniffiLib.INSTANCE.uniffi_dewsecure_core_fn_method_hostengine_get_stats(
-        it, _status)
-}
-    }
-    )
-    }
+    
+    
+
+    
+
+    
     
     companion object
     

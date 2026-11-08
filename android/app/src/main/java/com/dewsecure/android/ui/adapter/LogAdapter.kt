@@ -12,14 +12,13 @@ import java.util.Date
 import java.util.Locale
 
 class LogAdapter(
-    private val logs: MutableList<EngineBridge.BlockLog>,
-    private val onAllowClick: (Int, EngineBridge.BlockLog) -> Unit
+    private val logs: List<EngineBridge.BlockLog>
 ) : RecyclerView.Adapter<LogAdapter.ViewHolder>() {
 
     class ViewHolder(view: View) : RecyclerView.ViewHolder(view) {
         val domain: TextView = view.findViewById(R.id.tv_domain)
         val time: TextView = view.findViewById(R.id.tv_time)
-        val allow: TextView = view.findViewById(R.id.btn_allow)
+        val count: TextView = view.findViewById(R.id.tv_count)
     }
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): ViewHolder {
@@ -33,17 +32,7 @@ class LogAdapter(
 
         val sdf = SimpleDateFormat("HH:mm:ss", Locale.getDefault())
         holder.time.text = "${sdf.format(Date(log.timestamp))} · ${log.blockType}"
-
-        if (log.isAllowed) {
-            holder.allow.text = "已放行"
-            holder.allow.setTextColor(holder.itemView.context.getColor(R.color.text_secondary))
-            holder.allow.isEnabled = false
-        } else {
-            holder.allow.text = "放行"
-            holder.allow.setTextColor(holder.itemView.context.getColor(R.color.accent_blue))
-            holder.allow.isEnabled = true
-            holder.allow.setOnClickListener { onAllowClick(position, log) }
-        }
+        holder.count.text = "x ${log.count}"
     }
 
     override fun getItemCount() = logs.size
