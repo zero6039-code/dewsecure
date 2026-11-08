@@ -1,0 +1,142 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:fillViewport="true">
+
+    <FrameLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:padding="20dp">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_gravity="center_horizontal"
+            android:orientation="vertical"
+            android:gravity="center_horizontal">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:gravity="center_horizontal"
+                android:clipToPadding="false"
+                android:paddingTop="10dp"
+                android:paddingBottom="40dp"
+                android:layout_gravity="center"
+                android:maxWidth="500dp">
+
+                <!-- 顶部：Logo + 登录按钮 -->
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:gravity="center_vertical"
+                    android:orientation="horizontal"
+                    android:layout_marginBottom="32dp">
+                    
+                    <ImageView
+                        android:layout_width="28dp"
+                        android:layout_height="28dp"
+                        android:src="@drawable/dewsecure_icon" />
+                    
+                    <TextView
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:layout_marginStart="10dp"
+                        android:text="DewSecure"
+                        android:textColor="@color/text_primary"
+                        android:textSize="18sp"
+                        android:textStyle="bold" />
+
+                    <TextView
+                        android:id="@+id/btn_login"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="登录 / 控制台"
+                        android:textColor="@color/text_primary"
+                        android:textSize="12sp"
+                        android:background="@drawable/bg_glass_card"
+                        android:paddingHorizontal="12dp"
+                        android:paddingVertical="6dp" />
+                </LinearLayout>
+
+                <!-- 核心状态区 -->
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="未保护"
+                    android:id="@+id/tv_main_status"
+                    android:textColor="@color/text_secondary"
+                    android:textSize="14sp"
+                    android:layout_marginBottom="8dp"/>
+                    
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="极速净化 · 隐私无忧"
+                    android:textColor="@color/text_primary"
+                    android:textSize="28sp"
+                    android:textStyle="bold"
+                    android:layout_marginBottom="32dp"/>
+
+                <!-- 数据卡片 -->
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:layout_marginBottom="32dp">
+                    
+                    <LinearLayout
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:layout_marginEnd="6dp"
+                        android:background="@drawable/bg_glass_card"
+                        android:gravity="center"
+                        android:paddingVertical="24dp"
+                        android:orientation="vertical">
+                        <TextView android:id="@+id/tv_blocked_today" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="0" android:textSize="32sp" android:textStyle="bold" android:textColor="@color/text_primary"/>
+                        <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="今日拦截" android:textColor="@color/text_secondary" android:textSize="12sp"/>
+                    </LinearLayout>
+
+                    <LinearLayout
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:layout_marginStart="6dp"
+                        android:background="@drawable/bg_glass_card"
+                        android:gravity="center"
+                        android:paddingVertical="24dp"
+                        android:orientation="vertical">
+                        <TextView android:id="@+id/tv_blocked_total" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="0" android:textSize="32sp" android:textStyle="bold" android:textColor="@color/text_primary"/>
+                        <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="总拦截" android:textColor="@color/text_secondary" android:textSize="12sp"/>
+                    </LinearLayout>
+                </LinearLayout>
+
+                <!-- 替换为我们自定义的蜂巢动画按钮 -->
+                <com.dewsecure.android.ui.view.HoneycombButton
+                    android:id="@+id/btn_toggle_vpn"
+                    android:layout_width="match_parent"
+                    android:layout_height="60dp"
+                    android:text="开启网络净化"
+                    android:layout_marginBottom="32dp"/>
+
+                <!-- 反馈 -->
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:background="@drawable/bg_glass_card"
+                    android:padding="20dp"
+                    android:orientation="vertical">
+                    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="帮助我们改进" android:textColor="@color/text_secondary" android:textSize="12sp" android:layout_marginBottom="12dp"/>
+                    <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal">
+                        <Button android:layout_width="0dp" android:layout_weight="1" android:layout_height="40dp" android:text="Missed Ad" android:backgroundTint="@color/glass_stroke" android:textColor="@color/text_primary" android:textSize="12sp" android:layout_marginEnd="8dp"/>
+                        <Button android:layout_width="0dp" android:layout_weight="1" android:layout_height="40dp" android:text="False Block" android:backgroundTint="@color/glass_stroke" android:textColor="@color/text_primary" android:textSize="12sp" android:layout_marginStart="8dp"/>
+                    </LinearLayout>
+                </LinearLayout>
+            </LinearLayout>
+        </LinearLayout>
+    </FrameLayout>
+</ScrollView>

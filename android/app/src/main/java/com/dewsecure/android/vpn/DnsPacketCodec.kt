@@ -1,96 +1,161 @@
 package com.dewsecure.android.vpn
 
-import java.nio.ByteBuffer
-
+/**
+ * DNS 包编解码：IPv4/IPv6 + UDP/TCP 识别 + NXDOMAIN 构造。
+ * 最小改动原则：现有 IPv4 逻辑一字未改，仅新增 v6 分支与内部辅助方法。
+ */
 object DnsPacketCodec {
 
-    /**
-     * 从完整的 IPv4 UDP DNS 报文中提取域名。
-     * 如果解析失败，返回 null，交由上游处理（放行）。
-     */
+    private const val PROTO_UDP = 17
+    private const val PROTO_TCP = 6
+    private const val DNS_PORT = 53
+
+    /** 从完整 IP 包中提取 DNS QNAME。解析失败返回 null。 */
     fun extractDomain(packet: ByteArray, length: Int): String? {
-        try {
-            // IPv4 Header 最小 20 字节，IHL 字段在低 4 位
-            if (length < 28) return null
-            val ihl = (packet[0].toInt() and 0x0F) * 4
-            // 检查是否为 UDP 协议 (17)
-            if (packet[9].toInt() != 17) return null
-            
-            // UDP Header 8 字节，DNS Payload 从 ihl + 8 开始
-            val dnsOffset = ihl + 8
-            
-            // DNS Header 12 字节，QNAME 从第 12 字节开始
-            var pos = dnsOffset + 12
-            val sb = StringBuilder()
-            
-            while (pos < length) {
-                val len = packet[pos].toInt() and 0xFF
-                if (len == 0) break // 域名结束
-                if (len >= 192) return null // 不支持压缩指针 (如指向前面的报文)
-                if (pos + 1 + len > length) return null
-                
-                // 提取标签，并用 . 连接
-                if (sb.isNotEmpty()) sb.append('.')
-                sb.append(String(packet, pos + 1, len, Charsets.US_ASCII))
-                pos += len + 1
+        return try {
+            if (length < 1) return null
+            when ((packet[0].toInt() shr 4) and 0x0F) {
+                4 -> extractFromIpv4Udp(packet, length)
+                6 -> extractFromIpv6Udp(packet, length)
+                else -> null
             }
-            return sb.toString().lowercase()
-        } catch (e: Exception) {
-            return null
+        } catch (e: Exception) { null }
+    }
+
+    private fun extractFromIpv4Udp(packet: ByteArray, length: Int): String? {
+        if (length < 28) return null
+        if (packet[9].toInt() != PROTO_UDP) return null
+        val ihl = (packet[0].toInt() and 0x0F) * 4
+        if (length < ihl + 8) return null
+        return parseQName(packet, ihl + 8, length)
+    }
+
+    private fun extractFromIpv6Udp(packet: ByteArray, length: Int): String? {
+        if (length < 48) return null
+        if (packet[6].toInt() != PROTO_UDP) return null
+        return parseQName(packet, 40 + 8, length)
+    }
+
+    private fun parseQName(packet: ByteArray, dnsOffset: Int, length: Int): String? {
+        if (dnsOffset + 12 > length) return null
+        var pos = dnsOffset + 12
+        val sb = StringBuilder()
+        while (pos < length) {
+            val len = packet[pos].toInt() and 0xFF
+            if (len == 0) break
+            if (len >= 192) return null
+            if (pos + 1 + len > length) return null
+            if (sb.isNotEmpty()) sb.append('.')
+            sb.append(String(packet, pos + 1, len, Charsets.US_ASCII))
+            pos += len + 1
+        }
+        return if (sb.isEmpty()) null else sb.toString().lowercase()
+    }
+
+    /** 判断是否为 TCP DNS（v4/v6 通用，目标端口 53）。 */
+    fun isTcpDns(packet: ByteArray, length: Int): Boolean {
+        if (length < 4) return false
+        return when ((packet[0].toInt() shr 4) and 0x0F) {
+            4 -> {
+                if (length < 24 || packet[9].toInt() != PROTO_TCP) false
+                else {
+                    val ihl = (packet[0].toInt() and 0x0F) * 4
+                    length >= ihl + 4 && readU16BE(packet, ihl + 2) == DNS_PORT
+                }
+            }
+            6 -> length >= 44 && packet[6].toInt() == PROTO_TCP && readU16BE(packet, 42) == DNS_PORT
+            else -> false
         }
     }
 
-    /**
-     * 构造一个 DNS NXDOMAIN 响应包（告诉系统该域名不存在）。
-     */
+    /** 构造 NXDOMAIN 响应。v4/v6 自动分发。 */
     fun buildNxDomainResponse(request: ByteArray, length: Int): ByteArray {
+        return try {
+            if ((request[0].toInt() shr 4) and 0x0F == 6) buildNxDomainV6(request, length)
+            else buildNxDomainV4(request, length)
+        } catch (e: Exception) { request.copyOf(length) }
+    }
+
+    private fun buildNxDomainV4(request: ByteArray, length: Int): ByteArray {
         val ihl = (request[0].toInt() and 0x0F) * 4
         val udpOffset = ihl
         val dnsOffset = udpOffset + 8
-        val dnsLength = length - dnsOffset
-        
+        if (length < dnsOffset + 12) return request.copyOf(length)
         val response = request.copyOf(length)
-        
-        // 1. 交换 IP 源和目的地址 (各 4 字节)
+
         for (i in 0 until 4) {
-            val tmp = response[12 + i]
-            response[12 + i] = response[16 + i]
-            response[16 + i] = tmp
+            val t = response[12 + i]; response[12 + i] = response[16 + i]; response[16 + i] = t
         }
-        
-        // 2. 交换 UDP 源端口和目的端口
-        val srcPort = ((response[udpOffset].toInt() and 0xFF) shl 8) or (response[udpOffset + 1].toInt() and 0xFF)
-        val dstPort = ((response[udpOffset + 2].toInt() and 0xFF) shl 8) or (response[udpOffset + 3].toInt() and 0xFF)
-        response[udpOffset] = (dstPort shr 8).toByte()
-        response[udpOffset + 1] = (dstPort and 0xFF).toByte()
-        response[udpOffset + 2] = (srcPort shr 8).toByte()
-        response[udpOffset + 3] = (srcPort and 0xFF).toByte()
+        val sp = readU16BE(response, udpOffset)
+        val dp = readU16BE(response, udpOffset + 2)
+        writeU16BE(response, udpOffset, dp); writeU16BE(response, udpOffset + 2, sp)
 
-        // 3. 构造 DNS 响应头部
-        // Flags: QR=1 (Response), RD=1 (copy from req), RA=1, RCODE=3 (NXDOMAIN)
-        response[dnsOffset + 2] = 0x81.toByte() 
-        response[dnsOffset + 3] = 0x83.toByte() // 1000 0011 (NXDOMAIN)
-        
-        // ANCOUNT, NSCOUNT, ARCOUNT 置 0
-        response[dnsOffset + 6] = 0
-        response[dnsOffset + 7] = 0
-        response[dnsOffset + 8] = 0
-        response[dnsOffset + 9] = 0
-        response[dnsOffset + 10] = 0
-        response[dnsOffset + 11] = 0
+        val rdBit = (response[dnsOffset + 2].toInt() and 0xFF) and 0x01
+        response[dnsOffset + 2] = (0x80 or rdBit).toByte()
+        response[dnsOffset + 3] = 0x83.toByte()
+        for (i in 6..11) response[dnsOffset + i] = 0
 
-        // 4. 重新计算 IP 校验和
-        response[10] = 0
-        response[11] = 0
-        var sum = 0
-        for (i in 0 until ihl step 2) {
-            sum += ((response[i].toInt() and 0xFF) shl 8) or (response[i + 1].toInt() and 0xFF)
-        }
-        while (sum shr 16 > 0) sum = (sum and 0xFFFF) + (sum shr 16)
-        val checksum = sum.inv() and 0xFFFF
-        response[10] = (checksum shr 8).toByte()
-        response[11] = (checksum and 0xFF).toByte()
-
+        writeU16BE(response, 10, 0)
+        writeU16BE(response, 10, ipv4Checksum(response, 0, ihl))
+        writeU16BE(response, udpOffset + 6, 0)
         return response
+    }
+
+    private fun buildNxDomainV6(request: ByteArray, length: Int): ByteArray {
+        if (length < 60) return request.copyOf(length)
+        val udpOffset = 40
+        val dnsOffset = udpOffset + 8
+        val response = request.copyOf(length)
+
+        for (i in 0 until 16) {
+            val t = response[8 + i]; response[8 + i] = response[24 + i]; response[24 + i] = t
+        }
+        val sp = readU16BE(response, udpOffset)
+        val dp = readU16BE(response, udpOffset + 2)
+        writeU16BE(response, udpOffset, dp); writeU16BE(response, udpOffset + 2, sp)
+
+        val rdBit = (response[dnsOffset + 2].toInt() and 0xFF) and 0x01
+        response[dnsOffset + 2] = (0x80 or rdBit).toByte()
+        response[dnsOffset + 3] = 0x83.toByte()
+        for (i in 6..11) response[dnsOffset + i] = 0
+
+        val udpLen = length - udpOffset
+        writeU16BE(response, udpOffset + 6, 0)
+        val ck = udp6Checksum(response, udpOffset, udpLen)
+        writeU16BE(response, udpOffset + 6, if (ck == 0) 0xFFFF else ck)
+        return response
+    }
+
+    internal fun ipv4Checksum(buf: ByteArray, offset: Int, len: Int): Int {
+        var sum = 0
+        var i = offset
+        val end = offset + len
+        while (i + 1 < end) { sum += readU16BE(buf, i); i += 2 }
+        if (i < end) sum += (buf[i].toInt() and 0xFF) shl 8
+        while (sum shr 16 != 0) sum = (sum and 0xFFFF) + (sum shr 16)
+        return sum.inv() and 0xFFFF
+    }
+
+    internal fun udp6Checksum(buf: ByteArray, udpOffset: Int, udpLen: Int): Int {
+        var sum = 0L
+        for (i in 8..23 step 2) sum += readU16BE(buf, i).toLong()
+        for (i in 24..39 step 2) sum += readU16BE(buf, i).toLong()
+        sum += (udpLen ushr 16) and 0xFFFF
+        sum += udpLen and 0xFFFF
+        sum += 0x0011
+        var i = udpOffset
+        val end = udpOffset + udpLen
+        while (i + 1 < end) { sum += readU16BE(buf, i).toLong(); i += 2 }
+        if (i < end) sum += ((buf[i].toInt() and 0xFF) shl 8).toLong()
+        while (sum ushr 16 != 0L) sum = (sum and 0xFFFF) + (sum ushr 16)
+        return sum.inv().toInt() and 0xFFFF
+    }
+
+    internal fun readU16BE(buf: ByteArray, off: Int): Int =
+        ((buf[off].toInt() and 0xFF) shl 8) or (buf[off + 1].toInt() and 0xFF)
+
+    internal fun writeU16BE(buf: ByteArray, off: Int, value: Int) {
+        buf[off] = ((value shr 8) and 0xFF).toByte()
+        buf[off + 1] = (value and 0xFF).toByte()
     }
 }

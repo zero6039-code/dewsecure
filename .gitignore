@@ -97,3 +97,5 @@ models/data/
 models/training/weights/
 *.bak-1.2.8
 *.bak-1.2.8-final
+*.bak*
+*.new
