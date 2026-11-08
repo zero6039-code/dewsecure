@@ -11,8 +11,8 @@ android {
         applicationId = "com.dewsecure.android"
         minSdk = 28
         targetSdk = 34
-        versionCode = 1
-        versionName = "0.1.0"
+        versionCode = 128
+        versionName = "1.2.8"
 
         ndk {
             abiFilters += listOf("arm64-v8a", "x86_64")
@@ -37,5 +37,6 @@ dependencies {
     implementation("androidx.core:core-ktx:1.12.0")
     implementation("androidx.appcompat:appcompat:1.6.1")
     implementation("com.google.android.material:material:1.11.0")
+    implementation("androidx.recyclerview:recyclerview:1.3.2")
     implementation("net.java.dev.jna:jna:5.13.0@aar")
 }
