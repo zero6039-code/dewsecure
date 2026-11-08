@@ -11,8 +11,8 @@ object EngineBridge {
     data class BlockLog(
         val domain: String,
         val blockType: String,
-        val timestamp: Long,
-        var isAllowed: Boolean = false
+        var timestamp: Long,
+        var count: Int = 1
     )
 
     fun init(ruleData: String = "", modelPath: String = "", aiEnabled: Boolean = true) {
@@ -20,6 +20,11 @@ object EngineBridge {
             val config = EngineConfig(ruleData, modelPath, aiEnabled)
             engine = HostEngine(config)
             Log.i(TAG, "HostEngine 初始化成功")
+            
+            // 自检：强行测一下底层是不是坏的
+            val testRes = engine?.shouldBlock("doubleclick.net")
+            Log.i(TAG, "🧪 引擎自检 - doubleclick.net 结果: ${testRes?.decision} / ${testRes?.reason}")
+            
         } catch (e: Exception) {
             Log.e(TAG, "HostEngine 初始化失败，降级为全放行", e)
             engine = null
@@ -57,17 +62,16 @@ object EngineBridge {
         }
     }
 
-    // 新增：解析日志列表
     fun getBlockLogs(): List<BlockLog> {
         val jsonStr = getStatsJson()
-        val list = mutableListOf<BlockLog>()
+        val rawList = mutableListOf<BlockLog>()
         try {
             val json = JSONObject(jsonStr)
             val logs = json.optJSONArray("logs")
             if (logs != null) {
                 for (i in 0 until logs.length()) {
                     val item = logs.getJSONObject(i)
-                    list.add(BlockLog(
+                    rawList.add(BlockLog(
                         item.optString("domain", "未知"),
                         item.optString("block_type", "unknown"),
                         item.optLong("timestamp", 0L)
@@ -77,6 +81,20 @@ object EngineBridge {
         } catch (e: Exception) {
             Log.e(TAG, "解析日志失败", e)
         }
-        return list
+
+        val groupedMap = mutableMapOf<String, BlockLog>()
+        for (log in rawList) {
+            if (groupedMap.containsKey(log.domain)) {
+                val existing = groupedMap[log.domain]!!
+                existing.count += 1
+                if (log.timestamp > existing.timestamp) {
+                    existing.timestamp = log.timestamp
+                }
+            } else {
+                groupedMap[log.domain] = log
+            }
+        }
+
+        return groupedMap.values.sortedByDescending { it.timestamp }
     }
 }

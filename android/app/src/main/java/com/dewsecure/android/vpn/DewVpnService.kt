@@ -48,24 +48,17 @@ class DewVpnService : VpnService() {
             if (networkCallback == null) {
                 networkCallback = object : ConnectivityManager.NetworkCallback() {
                     override fun onAvailable(network: Network) {
-                        Log.i(TAG, "网络切换，刷新上游 DNS...")
                         refreshUpstreamDns(cm)
                         TcpDnsRelay.setUpstreamDns(upstreamDns)
                     }
                 }
-                try {
-                    cm.registerDefaultNetworkCallback(networkCallback!!)
-                } catch (e: Exception) {
-                    Log.e(TAG, "注册网络监听失败: ${e.message}")
-                }
+                try { cm.registerDefaultNetworkCallback(networkCallback!!) } catch (e: Exception) {}
             }
-        } else {
-            Log.w(TAG, "无法获取 ConnectivityManager")
         }
-        Log.i(TAG, "上游 DNS 最终配置: $upstreamDns")
         TcpDnsRelay.setUpstreamDns(upstreamDns)
 
         EngineBridge.init(aiEnabled = false)
+        Log.i(TAG, "🔥 VPN 服务已成功启动，底层引擎初始化完毕")
 
         isRunning = true
         executor.execute { runVpnLoop() }
@@ -73,19 +66,15 @@ class DewVpnService : VpnService() {
     }
 
     private fun refreshUpstreamDns(cm: ConnectivityManager) {
-        val activeNetwork = cm.activeNetwork
-        val linkProperties = if (activeNetwork != null) cm.getLinkProperties(activeNetwork) else null
+        val linkProperties = cm.getLinkProperties(cm.activeNetwork)
         val systemDns = linkProperties?.dnsServers?.firstOrNull {
             it is java.net.Inet4Address && it.hostAddress != "10.0.0.1"
         }?.hostAddress
 
         if (systemDns != null && systemDns != "10.0.0.1") {
             upstreamDns = systemDns
-            Log.i(TAG, "✅ 真实系统上游 DNS: $upstreamDns")
         } else {
-            val country = Locale.getDefault().country.uppercase()
-            upstreamDns = if (country == "CN") "223.5.5.5" else "1.1.1.1"
-            Log.w(TAG, "⚠️ 回退到公共 DNS: $upstreamDns")
+            upstreamDns = if (Locale.getDefault().country.uppercase() == "CN") "223.5.5.5" else "1.1.1.1"
         }
     }
 
@@ -115,7 +104,7 @@ class DewVpnService : VpnService() {
                     if (length <= 0) continue
                     handlePacket(packet, length, socket, outStream)
                 } catch (e: Exception) {
-                    Log.w(TAG, "单次循环异常，继续运行", e)
+                    Log.w(TAG, "单次循环异常", e)
                 }
             }
         } catch (e: Exception) {
@@ -131,16 +120,23 @@ class DewVpnService : VpnService() {
             TcpDnsRelay.handle(packet, length, outStream, this)
             return
         }
+        
         val domain = DnsPacketCodec.extractDomain(packet, length)
-        if (domain == null) {
-            outStream.write(DnsForwarder.buildServfailResponse(packet, length))
+        
+        // 探针：打印所有经过 VPN 的 DNS 请求
+        if (domain != null) {
+            Log.d(TAG, "🔍 抓到 DNS 请求: $domain")
+        } else {
+            // 如果返回 null，可能是解析失败或非 UDP DNS
             return
         }
+
         val result = EngineBridge.shouldBlock(domain)
         if (result.decision != com.dewsecure.core.BlockDecision.ALLOW) {
             Log.i(TAG, "🛑 拦截: $domain (${result.reason})")
             outStream.write(DnsPacketCodec.buildNxDomainResponse(packet, length))
         } else {
+            Log.d(TAG, "✅ 放行: $domain (原因: ${result.reason})")
             DnsForwarder.forward(packet, length, socket, outStream, upstreamDns)
         }
     }

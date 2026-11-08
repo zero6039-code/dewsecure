@@ -4,7 +4,8 @@
     android:layout_height="wrap_content"
     android:orientation="horizontal"
     android:gravity="center_vertical"
-    android:paddingVertical="12dp">
+    android:paddingVertical="12dp"
+    android:paddingHorizontal="16dp">
 
     <LinearLayout
         android:layout_width="0dp"
@@ -27,14 +28,16 @@
             android:layout_marginTop="4dp"/>
     </LinearLayout>
 
+    <!-- 替换为拦截次数徽章 -->
     <TextView
-        android:id="@+id/btn_allow"
+        android:id="@+id/tv_count"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:text="放行"
+        android:text="x 1"
         android:textColor="@color/accent_blue"
         android:textSize="14sp"
         android:textStyle="bold"
-        android:padding="8dp"
-        android:background="?attr/selectableItemBackground"/>
+        android:background="@drawable/bg_glass_card"
+        android:paddingHorizontal="8dp"
+        android:paddingVertical="4dp"/>
 </LinearLayout>
