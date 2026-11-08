@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="utf-8"?>
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <item>
+        <shape><solid android:color="@color/bg_dark_base" /></shape>
+    </item>
+    <!-- 左上角紫蓝色极光 -->
+    <item>
+        <shape>
+            <gradient
+                android:type="radial"
+                android:gradientRadius="500dp"
+                android:startColor="#331F6FEB"
+                android:endColor="#00000000"
+                android:centerX="0.1"
+                android:centerY="0.1" />
+        </shape>
+    </item>
+    <!-- 右下角青色极光 -->
+    <item>
+        <shape>
+            <gradient
+                android:type="radial"
+                android:gradientRadius="600dp"
+                android:startColor="#2200E5FF"
+                android:endColor="#00000000"
+                android:centerX="0.9"
+                android:centerY="0.9" />
+        </shape>
+    </item>
+</layer-list>

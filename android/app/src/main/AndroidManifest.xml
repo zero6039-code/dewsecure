@@ -11,6 +11,7 @@
 
     <application
         android:allowBackup="false"
+        android:icon="@drawable/dewsecure_icon"
         android:label="DewSecure"
         android:supportsRtl="true"
         android:theme="@style/Theme.Material3.DayNight.NoActionBar">

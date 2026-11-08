@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- 官网同款极黑背景 -->
+    <color name="bg_dark_base">#090C10</color>
+    <!-- 深色磨砂卡片底 -->
+    <color name="glass_bg">#99161B22</color>
+    <!-- 卡片高光极细边框 -->
+    <color name="glass_stroke">#30363D</color>
+    
+    <color name="text_primary">#FFFFFF</color>
+    <color name="text_secondary">#8B949E</color>
+    
+    <color name="accent_blue">#58A6FF</color>
+    <color name="green_on">#3FB950</color>
+    <color name="pro_yellow">#D29922</color>
+    <color name="btn_white">#FFFFFF</color>
+</resources>
