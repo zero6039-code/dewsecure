@@ -99,3 +99,6 @@ models/training/weights/
 *.bak-1.2.8-final
 *.bak*
 *.new
+.gradle/
+build/
+.idea/

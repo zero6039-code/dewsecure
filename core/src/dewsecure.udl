@@ -48,11 +48,6 @@ enum EngineError {
     "InitializationFailed",
 };
 
-// ==========================================
-// A0-6a：HostEngine（Android DNS 层主入口）
-// MVP stub：验证 UDL → Kotlin 绑定链路
-// ==========================================
-
 enum BlockDecision {
     "Allow",
     "BlockAd",
@@ -72,9 +67,10 @@ interface HostEngine {
 
     BlockResult should_block(string domain);
 
-    // A0-6c：用户白名单（优先级最高，覆盖所有硬规则与 AI）
     void user_allow(string domain);
     void user_remove_allow(string domain);
     void load_user_whitelist(sequence<string> domains);
     sequence<string> get_user_allow_list();
+
+    string get_stats();
 };

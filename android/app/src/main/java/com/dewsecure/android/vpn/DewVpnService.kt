@@ -138,7 +138,7 @@ class DewVpnService : VpnService() {
         }
         val result = EngineBridge.shouldBlock(domain)
         if (result.decision != com.dewsecure.core.BlockDecision.ALLOW) {
-            Log.d(TAG, "🛑 拦截: $domain (${result.reason})")
+            Log.i(TAG, "🛑 拦截: $domain (${result.reason})")
             outStream.write(DnsPacketCodec.buildNxDomainResponse(packet, length))
         } else {
             DnsForwarder.forward(packet, length, socket, outStream, upstreamDns)
