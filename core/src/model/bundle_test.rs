@@ -27,3 +27,28 @@ fn test_signature_covers_metadata() {
     assert!(matches!(r1, Err(BundleError::SignatureInvalid)));
     assert!(matches!(r2, Err(BundleError::SignatureInvalid)));
 }
+
+#[cfg(test)]
+mod c8_tests {
+    use crate::model::adblock::AdblockModel;
+
+    #[test]
+    fn test_c8_oversized_json_rejected() {
+        // 构造一个超过 4MB 的虚假 JSON
+        let big_json = "a".repeat(5 * 1024 * 1024);
+        let res = AdblockModel::load_from_json(&big_json);
+        assert!(res.is_err());
+        assert!(res.unwrap_err().contains("超过 4MB 大小限制"));
+        println!("✅ C-8 PoC 成功：超大 JSON 已被拦截");
+    }
+
+    #[test]
+    fn test_c8_invalid_dimension_rejected() {
+        // 构造维度错误的 JSON：coef 为 4 个类别
+        let json = r#"{"coef": [[],[],[],[]], "intercept": [0,0,0]}"#;
+        let res = AdblockModel::load_from_json(json);
+        assert!(res.is_err());
+        assert!(res.unwrap_err().contains("coef 应为 3 个类别"));
+        println!("✅ C-8 PoC 成功：畸形维度已被拦截");
+    }
+}

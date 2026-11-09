@@ -29,12 +29,16 @@ pub struct AdblockModel {
 impl AdblockModel {
     /// 从已有的 `coef` / `intercept` 数组构造（测试与 `load_from_json` 共用）。
     pub fn from_arrays(coef: Vec<Vec<f32>>, intercept: Vec<f32>) -> Result<Self, String> {
+        // 🛡️ C-8 修复：先检查外层维度，防止恶意 JSON 构造超大 Vec 撑爆内存
         if coef.len() != N_CLASSES {
             return Err(format!(
                 "coef 应为 {} 个类别，实际 {}",
                 N_CLASSES,
                 coef.len()
             ));
+        }
+        if coef.iter().any(|c| c.len() > TOTAL_DIM) {
+            return Err("coef 内部数组长度超过预设上限".to_string());
         }
         for (i, c) in coef.iter().enumerate() {
             if c.len() != TOTAL_DIM {
@@ -64,6 +68,12 @@ impl AdblockModel {
     /// `{ "coef": [[16418], [16418], [16418]], "intercept": [3] }`
     /// 与 `modelManager.js` 的 `isValidModelShape` 语义一致。
     pub fn load_from_json(json: &str) -> Result<Self, String> {
+        // 🛡️ C-8 修复：硬性限制 4MB，防止反序列化时 OOM
+        if json.len() > 4 * 1024 * 1024 {
+            return Err("模型 JSON 超过 4MB 大小限制".to_string());
+        }
+        
+        // 注意：反序列化操作应在锁外进行。
         #[derive(Deserialize)]
         struct Raw {
             coef: Vec<Vec<f32>>,
