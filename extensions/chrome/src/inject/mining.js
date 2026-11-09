@@ -9,10 +9,11 @@
         const activeWorkers = new Set();
 
         function getMiningI18n() {
+            const dict = window.__dewsecureDict || {};
             return {
-                title: window.__dewsecureDict['mining_title'] || 'Resource Abuse Warning',
-                desc: window.__dewsecureDict['mining_desc'] || 'This page is running high-intensity computational tasks...',
-                btn: window.__dewsecureDict['mining_btn'] || 'Got it'
+                title: dict['mining_title'] || 'Resource Abuse Warning: Suspected Mining Script',
+                desc: dict['mining_desc'] || 'This page is running high-intensity computational tasks in the background (consuming CPU), possibly trying to mine cryptocurrency.',
+                btn: dict['mining_btn'] || 'Got it'
             };
         }
 
@@ -30,9 +31,12 @@
             `;
             const t = getMiningI18n();
             banner.innerHTML = `
-                <div>
-                    <strong>⛔ ${t.title}</strong>
-                    <div style="font-size: 12px; opacity: 0.9; margin-top: 4px;">${t.desc}</div>
+                <div style="display: flex; align-items: center; gap: 12px;">
+                    <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink: 0;"><path d="M12 2.69l5.66 5.66a8 8 0 1 1-11.31 0z"></path></svg>
+                    <div>
+                        <strong>${t.title}</strong>
+                        <div style="font-size: 12px; opacity: 0.9; margin-top: 4px;">${t.desc}</div>
+                    </div>
                 </div>
                 <button id="dewsecure-mining-ignore" style="background: transparent; border: 1px solid white; color: white; padding: 4px 12px; border-radius: 4px; cursor: pointer;">${t.btn}</button>
             `;

@@ -49,6 +49,13 @@ window.switchLang = function(lang) {
     if (currentLang === lang) return;
     chrome.storage.local.set({ preferred_lang: lang });
     loadAndApply(lang);
+    
+    // 🛡️ 修复：通知当前标签页，网页内的警告栏实时更新语言
+    chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+        if (tabs[0]?.id) {
+            chrome.tabs.sendMessage(tabs[0].id, { type: 'I18N_CHANGED' }).catch(() => {});
+        }
+    });
 };
 
 document.addEventListener('DOMContentLoaded', () => {

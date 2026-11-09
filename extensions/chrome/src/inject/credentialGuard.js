@@ -25,18 +25,29 @@ import { getDomain } from 'tldts';
 
         const dict = window.__dewsecureDict || {};
         const tTitle = dict['leak_title'] || 'Security Alert: DewSecure Blocked Data Leak';
-        const tDesc = (dict['leak_desc'] || 'This page attempted to send your password to a third-party server ({host}).').replace('{host}', targetHost);
+        const tDesc = (dict['leak_desc'] || 'This page attempted to send your password to a third-party server ({host}), which has been blocked.').replace('{host}', targetHost);
         const tBtn = dict['leak_btn'] || 'Got it';
 
         const contentDiv = document.createElement('div');
-        contentDiv.style.cssText = 'flex: 1; text-align: center; padding-right: 20px;';
+        contentDiv.style.cssText = 'flex: 1; display: flex; align-items: center; gap: 12px;';
+        
+        // 🛡️ 添加品牌图标
+        const iconSvg = document.createElement('div');
+        iconSvg.innerHTML = '<svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink: 0;"><path d="M12 2.69l5.66 5.66a8 8 0 1 1-11.31 0z"></path></svg>';
+        iconSvg.style.cssText = 'display: flex; flex-shrink: 0; color: white;';
+        contentDiv.appendChild(iconSvg.firstChild);
+
+        const textDiv = document.createElement('div');
+        textDiv.style.cssText = 'text-align: left;';
         const titleStrong = document.createElement('strong');
-        titleStrong.textContent = '🚨 ' + tTitle;
-        contentDiv.appendChild(titleStrong);
+        titleStrong.textContent = tTitle;
+        textDiv.appendChild(titleStrong);
         const descDiv = document.createElement('div');
         descDiv.style.cssText = 'font-size: 12px; opacity: 0.9; margin-top: 4px;';
         descDiv.textContent = tDesc;
-        contentDiv.appendChild(descDiv);
+        textDiv.appendChild(descDiv);
+        
+        contentDiv.appendChild(textDiv);
 
         const btn = document.createElement('button');
         btn.id = 'dewsecure-leak-ignore';

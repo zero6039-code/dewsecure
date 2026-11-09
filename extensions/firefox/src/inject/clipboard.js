@@ -3,10 +3,11 @@
     // 🚀 ClickFix 剪贴板防护与诱导语检测 (A4 修复)
     try {
         function getI18nText() {
+            const dict = window.__dewsecureDict || {};
             return {
-                title: window.__dewsecureDict['clipboard_title'] || 'Security Alert: Dangerous Clipboard Action',
-                desc: window.__dewsecureDict['clipboard_desc'] || 'This content contains suspicious commands...',
-                btn: window.__dewsecureDict['clipboard_btn'] || 'I am sure it\'s safe, continue'
+                title: dict['clipboard_title'] || 'Security Alert: DewSecure blocked a dangerous clipboard action.',
+                desc: dict['clipboard_desc'] || 'This content contains suspicious commands (e.g., PowerShell/CMD). Do not paste it into the run window.',
+                btn: dict['clipboard_btn'] || 'I am sure it\'s safe, continue'
             };
         }
 
@@ -24,9 +25,12 @@
             `;
             const t = getI18nText();
             banner.innerHTML = `
-                <div>
-                    <strong>🚨 ${t.title}</strong>
-                    <div style="font-size: 12px; opacity: 0.8; margin-top: 4px;">${t.desc}</div>
+                <div style="display: flex; align-items: center; gap: 12px;">
+                    <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink: 0;"><path d="M12 2.69l5.66 5.66a8 8 0 1 1-11.31 0z"></path></svg>
+                    <div>
+                        <strong>${t.title}</strong>
+                        <div style="font-size: 12px; opacity: 0.8; margin-top: 4px;">${t.desc}</div>
+                    </div>
                 </div>
                 <button id="dewsecure-clipboard-ignore" style="background: transparent; border: 1px solid white; color: white; padding: 4px 12px; border-radius: 4px; cursor: pointer;">${t.btn}</button>
             `;
@@ -39,15 +43,22 @@
         function isDangerousClipboard(text) {
             if (!text) return false;
             const s = String(text);
-            if (s.length < 20) return false;
+            if (s.length < 15) return false;
+            const lower = s.toLowerCase();
 
-            const hasExec = /(powershell|pwsh|mshta|wscript|cscript)/i.test(s);
-            if (!hasExec) return false;
+            // 🛡️ B-7 修复：Windows 高危命令链
+            const winExec = /powershell|pwsh|cmd\s*\/c|mshta|wscript|cscript|msiexec|certutil|rundll32|bitsadmin/i.test(lower);
+            const winDanger = /-w(?:indowstyle)?\s+hidden|-e(?:nc|ncodedcommand)|frombase64string|downloadstring|invoke-webrequest|iwr\s+/i.test(lower);
+            const winDownloadExec = /http:\/\/|https:\/\//i.test(lower) && /\.exe|\.bat|\.ps1|\.vbs|\.msi/i.test(lower);
+            
+            if (winExec && winDanger) return true;
+            if (winExec && winDownloadExec) return true;
 
-            return /-w(?:indowstyle)?\s+hidden/i.test(s) ||
-                   /-e(?:nc|ncodedcommand)\b/i.test(s) ||
-                   /mshta\s+https?:/i.test(s) ||
-                   /FromBase64String/i.test(s);
+            // 🛡️ B-7 修复：macOS / Linux 高危命令链
+            const unixDanger = /curl\s+.*?\|\s*(bash|sh|zsh)|wget\s+.*?\|\s*(bash|sh)|eval\s*\(|osascript/i.test(lower);
+            if (unixDanger) return true;
+
+            return false;
         }
 
         // 1. 拦截脚本静默写入 clipboard.writeText
@@ -97,8 +108,10 @@
             DataTransfer.prototype.setData = function(format, data) {
                 try {
                     if (String(format).toLowerCase() === 'text/plain' && isDangerousClipboard(data)) {
-                        console.warn('[DewSecure] 检测到危险剪贴板写入尝试:', String(data).substring(0, 50) + '...');
+                        console.warn('[DewSecure] 已彻底拦截危险剪贴板写入 (setData):', String(data).substring(0, 50) + '...');
                         showClipboardWarning();
+                        // 🛡️ B-7 修复：直接篡改写入内容，彻底阻断恶意代码进入剪贴板
+                        return nativeSetData.call(this, format, "[DewSecure] 剪贴板内容已被安全引擎拦截。");
                     }
                 } catch (_) {}
                 return nativeSetData.apply(this, arguments);

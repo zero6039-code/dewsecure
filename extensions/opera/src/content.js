@@ -260,6 +260,8 @@
 
     // ===== 核心初始化 =====
     function init() {
+        
+
         const skipDomains = ['google.com', 'youtube.com', 'facebook.com', 'twitter.com', 'x.com', 'instagram.com', 'wired.com'];
         // 🛡️ B-5 修复：严格精确匹配，防止 docs.google.com 等子域被整体豁免
         const isSkipDomain = skipDomains.some(d => window.location.hostname === d || window.location.hostname === 'www.' + d);
@@ -296,16 +298,12 @@
                 };
                 if (toPage) toPage.postMessage({ type: 'DEWSECURE_SETTINGS', settings: safeSettings });
 
-                // 🛡️ 读取语言包并发送给主世界 (inject.js)
-                try {
-                    let lang = (await chrome.storage.local.get('preferred_lang')).preferred_lang || 'en';
-                    if (lang === 'zh_CN') lang = 'zh';
-                    const res = await fetch(chrome.runtime.getURL(`popup/locales/${lang}.json`));
-                    if (res.ok) {
-                        const dict = await res.json();
-                        window.postMessage({ type: 'DEWSECURE_I18N', dict: dict }, location.origin);
-                    }
-                } catch (e) {}
+                // 🛡️ 终极修复：利用 settings 带回来的语言代码拉取字典，彻底告别 storage 越权
+                  // 🛡️ 终极修复：直接使用后台打包好的字典，不再跨域 fetch
+                  if (settings.i18n_dict) {
+                      if (toPage) toPage.postMessage({ type: 'DEWSECURE_I18N', dict: settings.i18n_dict });
+                      window.postMessage({ type: 'DEWSECURE_I18N', dict: settings.i18n_dict }, '*');
+                  }
 
                 // 🚀 启动页面级钓鱼检测（动态监听）
                 setTimeout(() => {
@@ -363,6 +361,17 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
         } else {
             location.reload();
         }
+        sendResponse({ ok: true });
+    }
+    
+    // 🛡️ 修复：收到语言切换信号，立即向后台拉取新字典并下发
+    if (msg.type === 'I18N_CHANGED') {
+        chrome.runtime.sendMessage({ type: 'GET_SETTINGS' }, (settings) => {
+            if (chrome.runtime.lastError || !settings || !settings.i18n_dict) return;
+            if (toPage) toPage.postMessage({ type: 'DEWSECURE_I18N', dict: settings.i18n_dict });
+            window.postMessage({ type: 'DEWSECURE_I18N', dict: settings.i18n_dict }, '*');
+            console.log('🛡️ [DewSecure] 网页端警告栏语言已实时更新');
+        });
         sendResponse({ ok: true });
     }
 });

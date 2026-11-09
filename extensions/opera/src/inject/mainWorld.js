@@ -16,6 +16,12 @@
         if (e.origin !== targetOrigin && targetOrigin !== '*') return;
         if (!e.data) return;
 
+        // 🛡️ 修复：直接接收来自 content.js 的语言包字典
+        if (e.data.type === 'DEWSECURE_I18N' && e.data.dict) {
+            console.log(`🛡️ [DewSecure Inject] 主世界成功接收字典 (Keys: ${Object.keys(e.data.dict).length})`);
+            window.__dewsecureDict = e.data.dict;
+        }
+
         // 从隔离世界接收通信端口
         if (e.data.type === 'DEWSECURE_PORT_INIT' && !port && e.ports && e.ports[0]) {
             e.stopImmediatePropagation(); // 阻止页面偷听
@@ -32,6 +38,9 @@
                 }
                 if (msg.data?.type === 'DEWSECURE_SETTINGS') {
                     dwSettings = msg.data.settings || {};
+                }
+                if (msg.data?.type === 'DEWSECURE_I18N') {
+                    window.__dewsecureDict = msg.data.dict || {};
                 }
             };
         }
