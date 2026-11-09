@@ -141,6 +141,13 @@
             HTMLAnchorElement.prototype.click = function() {
                 if (!isPaused()) {
                     if (isAdUrl(this.href)) return;
+                    
+                    // 🛡️ Skidrow 专项秒杀：只要跨域，不管是不是真实点击，不管有没有 target，直接拦死
+                    if (window.location.hostname.includes('skidrowreloaded.com') && this.href && !this.href.startsWith(location.origin) && !this.href.includes('skidrowreloaded.com')) {
+                        console.warn('[DewSecure] 拦截 Skidrow 脚本强制点击跳转:', this.href);
+                        return;
+                    }
+
                     // 任何非 _self 的 target (如 _blank, 自定义窗口名) 且是跨域链接，全部拦截
                     if (this.target && this.target !== '_self' && this.href && !this.href.startsWith(location.origin)) {
                         if (window.event && window.event.isTrusted) {
@@ -184,6 +191,16 @@
             let target = e.target;
             while (target && target.tagName !== 'A' && target.tagName !== 'FORM') target = target.parentElement;
 
+            // 🛡️ Skidrow 专项：拦截对空白区域、遮罩层的点击，防止底层脚本触发弹窗
+            if (window.location.hostname.includes('skidrowreloaded.com') && !e.target.closest('a')) {
+                if (e.target.id === 'dontfold' || e.target.tagName === 'BODY') {
+                    if (e.target.id === 'dontfold') {
+                        e.preventDefault(); e.stopImmediatePropagation();
+                        return;
+                    }
+                }
+            }
+
             if (target) {
                 if (target.tagName === 'A' && target.href && isAdUrl(target.href)) {
                     e.preventDefault(); e.stopImmediatePropagation();
@@ -211,6 +228,15 @@
         // 8. DOM 节点清理
         const checkAndKillNode = (el) => {
             if (el.dataset.dwKilled) return;
+            
+            // 🛡️ 阻断 Skidrow 的点击劫持遮罩层
+            if (window.location.hostname.includes('skidrowreloaded.com')) {
+                if (el.id === 'dontfold' || (el.tagName === 'DIV' && el.style.position === 'fixed' && el.style.zIndex > 999)) {
+                    console.warn('[DewSecure] 发现 Skidrow 点击劫持遮罩层，已拔除');
+                    el.remove();
+                    return;
+                }
+            }
             if (el.tagName === 'A' && el.href && isAdUrl(el.href)) {
                 el.removeAttribute('href'); el.style.setProperty('pointer-events', 'none', 'important'); el.dataset.dwKilled = 'true';
             } else if (el.tagName === 'FORM' && el.action && isAdUrl(el.action)) {
