@@ -25,7 +25,7 @@ opt-level = "z"
 lto = true
 codegen-units = 1
 strip = true
-panic = "abort"
+panic = "unwind"
 
 # A0-6a：UniFFI 绑定生成专用 profile
 # release 的 strip = true 会剥离 UniFFI 元数据 section，导致 uniffi-bindgen --library 静默失败
