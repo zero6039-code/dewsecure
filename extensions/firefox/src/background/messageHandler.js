@@ -337,6 +337,19 @@ export async function handleMessage(message, sender) {
         case 'GET_SETTINGS':
             let sGet = await getSettings();
             sGet = await cleanExpiredTempWhitelist(sGet);
+            
+            // 🛡️ 终极修复：后台有完全权限，直接读取 JSON 文件并打包返回
+            const { preferred_lang } = await chrome.storage.local.get('preferred_lang');
+            let lang = preferred_lang || 'en';
+            if (lang === 'zh_CN' || lang === 'zh-CN') lang = 'zh';
+            sGet.preferred_lang = lang;
+            
+            try {
+                const res = await fetch(chrome.runtime.getURL(`popup/locales/${lang}.json`));
+                if (res.ok) sGet.i18n_dict = await res.json();
+            } catch (e) {
+                console.warn('🛡️ [Background] 语言包读取失败', e);
+            }
             return sGet;
         case 'UPDATE_SETTING_KEY':
             // 🛡️ N-13 修复：必须是简单键，且值必须是布尔型，杜绝数组/对象注入
