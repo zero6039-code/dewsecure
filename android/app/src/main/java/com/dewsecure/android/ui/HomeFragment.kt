@@ -50,10 +50,19 @@ class HomeFragment : Fragment() {
         updateUiState(isVpnOn)
 
         btnToggleVpn.setOnClickListener {
+            val wasOn = btnToggleVpn.isOn
             btnToggleVpn.toggle()
             val nowOn = btnToggleVpn.isOn
+            
             if (nowOn) {
-                (activity as MainActivity).startVpn()
+                // 🛡️ D-10 修复：假设 MainActivity.startVpn() 返回 Boolean 表示是否成功启动
+                // 如果用户拒绝授权，返回 false，此时需要将 UI 状态回退
+                val started = (activity as MainActivity).startVpn()
+                if (!started) {
+                    btnToggleVpn.setInitialState(false) // 回退 UI 动画
+                    updateUiState(false)
+                    return@setOnClickListener
+                }
                 prefs.edit().putBoolean("is_running", true).apply()
             } else {
                 requireContext().stopService(Intent(requireContext(), DewVpnService::class.java))
@@ -68,6 +77,17 @@ class HomeFragment : Fragment() {
         }
         view.findViewById<View>(R.id.tv_blocked_today).setOnClickListener(goToLogs)
         view.findViewById<View>(R.id.tv_blocked_total).setOnClickListener(goToLogs)
+
+        // 🛡️ D-10 修复：为未接线的按钮绑定基础提示逻辑（后续可替换为真实 Activity 跳转）
+        view.findViewById<View>(R.id.btn_login)?.setOnClickListener {
+            android.widget.Toast.makeText(requireContext(), "登录功能开发中", android.widget.Toast.LENGTH_SHORT).show()
+        }
+        view.findViewById<View>(R.id.btn_whitelist)?.setOnClickListener {
+            android.widget.Toast.makeText(requireContext(), "白名单管理开发中", android.widget.Toast.LENGTH_SHORT).show()
+        }
+        view.findViewById<View>(R.id.btn_feedback)?.setOnClickListener {
+            android.widget.Toast.makeText(requireContext(), "反馈通道开发中", android.widget.Toast.LENGTH_SHORT).show()
+        }
     }
 
     override fun onResume() {
