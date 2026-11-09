@@ -25,6 +25,7 @@
 
     window.__dewsecureInjected = true;
     let phishingIgnored = false; // 🛡️ 用户点击“继续”后的免死金牌
+    let toPage = null;           // 🛡️ B-4: 私有通信端口
     let contentDict = {};        // 🛡️ 缓存语言包
 
     // ===== 统一封装安全的消息发送 =====
@@ -259,12 +260,17 @@
 
     // ===== 核心初始化 =====
     function init() {
-        // 🛡️ A2 修复：生成唯一的随机 Token，防止页面伪造消息
-        const msgToken = Math.random().toString(36).substring(2, 15);
-        window.postMessage({ type: 'DEWSECURE_INIT_TOKEN', token: msgToken }, location.origin);
-
         const skipDomains = ['google.com', 'youtube.com', 'facebook.com', 'twitter.com', 'x.com', 'instagram.com', 'wired.com'];
-        if (inList(window.location.hostname, skipDomains)) {
+        // 🛡️ B-5 修复：严格精确匹配，防止 docs.google.com 等子域被整体豁免
+        const isSkipDomain = skipDomains.some(d => window.location.hostname === d || window.location.hostname === 'www.' + d);
+        
+        // 先建立通信管道，即便要跳过豁免，也要让主世界知道（虽然有跳过逻辑，但管道建立是通用的）
+        if (!toPage) {
+            // 主世界会在 document_start 立即监听消息，这里发个信号让主世界发回它的 port
+            // 注意：由主世界发起 port，隔离世界接收，这是最安全的方案。
+        }
+
+        if (isSkipDomain) {
             console.log('🛡️ [DewSecure] 核心站点豁免 DOM 清理，防止 SPA 崩溃。');
             return;
         }
@@ -278,7 +284,7 @@
                 if ((settings.whitelist || []).some(m) || (settings.tempWhitelist || []).some(m)) {
                     document.documentElement.setAttribute('data-dewsecure-paused', 'true');
                     console.log('🛡️ [DewSecure] 命中白名单，已停止注入 CSS 与 Hook。');
-                    window.postMessage({ type: 'DEWSECURE_PAUSE', token: msgToken }, location.origin);
+                    if (toPage) toPage.postMessage({ type: 'DEWSECURE_PAUSE' });
                     return;
                 }
 
@@ -288,7 +294,7 @@
                     antiBypassEnabled: settings.antiBypassEnabled,
                     blockSocialTrackers: settings.blockSocialTrackers
                 };
-                window.postMessage({ type: 'DEWSECURE_SETTINGS', settings: safeSettings, token: msgToken }, location.origin);
+                if (toPage) toPage.postMessage({ type: 'DEWSECURE_SETTINGS', settings: safeSettings });
 
                 // 🛡️ 读取语言包并发送给主世界 (inject.js)
                 try {
