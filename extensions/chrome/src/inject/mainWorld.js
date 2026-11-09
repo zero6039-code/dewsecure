@@ -8,38 +8,38 @@
 
     let dwSettings = { antiHijackEnabled: true, antiBypassEnabled: true, blockSocialTrackers: true };
     
-    // 🛡️ A2 终极修复：验证动态 Token，无视伪造消息
-    let validToken = null;
-
+    // 🛡️ B-4 修复：使用 MessageChannel 建立私有通道
+    let port = null;
     window.addEventListener('message', (e) => {
-        if (e.source !== window || e.origin !== location.origin) return;
+        if (e.source !== window) return;
+        const targetOrigin = location.origin === 'null' ? '*' : location.origin;
+        if (e.origin !== targetOrigin && targetOrigin !== '*') return;
         if (!e.data) return;
 
-        // 1. 接收真实 Token
-        if (e.data.type === 'DEWSECURE_INIT_TOKEN') {
-            validToken = e.data.token;
-            return;
+        // 从隔离世界接收通信端口
+        if (e.data.type === 'DEWSECURE_PORT_INIT' && !port && e.ports && e.ports[0]) {
+            e.stopImmediatePropagation(); // 阻止页面偷听
+            port = e.ports[0];
+            port.onmessage = (msg) => {
+                if (msg.data?.type === 'DEWSECURE_PAUSE') {
+                    pausedByExtension = true;
+                    try {
+                        Object.defineProperty(window, 'open', { value: nativeWindowOpen, writable: true, configurable: true });
+                    } catch (err) {
+                        try { window.open = nativeWindowOpen; } catch (_) {}
+                    }
+                    console.log('[DewSecure Inject] 主世界已挂起，恢复原生 API');
+                }
+                if (msg.data?.type === 'DEWSECURE_SETTINGS') {
+                    dwSettings = msg.data.settings || {};
+                }
+            };
         }
+    }, true); // 使用捕获阶段确保优先接收
 
-        // 2. 校验 Token，无 Token 或 Token 错误的一律丢弃（页面伪造无效）
-        if (validToken && e.data.token !== validToken) {
-            // console.log('[DewSecure] 丢弃伪造消息:', e.data.type);
-            return;
-        }
-
-        if (e.data.type === 'DEWSECURE_PAUSE') {
-            pausedByExtension = true;
-            try {
-                Object.defineProperty(window, 'open', { value: nativeWindowOpen, writable: true, configurable: true });
-            } catch (err) {
-                try { window.open = nativeWindowOpen; } catch (_) {}
-            }
-            console.log('[DewSecure Inject] 主世界已挂起，恢复原生 API');
-        }
-        if (e.data.type === 'DEWSECURE_SETTINGS') {
-            dwSettings = e.data.settings || {};
-        }
-    });
+    // 通知隔离世界可以建立端口了（避免竞争）
+    const hello = () => { if (!port) window.postMessage({ type: 'DEW_HELLO' }, '*'); };
+    hello(); setTimeout(hello, 50); setTimeout(hello, 250);
 
     (function() {
         'use strict';
@@ -92,6 +92,8 @@
                     }
                     return _requestPermission.apply(this, arguments);
                 };
+                // 🛡️ B-9 修复：伪装 toString 防止被页面检测
+                window.Notification.requestPermission.toString = function() { return _requestPermission.toString(); };
             }
         } catch(e) {}
 
@@ -106,13 +108,15 @@
                     // 🛡️ 行为特征秒杀：Skidrow 上的任何跨域 popup 一律秒杀
                     if (url && !String(url).startsWith(location.origin) && !String(url).includes('skidrowreloaded.com')) {
                         console.warn('[DewSecure] 彻底封锁 Skidrow 跨域弹窗:', url);
-                        window.postMessage({ type: 'DEWSECURE_STAT_INCREMENT', token: validToken }, location.origin);
+                        if (port) port.postMessage({ type: 'DEWSECURE_STAT_INCREMENT' });
+                          else window.postMessage({ type: 'DEWSECURE_STAT_INCREMENT' }, '*');
                         return null;
                     }
                 }
                 if (!isPaused() && isAdUrl(url)) {
                     console.warn('[DewSecure] 拦截恶意/劫持弹窗:', url);
-                    window.postMessage({ type: 'DEWSECURE_STAT_INCREMENT', token: validToken }, location.origin);
+                    if (port) port.postMessage({ type: 'DEWSECURE_STAT_INCREMENT' });
+                          else window.postMessage({ type: 'DEWSECURE_STAT_INCREMENT' }, '*');
                     return null;
                 }
                 return _windowOpen.apply(this, arguments);
@@ -162,6 +166,8 @@
                 }
                 _anchorClick.apply(this, arguments);
             };
+            // 🛡️ B-9 修复：伪装 toString
+            HTMLAnchorElement.prototype.click.toString = function() { return _anchorClick.toString(); };
         } catch (e) {}
 
         // 4. Form 提交
@@ -218,7 +224,8 @@
                         const isTracking = AFFILIATE_PARAMS.some(p => target.href.includes(p)) || target.href.includes('utm_');
                         if ((target.target && target.target !== '_self') || e.ctrlKey || e.metaKey || isTracking) {
                             console.warn('[DewSecure] 根据行为特征彻底封杀恶意跳转:', target.href);
-                            window.postMessage({ type: 'DEWSECURE_STAT_INCREMENT', token: validToken }, location.origin);
+                            if (port) port.postMessage({ type: 'DEWSECURE_STAT_INCREMENT' });
+                          else window.postMessage({ type: 'DEWSECURE_STAT_INCREMENT' }, '*');
                             e.preventDefault(); e.stopImmediatePropagation();
                         }
                     }
@@ -236,13 +243,15 @@
             if (window.location.hostname.includes('skidrowreloaded.com')) {
                 if (el.id === 'dontfold' || (el.tagName === 'DIV' && el.style.position === 'fixed' && el.style.zIndex > 999)) {
                     console.warn('[DewSecure] 发现 Skidrow 点击劫持遮罩层，已拔除');
-                    window.postMessage({ type: 'DEWSECURE_STAT_INCREMENT', token: validToken }, location.origin);
+                    if (port) port.postMessage({ type: 'DEWSECURE_STAT_INCREMENT' });
+                          else window.postMessage({ type: 'DEWSECURE_STAT_INCREMENT' }, '*');
                     el.remove();
                     return;
                 }
             }
             if (el.tagName === 'A' && el.href && isAdUrl(el.href)) {
-                window.postMessage({ type: 'DEWSECURE_STAT_INCREMENT', token: validToken }, location.origin);
+                if (port) port.postMessage({ type: 'DEWSECURE_STAT_INCREMENT' });
+                          else window.postMessage({ type: 'DEWSECURE_STAT_INCREMENT' }, '*');
                 el.removeAttribute('href'); el.style.setProperty('pointer-events', 'none', 'important'); el.dataset.dwKilled = 'true';
             } else if (el.tagName === 'FORM' && el.action && isAdUrl(el.action)) {
                 el.removeAttribute('action'); el.style.setProperty('pointer-events', 'none', 'important'); el.dataset.dwKilled = 'true';
@@ -255,7 +264,8 @@
                     if (parseFloat(style.opacity) < 0.1 && 
                         (parseInt(style.width) > window.innerWidth * 0.5 || parseInt(style.height) > window.innerHeight * 0.5)) {
                         console.warn('[DewSecure] 检测到点击劫持(Clickjacking) 透明层，已摧毁:', el.href);
-                        window.postMessage({ type: 'DEWSECURE_STAT_INCREMENT', token: validToken }, location.origin);
+                        if (port) port.postMessage({ type: 'DEWSECURE_STAT_INCREMENT' });
+                          else window.postMessage({ type: 'DEWSECURE_STAT_INCREMENT' }, '*');
                         el.removeAttribute('href'); 
                         el.style.setProperty('pointer-events', 'none', 'important'); 
                         el.dataset.dwKilled = 'true';
