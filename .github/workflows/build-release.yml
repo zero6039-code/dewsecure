@@ -13,13 +13,13 @@ jobs:
   build-and-release:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
         with:
           ref: ${{ github.ref }}
           fetch-depth: 0
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
         with:
           node-version: '22'
 
@@ -54,20 +54,15 @@ jobs:
           node -e "const fs=require('fs'); let m=JSON.parse(fs.readFileSync('/tmp/edge_temp/manifest.json', 'utf8')); delete m.key; fs.writeFileSync('/tmp/edge_temp/manifest.json', JSON.stringify(m, null, 2));"
           cd /tmp/edge_temp && zip -r $GITHUB_WORKSPACE/releases/chrome/edge-v${{ env.VERSION }}.zip ./* && cd -
 
-      - name: Commit and Push Artifacts
+      - name: Generate SHA256SUMS
         run: |
-          git config --local user.email "github-actions[bot]@users.noreply.github.com"
-          git config --local user.name "github-actions[bot]"
-          git add -f releases/
-          if ! git diff --staged --quiet; then
-            git commit -m "chore: auto-build v${{ env.VERSION }} artifacts (Chrome/Edge/Firefox/Opera + Sources)"
-            git push origin HEAD:refs/heads/main
-          else
-            echo "No changes to commit"
-          fi
+          cd releases
+          find . -type f -name "*.zip" -exec sha256sum {} \; > SHA256SUMS
+          cat SHA256SUMS
+          cd ..
 
       - name: Create GitHub Release & Upload Assets
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65
         with:
           tag_name: v${{ env.VERSION }}
           name: Release v${{ env.VERSION }}
@@ -82,5 +77,6 @@ jobs:
             releases/source/chrome-source-v${{ env.VERSION }}.zip
             releases/source/firefox-source-v${{ env.VERSION }}.zip
             releases/source/opera-source-v${{ env.VERSION }}.zip
+            releases/SHA256SUMS
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

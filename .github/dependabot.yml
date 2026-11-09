@@ -1,14 +1,40 @@
 version: 2
 updates:
+  # 🛡️ 供应链安全 (由 E-1 修复引出的最佳实践)
   - package-ecosystem: "github-actions"
     directory: "/"
     schedule:
       interval: "weekly"
+
+  # ============ 依赖更新 ============
+  # 1. Rust 核心引擎
+  - package-ecosystem: "cargo"
+    directory: "/core"
+    schedule:
+      interval: "weekly"
+
+  # 2. Python 模型训练
   - package-ecosystem: "pip"
     directory: "/models/training"
     schedule:
       interval: "weekly"
+
+  # 3. Android 依赖
+  - package-ecosystem: "gradle"
+    directory: "/android"
+    schedule:
+      interval: "weekly"
+
+  # 4. 浏览器扩展 (Chrome / Firefox / Opera)
   - package-ecosystem: "npm"
     directory: "/extensions/chrome"
+    schedule:
+      interval: "weekly"
+  - package-ecosystem: "npm"
+    directory: "/extensions/firefox"
+    schedule:
+      interval: "weekly"
+  - package-ecosystem: "npm"
+    directory: "/extensions/opera"
     schedule:
       interval: "weekly"
