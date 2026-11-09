@@ -40,7 +40,7 @@ jobs:
       # 🛡️ S-11 修复：不再直推 main，而是创建 PR 供人工审查
       - name: 创建 Pull Request
         if: steps.check.outputs.changed == 'true'
-        uses: peter-evans/create-pull-request@c5a7806660adbe173f04e3e038b0ccdcd758773c
+        uses: peter-evans/create-pull-request@15733dbdfeedb4f7fdb73d13c6f5ac83b710fab8
         with:
           token: ${{ secrets.PAT_TOKEN }}
           commit-message: "chore(rules): auto-update ad rules"
