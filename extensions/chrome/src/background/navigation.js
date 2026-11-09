@@ -8,9 +8,36 @@ import { getCurrentUser } from '../authManager.js';
 import { extractFeatures } from '../phishScoutFeatures.js';
 import { loadModel, predict } from '../treeEval.js';
 import { getPhishModelData } from './phishModelManager.js';
+// 🚀 P-3 优化：静态导入，消除每次导航时的动态 import 开销
+import { assess } from './phishingDetector.js';
 
 const EXT_ORIGIN = chrome.runtime.getURL('');
 const isOwnWarningPage = (u) => typeof u === 'string' && u.startsWith(EXT_ORIGIN) && u.includes('/warning.html');
+
+// 🚀 P-3 优化：内存缓存，避免每次导航都等待 IPC
+let cachedSettings = {};
+let cachedUser = null;
+
+async function initCache() {
+    // 初始化拉取一次
+    const { dewsecure_settings } = await chrome.storage.local.get('dewsecure_settings');
+    cachedSettings = dewsecure_settings || {};
+    cachedUser = await getCurrentUser();
+
+    // 监听 storage 变化，保持缓存最新
+    chrome.storage.onChanged.addListener((changes, namespace) => {
+        if (namespace === 'local') {
+            if (changes['dewsecure_settings']) {
+                cachedSettings = changes['dewsecure_settings'].newValue || {};
+            }
+            if (changes['dewsecure_user']) {
+                // 用户状态变化是异步的，这里通过 getCurrentUser 刷新
+                getCurrentUser().then(u => { cachedUser = u; }).catch(() => {});
+            }
+        }
+    });
+}
+initCache().catch(console.warn);
 
 // 异步加载模型
 let phishModel = null;
@@ -38,7 +65,7 @@ export function initNavigation() {
     });
 
     if (chrome.webNavigation && chrome.webNavigation.onBeforeNavigate) {
-        const blockedTabs = new Map(); 
+        const blockedTabs = new Map();
 
         chrome.webNavigation.onBeforeNavigate.addListener(async (details) => {
             if (isOwnWarningPage(details.url) && details.frameId === 0) {
@@ -76,8 +103,8 @@ export function initNavigation() {
 
                 if (HARD_SAFE_DOMAINS.some(d => host === d || host.endsWith('.' + d))) return;
 
-                const { dewsecure_settings: settings } = await chrome.storage.local.get('dewsecure_settings');
-                const s = settings || {};
+                // 🚀 P-3 优化：直接使用内存缓存，消除 await storage 的 IPC 开销
+                const s = cachedSettings;
                 const matchDomain = (d) => host === d || host.endsWith('.' + d);
 
                 if ((s.whitelist || []).some(matchDomain) || (s.tempWhitelist || []).some(matchDomain)) return;
@@ -88,15 +115,16 @@ export function initNavigation() {
                     return;
                 }
 
-                const user = await getCurrentUser();
+                // 🚀 P-3 优化：直接使用内存缓存的用户状态
+                const user = cachedUser;
                 const isPro = user && ['pro', 'trial', 'family', 'premium'].includes(user.tier);
                 if (!isPro || s.phishingEnabled !== true || !phishModel) return;
 
-                const phishingModule = await import('./phishingDetector.js');
+                // 🚀 P-3 优化：静态导入的 assess 函数，消除动态 import
                 let heurFlag = false, heurScore = 0, heurReasons = [];
 
-                if (phishingModule.assess) {
-                    const finding = phishingModule.assess(details.url);
+                if (assess) {
+                    const finding = assess(details.url);
                     heurFlag = finding.flag;
                     heurScore = finding.score || finding.reasons?.length || (finding.flag ? 2 : 0);
                     heurReasons = finding.reasons || [];
