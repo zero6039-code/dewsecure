@@ -34,10 +34,9 @@ jobs:
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
-        env:
-            # 🛡️ E-3 修复：仅在执行当前脚本时注入高危 Key，防止被 pip install 阶段的恶意包窃取
-            SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
-          run: python training/data_prep.py
+          # 🛡️ E-3 修复：仅在执行当前脚本时注入高危 Key，防止被 pip install 阶段的恶意包窃取
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: python training/data_prep.py
 
       - name: 训练与导出
         working-directory: models
