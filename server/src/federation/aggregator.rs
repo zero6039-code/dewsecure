@@ -28,8 +28,29 @@ impl FederatedAggregator {
         &mut self,
         client_id: String,
         num_samples: usize,
-        gradients: Vec<f32>,
+        mut gradients: Vec<f32>,
     ) {
+        // 🛡️ C-12 修复：基本输入校验，拒绝过短或异常的伪造 Client ID
+        if client_id.len() < 8 {
+            tracing::warn!("拒绝无效 client_id: {}", client_id);
+            return;
+        }
+        
+        // 🛡️ C-12 修复：L2 范数裁剪 (Norm Clipping)，防止单点投毒
+        let clip_norm = 1.0;
+        let mut l2_norm = 0.0f32;
+        for &g in &gradients {
+            if !g.is_finite() { return; }
+            l2_norm += g * g;
+        }
+        l2_norm = l2_norm.sqrt();
+        if l2_norm > clip_norm {
+            let scale = clip_norm / l2_norm;
+            for g in gradients.iter_mut() {
+                *g *= scale;
+            }
+        }
+
         self.updates.insert(
             client_id,
             ClientUpdate {
