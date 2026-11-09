@@ -248,8 +248,8 @@
         if (!e.data) return;
         
         if (e.data.type === 'DEWSECURE_STAT_INCREMENT') {
-            // 调用已有的 safeSendMessage
-            // 移除干扰统计的主页请求
+            // 🛡️ 核心修复：主世界拦截了广告/弹窗/点击劫持后，在这里接住并上报给 Background 统计
+            safeSendMessage({ type: 'DOM_AD_HIDDEN', url: window.location.href });
         }
     });
 

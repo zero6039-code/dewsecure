@@ -17,12 +17,23 @@ const MESSAGE_POLICY = {
     'GET_SETTINGS': ['contentScript', 'extensionPage'],
     'MODEL_UPDATED': ['extensionPage'],
     'FORCE_DOWNLOAD': ['extensionPage'],
-    'AUTH_STATE_CHANGED': ['extensionPage']
-    // 其他未在此表中的消息（如 UPDATE_SETTINGS、GET_LOGS）默认只允许 extensionPage
+    'AUTH_STATE_CHANGED': ['extensionPage'],
+    // 🛡️ 显式声明核心管理消息，防止策略误判
+    'REMOVE_TEMP_WHITELIST': ['extensionPage'],
+    'ADD_TEMP_WHITELIST': ['extensionPage'],
+    'GET_STATS': ['extensionPage'],
+    'GET_LOGS': ['extensionPage'],
+    'REPORT_FEEDBACK': ['extensionPage'],
+    'UPDATE_SETTING_KEY': ['extensionPage'],
+    'UPDATE_SETTINGS': ['extensionPage'],
+    'ADD_WHITELIST': ['extensionPage'],
+    'REMOVE_WHITELIST': ['extensionPage']
 };
 
 function isExtensionPage(sender) {
     if (!sender) return false;
+    // 允许来自 Service Worker 控制台自身的消息（没有 url）
+    if (sender.id === chrome.runtime.id && !sender.url) return true;
     const extUrl = chrome.runtime.getURL('');
     return !!(sender.url && sender.url.startsWith(extUrl));
 }

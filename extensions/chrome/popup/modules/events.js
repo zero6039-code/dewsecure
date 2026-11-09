@@ -176,6 +176,9 @@ export function bindMiscEvents() {
                                 if (tabs[0]?.id) chrome.tabs.reload(tabs[0].id, { bypassCache: true });
                             });
                         }, 500);
+                    } else {
+                        // 兜底：如果消息通道异常没收到 res，手动刷新状态复原 UI
+                        updateSiteInfo();
                     }
                 });
             };
@@ -191,6 +194,9 @@ export function bindMiscEvents() {
                 chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
                     if (tabs[0]?.id) chrome.tabs.sendMessage(tabs[0].id, { type: 'TOGGLE_PROTECTION', enabled: true });
                 });
+            } else {
+                // 兜底：如果消息通道异常没收到 res，手动刷新状态复原 UI
+                updateSiteInfo();
             }
         });
     });

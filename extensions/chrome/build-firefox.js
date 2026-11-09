@@ -2,22 +2,15 @@ import fs from 'fs';
 import path from 'path';
 import { execSync } from 'child_process';
 
-console.log('🦊 开始构建 Firefox 版本 (无混淆，仅压缩)...');
-
-// 1. 生成未混淆的 Chrome 产物 (dist目录)
-console.log('⏳ 正在生成未混淆的源码...');
+console.log('🦊 开始构建 Firefox 版本 (最原始纯净版)...');
 execSync('node build.js --no-obfuscate', { stdio: 'inherit' });
 
 const firefoxDir = '../firefox';
 const firefoxDist = path.join(firefoxDir, 'dist');
 
-// 清理旧的 Firefox 目录
-if (fs.existsSync(firefoxDist)) {
-    fs.rmSync(firefoxDist, { recursive: true, force: true });
-}
+if (fs.existsSync(firefoxDist)) fs.rmSync(firefoxDist, { recursive: true, force: true });
 fs.mkdirSync(firefoxDist, { recursive: true });
 
-// 2. 生成 Firefox 专属的 manifest.json
 const chromeManifest = JSON.parse(fs.readFileSync('manifest.json', 'utf8'));
 delete chromeManifest.key;
 delete chromeManifest.side_panel;
@@ -35,18 +28,15 @@ chromeManifest.sidebar_action = {
     default_icon: "icons/icon-48.png"
 };
 chromeManifest.browser_specific_settings = {
-    gecko: {
-        id: "dewsecure@dewsecure.com",
-        strict_min_version: "113.0",
-        data_collection_permissions: { required: ["none"] }
-    }
+    gecko: { id: "dewsecure@dewsecure.com", strict_min_version: "113.0", data_collection_permissions: { required: ["none"] } }
 };
 
-fs.writeFileSync(path.join(firefoxDist, 'manifest.json'), JSON.stringify(chromeManifest, null, 2));
-console.log('✅ 已生成 Firefox 专属 manifest.json');
+if (chromeManifest.web_accessible_resources) {
+    chromeManifest.web_accessible_resources.forEach(res => delete res.use_dynamic_url);
+}
 
-// 3. 拷贝未混淆的构建产物
-const chromeDist = './dist';
+fs.writeFileSync(path.join(firefoxDist, 'manifest.json'), JSON.stringify(chromeManifest, null, 2));
+
 function copyDir(src, dest, skip) {
     if (!fs.existsSync(dest)) fs.mkdirSync(dest, { recursive: true });
     const entries = fs.readdirSync(src, { withFileTypes: true });
@@ -54,30 +44,24 @@ function copyDir(src, dest, skip) {
         const srcPath = path.join(src, entry.name);
         const destPath = path.join(dest, entry.name);
         if (skip.includes(entry.name)) continue;
-        if (entry.isDirectory()) {
-            copyDir(srcPath, destPath, skip);
-        } else {
-            fs.copyFileSync(srcPath, destPath);
-        }
+        if (entry.isDirectory()) copyDir(srcPath, destPath, skip);
+        else fs.copyFileSync(srcPath, destPath);
     }
 }
-copyDir(chromeDist, firefoxDist, ['manifest.json']);
-console.log('✅ 已拷贝未混淆构建产物至 Firefox 目录');
+copyDir('./dist', firefoxDist, ['manifest.json']);
 
-// 4. 打包成 zip 文件
-const version = chromeManifest.version;
-const zipName = `../releases/chrome/dewsecure-firefox-v${version}.zip`;
-if (!fs.existsSync('../releases/chrome')) fs.mkdirSync('../releases/chrome', { recursive: true });
-if (fs.existsSync(zipName)) fs.unlinkSync(zipName);
-
-try {
-    execSync(`cd ../firefox/dist && zip -r ../../../releases/chrome/dewsecure-firefox-v${version}.zip .`);
-    console.log(`🎉 Firefox 包已生成: ${zipName}`);
-} catch (e) {
-    console.error('打包 zip 失败:', e.message);
+// 只做一件事：清理 Firefox 报错的 webtransport 和 webbundle，其他的原样保留
+const rulesDir = path.join(firefoxDist, 'rules');
+if (fs.existsSync(rulesDir)) {
+    const ruleFiles = fs.readdirSync(rulesDir).filter(f => f.endsWith('.json'));
+    for (const file of ruleFiles) {
+        const filePath = path.join(rulesDir, file);
+        let fileContent = fs.readFileSync(filePath, 'utf8');
+        fileContent = fileContent.replace(/"webtransport"\s*,?/g, '').replace(/"webbundle"\s*,?/g, '');
+        fileContent = fileContent.replace(/,\s*]/g, ']');
+        fs.writeFileSync(filePath, fileContent);
+    }
 }
 
-// 5. 恢复 Chrome 的混淆构建产物 (重要：防止污染 Chrome 包)
-console.log('⏳ 正在恢复 Chrome 混淆构建产物...');
 execSync('node build.js', { stdio: 'inherit' });
-console.log('✅ Chrome 混淆包已恢复，双端构建完美隔离！');
+console.log('✅ Firefox 纯净构建完成！');

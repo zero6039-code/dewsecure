@@ -2,6 +2,7 @@ import { syncRules, RANGE, getOrCreateRuleIdUnsafe, removeRuleIdMappingUnsafe, w
 import { getSettings, SETTINGS_KEY, STATS_KEY, LOG_KEY } from './settings.js';
 import { getInstallationId } from '../deviceManager.js';
 import { recordBlock, getMatchedStats } from './stats.js';
+import { cleanExpiredTempWhitelist, removeTempWhitelist } from './tempWhitelistManager.js';
 import { getDomain } from 'tldts';
 import { jwtPayload } from '../authManager.js'; // 🔒 M-3 修复：引入安全解析工具
 
@@ -168,26 +169,6 @@ function getETLD1(host) {
 // 🛡️ C2 修复：getOrCreateRuleId 已移至 dnrOwner.js 的串行队列中
 
 // 🔒 H-3 修复：清理过期临时白名单
-async function cleanExpiredTempWhitelist(settings) {
-    let changed = false;
-    const now = Date.now();
-    const expiry = settings.tempWhitelistExpiry || {};
-    
-    // 🛡️ C2 修复：防止历史脏数据（undefined）导致 filter 报错崩溃
-    settings.tempWhitelist = (settings.tempWhitelist || []).filter(domain => {
-        if (expiry[domain] && expiry[domain] < now) {
-            delete expiry[domain];
-            changed = true;
-            return false;
-        }
-        return true;
-    });
-    settings.tempWhitelistExpiry = expiry;
-    if (changed) {
-        await chrome.storage.local.set({ [SETTINGS_KEY]: settings });
-    }
-    return settings;
-}
 
 export async function handleMessage(message, sender) {
     if (!isExtensionSender(sender)) {

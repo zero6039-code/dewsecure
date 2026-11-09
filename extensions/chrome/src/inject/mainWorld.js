@@ -106,11 +106,13 @@
                     // 🛡️ 行为特征秒杀：Skidrow 上的任何跨域 popup 一律秒杀
                     if (url && !String(url).startsWith(location.origin) && !String(url).includes('skidrowreloaded.com')) {
                         console.warn('[DewSecure] 彻底封锁 Skidrow 跨域弹窗:', url);
+                        window.postMessage({ type: 'DEWSECURE_STAT_INCREMENT', token: validToken }, location.origin);
                         return null;
                     }
                 }
                 if (!isPaused() && isAdUrl(url)) {
                     console.warn('[DewSecure] 拦截恶意/劫持弹窗:', url);
+                    window.postMessage({ type: 'DEWSECURE_STAT_INCREMENT', token: validToken }, location.origin);
                     return null;
                 }
                 return _windowOpen.apply(this, arguments);
@@ -216,6 +218,7 @@
                         const isTracking = AFFILIATE_PARAMS.some(p => target.href.includes(p)) || target.href.includes('utm_');
                         if ((target.target && target.target !== '_self') || e.ctrlKey || e.metaKey || isTracking) {
                             console.warn('[DewSecure] 根据行为特征彻底封杀恶意跳转:', target.href);
+                            window.postMessage({ type: 'DEWSECURE_STAT_INCREMENT', token: validToken }, location.origin);
                             e.preventDefault(); e.stopImmediatePropagation();
                         }
                     }
@@ -233,11 +236,13 @@
             if (window.location.hostname.includes('skidrowreloaded.com')) {
                 if (el.id === 'dontfold' || (el.tagName === 'DIV' && el.style.position === 'fixed' && el.style.zIndex > 999)) {
                     console.warn('[DewSecure] 发现 Skidrow 点击劫持遮罩层，已拔除');
+                    window.postMessage({ type: 'DEWSECURE_STAT_INCREMENT', token: validToken }, location.origin);
                     el.remove();
                     return;
                 }
             }
             if (el.tagName === 'A' && el.href && isAdUrl(el.href)) {
+                window.postMessage({ type: 'DEWSECURE_STAT_INCREMENT', token: validToken }, location.origin);
                 el.removeAttribute('href'); el.style.setProperty('pointer-events', 'none', 'important'); el.dataset.dwKilled = 'true';
             } else if (el.tagName === 'FORM' && el.action && isAdUrl(el.action)) {
                 el.removeAttribute('action'); el.style.setProperty('pointer-events', 'none', 'important'); el.dataset.dwKilled = 'true';
@@ -250,6 +255,7 @@
                     if (parseFloat(style.opacity) < 0.1 && 
                         (parseInt(style.width) > window.innerWidth * 0.5 || parseInt(style.height) > window.innerHeight * 0.5)) {
                         console.warn('[DewSecure] 检测到点击劫持(Clickjacking) 透明层，已摧毁:', el.href);
+                        window.postMessage({ type: 'DEWSECURE_STAT_INCREMENT', token: validToken }, location.origin);
                         el.removeAttribute('href'); 
                         el.style.setProperty('pointer-events', 'none', 'important'); 
                         el.dataset.dwKilled = 'true';

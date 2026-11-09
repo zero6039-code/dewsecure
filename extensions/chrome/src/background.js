@@ -18,6 +18,7 @@ import { initSettings, getSettings, SETTINGS_KEY } from './background/settings.j
 import { updateDNRRulesets } from './background/messageHandler.js';
 import { initSecurityListeners } from './background/security.js';
 import { initStatsListener } from './background/stats.js';
+import { purgeExpiredTempAllow } from './background/tempWhitelistManager.js';
 import { restoreSessionRules } from './background/dnr.js';
 import { initThreatFilter } from './background/threatIntel.js';
 import { initIntelReporter } from './background/intelReporter.js';
@@ -79,3 +80,13 @@ initSchedules();   // 威胁情报 + 模型更新定时任务
 bootstrapDNR();
 checkAndUpdatePhishModel();    // DNR 规则（官方豁免 + 挖矿 + 隐私）
 loadBgI18n();      // 后台多语言引擎
+
+// 🛡️ A-2 修复：每 10 分钟清理一次过期的临时白名单 Session 规则
+chrome.alarms.create('dew_purge_temp', { periodInMinutes: 10 });
+chrome.alarms.onAlarm.addListener(a => {
+    if (a.name === 'dew_purge_temp') {
+        purgeExpiredTempAllow();
+    }
+});
+// 启动时立即清理一次
+purgeExpiredTempAllow();

@@ -40,6 +40,14 @@ export function syncRules(owned, rules) {
         const have = (await chrome.declarativeNetRequest.getDynamicRules())
             .map(r => r.id)
             .filter(id => inRange(id, owned));
+
+        // 🌟 核心修复：在注入动态规则前，强制将所有 requestDomains 转为小写，修复 Firefox 的 Invalid domain 报错
+        for (const rule of rules) {
+            if (rule.condition && rule.condition.requestDomains) {
+                rule.condition.requestDomains = rule.condition.requestDomains.map(d => String(d).toLowerCase());
+            }
+        }
+
         await chrome.declarativeNetRequest.updateDynamicRules({
             removeRuleIds: have,
             addRules: rules,
@@ -101,4 +109,14 @@ export async function removeRuleIdMappingUnsafe(domain) {
 // 🔒 带锁版本
 export async function removeRuleIdMapping(domain) {
     return withLock(() => removeRuleIdMappingUnsafe(domain));
+}
+
+// 🛡️ A-1 / A-2 修复：专门用于安全移除临时白名单的 Session 规则
+export async function removeTempAllowRule(domain) {
+    const data = await chrome.storage.local.get(ID_MAP_KEY);
+    const id = (data[ID_MAP_KEY] || {})[domain];
+    if (id) {
+        await chrome.declarativeNetRequest.updateSessionRules({ removeRuleIds: [id] });
+    }
+    await removeRuleIdMappingUnsafe(domain);
 }
