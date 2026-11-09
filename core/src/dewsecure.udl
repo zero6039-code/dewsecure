@@ -39,6 +39,7 @@ dictionary FilterRule {
     boolean is_exception;
     sequence<string> resource_types;
     sequence<string> domains;
+    boolean? third_party;
 };
 
 [Error]
