@@ -40,15 +40,11 @@ import { ensureAlarm } from './background/alarmHelper.js';
 initSettings().then(async () => {
     const s = await getSettings();
 
-    // 🛡️ Firefox 关键修复：
-    // 每次重新载入扩展时，Firefox 会重新应用 manifest.enabled 状态，
-    // 导致 ads_1a + ads_1b (共 30000 条) 占满 Firefox 保证配额 (30000)，
-    // allowlist 等后续规则集全部无法启用。
-    // 这里启动时先 disable 所有大规则集释放配额，再按优先级逐个重建。
-    // allowlist 不 disable，确保白名单始终生效。
-    try {
+    // 🛡️ P-4 优化：Firefox 下配额紧张，需强制重排；而 Chrome 下配额充足，直接按需更新，避免无谓的规则重编译。
+    const isFirefox = navigator.userAgent.includes('Firefox');
+    
+    if (isFirefox) {
         try {
-            // 🛡️ 动态获取当前已启用的规则集并全部关闭，彻底释放配额（兼容切分后的 __p1 命名）
             const enabled = await chrome.declarativeNetRequest.getEnabledRulesets();
             if (enabled.length > 0) {
                 await chrome.declarativeNetRequest.updateEnabledRulesets({
@@ -56,13 +52,11 @@ initSettings().then(async () => {
                 });
             }
         } catch (e) {
-            // 忽略无法关闭的未知错误
+            console.warn('[DNR] Firefox 启动清理警告（可忽略）:', e && e.message);
         }
-    } catch (e) {
-        // 部分 ID 在 Firefox 早期版本或切分后不存在，忽略即可
-        console.warn('[DNR] 启动清理警告（可忽略）:', e && e.message);
     }
 
+    // updateDNRRulesets 内部已包含 getEnabledRulesets 的比较逻辑，相同则自动跳过
     await updateDNRRulesets(s.dnrEnabled, s.blockTrackers);
 });
 chrome.action.setBadgeText({ text: '' });
