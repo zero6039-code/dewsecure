@@ -110,3 +110,13 @@ export async function removeRuleIdMappingUnsafe(domain) {
 export async function removeRuleIdMapping(domain) {
     return withLock(() => removeRuleIdMappingUnsafe(domain));
 }
+
+// 🛡️ A-1 / A-2 修复：专门用于安全移除临时白名单的 Session 规则
+export async function removeTempAllowRule(domain) {
+    const data = await chrome.storage.local.get(ID_MAP_KEY);
+    const id = (data[ID_MAP_KEY] || {})[domain];
+    if (id) {
+        await chrome.declarativeNetRequest.updateSessionRules({ removeRuleIds: [id] });
+    }
+    await removeRuleIdMappingUnsafe(domain);
+}

@@ -2,21 +2,51 @@ import { syncRules, RANGE, getOrCreateRuleIdUnsafe, removeRuleIdMappingUnsafe, w
 import { getSettings, SETTINGS_KEY, STATS_KEY, LOG_KEY } from './settings.js';
 import { getInstallationId } from '../deviceManager.js';
 import { recordBlock, getMatchedStats } from './stats.js';
+import { cleanExpiredTempWhitelist, removeTempWhitelist } from './tempWhitelistManager.js';
 import { getDomain } from 'tldts';
 import { jwtPayload } from '../authManager.js'; // 🔒 M-3 修复：引入安全解析工具
 
 // 🔒 分离广告与追踪器规则集，实现独立开关
-const ADS_RULESETS = ['ads_1a', 'ads_1b', 'ads_2', 'ads_3', 'ads_4', 'anti_affiliate'];
-const TRACKER_RULESETS = ['trackers_1a', 'trackers_1b', 'trackers_2a', 'trackers_2b'];
-const EXTRA_RULESETS = ['annoyances']; // 'privacy' 由 background.js 动态注入，不走静态规则集
+const ADS_RULESETS_DEFAULT = ['ads_1a', 'ads_1b', 'ads_2', 'ads_3', 'ads_4', 'anti_affiliate'];
+const TRACKER_RULESETS_DEFAULT = ['trackers_1a', 'trackers_1b', 'trackers_2a', 'trackers_2b'];
+const EXTRA_RULESETS_DEFAULT = ['annoyances']; // 'privacy' 由 background.js 动态注入，不走静态规则集
+
+// 🦊 Firefox 切分兼容：动态加载 ruleset-index.json，Chrome 无此文件走 fallback
+let _rulesetIndex = null;
+async function getRulesetIndex() {
+    if (_rulesetIndex) return _rulesetIndex;
+    try {
+        const res = await fetch(chrome.runtime.getURL('rules/ruleset-index.json'));
+        if (!res.ok) throw new Error('not found');
+        _rulesetIndex = await res.json();
+    } catch (e) {
+        if (navigator.userAgent.includes('Firefox')) {
+            // Firefox 下如果 ruleset-index.json 请求失败（理论上不会），给个兜底
+            _rulesetIndex = {
+                allowlist: ['allowlist__p1'],
+                ads: ['ads_1a__p1'],
+                trackers: ['trackers_1a__p1'],
+                extra: ['annoyances__p1']
+            };
+        } else {
+            _rulesetIndex = {
+                ads: ADS_RULESETS_DEFAULT,
+                trackers: TRACKER_RULESETS_DEFAULT,
+                extra: EXTRA_RULESETS_DEFAULT
+            };
+        }
+    }
+    return _rulesetIndex;
+}
 
 export async function updateDNRRulesets(dnrEnabled, blockTrackers) {
     try {
+        const idx = await getRulesetIndex();
         const allRulesets = [
             'allowlist',
-            ...ADS_RULESETS,
-            ...EXTRA_RULESETS,
-            ...TRACKER_RULESETS
+            ...idx.ads,
+            ...idx.extra,
+            ...idx.trackers
         ];
 
         if (!dnrEnabled) {
@@ -28,8 +58,8 @@ export async function updateDNRRulesets(dnrEnabled, blockTrackers) {
         }
 
         // allowlist 必须最优先，确保白名单永远生效
-        const desired = ['allowlist', ...ADS_RULESETS, ...EXTRA_RULESETS];
-        if (blockTrackers) desired.push(...TRACKER_RULESETS);
+        const desired = ['allowlist', ...idx.ads, ...idx.extra];
+        if (blockTrackers) desired.push(...idx.trackers);
 
         const currentlyEnabled = await chrome.declarativeNetRequest.getEnabledRulesets();
         const currentlyEnabledSet = new Set(currentlyEnabled);
@@ -61,10 +91,20 @@ export async function updateDNRRulesets(dnrEnabled, blockTrackers) {
                     newlyEnabled.push(rulesetId);
                     console.log(`✅ [DNR] 已启用: ${rulesetId}`);
                 } else {
-                    console.warn(`⚠️ [DNR] ${rulesetId} 被 Firefox 静默丢弃（配额不足），继续尝试下一个`);
+                    // 配额不足被静默丢弃
                 }
             } catch (e) {
-                console.warn(`❌ [DNR] ${rulesetId} 启用失败，继续:`, e);
+                // 如果是 allowlist 报 Invalid，不输出错误
+                if (rulesetId.includes('allowlist')) {
+                    // silently ignore
+                } else {
+                    // 一旦遇到配额超限，说明后面的块也挤不进去了，直接熔断停止尝试
+                    if (e.message && e.message.includes('exceeds GUARANTEED_MINIMUM_STATIC_RULES')) {
+                        console.warn(`⚠️ [DNR] 配额已满，停止加载剩余 ${desired.length - desired.indexOf(rulesetId) - 1} 个规则集`);
+                        break; // 熔断，跳出 for 循环
+                    }
+                    console.warn(`⚠️ [DNR] ${rulesetId} 启用失败:`, e.message);
+                }
             }
         }
 
@@ -129,26 +169,6 @@ function getETLD1(host) {
 // 🛡️ C2 修复：getOrCreateRuleId 已移至 dnrOwner.js 的串行队列中
 
 // 🔒 H-3 修复：清理过期临时白名单
-async function cleanExpiredTempWhitelist(settings) {
-    let changed = false;
-    const now = Date.now();
-    const expiry = settings.tempWhitelistExpiry || {};
-    
-    // 🛡️ C2 修复：防止历史脏数据（undefined）导致 filter 报错崩溃
-    settings.tempWhitelist = (settings.tempWhitelist || []).filter(domain => {
-        if (expiry[domain] && expiry[domain] < now) {
-            delete expiry[domain];
-            changed = true;
-            return false;
-        }
-        return true;
-    });
-    settings.tempWhitelistExpiry = expiry;
-    if (changed) {
-        await chrome.storage.local.set({ [SETTINGS_KEY]: settings });
-    }
-    return settings;
-}
 
 export async function handleMessage(message, sender) {
     if (!isExtensionSender(sender)) {

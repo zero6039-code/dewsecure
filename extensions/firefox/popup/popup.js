@@ -150,6 +150,13 @@ chrome.storage.onChanged.addListener((changes, namespace) => {
         if (changes['dewsecure_settings']) {
             const newSettings = changes['dewsecure_settings'].newValue || {};
             const oldSettings = changes['dewsecure_settings'].oldValue || {};
+            
+            // 🌟 核心修复：如果白名单或临时白名单发生变化，立刻刷新 "This Site" 区域的开关状态
+            const newWl = JSON.stringify(newSettings.whitelist || []) + JSON.stringify(newSettings.tempWhitelist || []);
+            const oldWl = JSON.stringify(oldSettings.whitelist || []) + JSON.stringify(oldSettings.tempWhitelist || []);
+            if (newWl !== oldWl) {
+                updateSiteInfo();
+            }
             const toggleMap = {
                 'dnrToggle': 'dnrEnabled', 'antiHijackToggle': 'antiHijackEnabled',
                 'phishingToggle': 'phishingEnabled', 'intelToggle': 'intelEnabled', 'aiFourToggle': 'aiFourEnabled',

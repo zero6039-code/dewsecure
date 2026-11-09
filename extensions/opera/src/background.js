@@ -18,6 +18,7 @@ import { initSettings, getSettings, SETTINGS_KEY } from './background/settings.j
 import { updateDNRRulesets } from './background/messageHandler.js';
 import { initSecurityListeners } from './background/security.js';
 import { initStatsListener } from './background/stats.js';
+import { purgeExpiredTempAllow } from './background/tempWhitelistManager.js';
 import { restoreSessionRules } from './background/dnr.js';
 import { initThreatFilter } from './background/threatIntel.js';
 import { initIntelReporter } from './background/intelReporter.js';
@@ -45,13 +46,17 @@ initSettings().then(async () => {
     // 这里启动时先 disable 所有大规则集释放配额，再按优先级逐个重建。
     // allowlist 不 disable，确保白名单始终生效。
     try {
-        await chrome.declarativeNetRequest.updateEnabledRulesets({
-            disableRulesetIds: [
-                'ads_1a', 'ads_1b', 'ads_2', 'ads_3', 'ads_4',
-                'trackers_1a', 'trackers_1b', 'trackers_2a', 'trackers_2b',
-                'anti_affiliate', 'annoyances'
-            ]
-        });
+        try {
+            // 🛡️ 动态获取当前已启用的规则集并全部关闭，彻底释放配额（兼容切分后的 __p1 命名）
+            const enabled = await chrome.declarativeNetRequest.getEnabledRulesets();
+            if (enabled.length > 0) {
+                await chrome.declarativeNetRequest.updateEnabledRulesets({
+                    disableRulesetIds: enabled
+                });
+            }
+        } catch (e) {
+            // 忽略无法关闭的未知错误
+        }
     } catch (e) {
         // 部分 ID 在 Firefox 早期版本或切分后不存在，忽略即可
         console.warn('[DNR] 启动清理警告（可忽略）:', e && e.message);
@@ -75,3 +80,13 @@ initSchedules();   // 威胁情报 + 模型更新定时任务
 bootstrapDNR();
 checkAndUpdatePhishModel();    // DNR 规则（官方豁免 + 挖矿 + 隐私）
 loadBgI18n();      // 后台多语言引擎
+
+// 🛡️ A-2 修复：每 10 分钟清理一次过期的临时白名单 Session 规则
+chrome.alarms.create('dew_purge_temp', { periodInMinutes: 10 });
+chrome.alarms.onAlarm.addListener(a => {
+    if (a.name === 'dew_purge_temp') {
+        purgeExpiredTempAllow();
+    }
+});
+// 启动时立即清理一次
+purgeExpiredTempAllow();
