@@ -25,8 +25,8 @@ object EngineBridge {
             val testRes = engine?.shouldBlock("doubleclick.net")
             Log.i(TAG, "🧪 引擎自检 - doubleclick.net 结果: ${testRes?.decision} / ${testRes?.reason}")
             
-        } catch (e: Exception) {
-            Log.e(TAG, "HostEngine 初始化失败，降级为全放行", e)
+        } catch (e: Throwable) {
+            Log.e(TAG, "HostEngine 初始化失败 (可能缺少 .so 库)，降级为全放行", e)
             engine = null
         }
     }
@@ -35,7 +35,7 @@ object EngineBridge {
         val e = engine ?: return fallbackAllow()
         return try {
             e.shouldBlock(domain)
-        } catch (ex: Exception) {
+        } catch (ex: Throwable) {
             Log.e(TAG, "调用 should_block 异常: $domain", ex)
             fallbackAllow()
         }
@@ -46,11 +46,11 @@ object EngineBridge {
     }
 
     fun userAllow(domain: String) {
-        try { engine?.userAllow(domain) } catch (e: Exception) { Log.e(TAG, "userAllow err", e) }
+        try { engine?.userAllow(domain) } catch (e: Throwable) { Log.e(TAG, "userAllow err", e) }
     }
 
     fun userRemoveAllow(domain: String) {
-        try { engine?.userRemoveAllow(domain) } catch (e: Exception) { Log.e(TAG, "userRemoveAllow err", e) }
+        try { engine?.userRemoveAllow(domain) } catch (e: Throwable) { Log.e(TAG, "userRemoveAllow err", e) }
     }
 
     fun getStatsJson(): String {

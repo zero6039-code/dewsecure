@@ -23,27 +23,53 @@ object DnsPacketCodec {
     }
 
     private fun extractFromIpv4Udp(packet: ByteArray, length: Int): String? {
-        if (length < 28) return null
-        if (packet[9].toInt() != PROTO_UDP) return null
         val ihl = (packet[0].toInt() and 0x0F) * 4
-        if (length < ihl + 8) return null
+        // D-9 修复：IHL 最小必须为 20 字节，且不能越界
+        if (ihl < 20 || length < ihl + 8) return null
+        if (packet[9].toInt() != PROTO_UDP) return null
         return parseQName(packet, ihl + 8, length)
     }
 
     private fun extractFromIpv6Udp(packet: ByteArray, length: Int): String? {
         if (length < 48) return null
-        if (packet[6].toInt() != PROTO_UDP) return null
-        return parseQName(packet, 40 + 8, length)
+        var nextHeader = packet[6].toInt() and 0xFF
+        var offset = 40
+        // D-9 修复：遍历 IPv6 扩展头，寻找 UDP (17)
+        while (nextHeader != PROTO_UDP) {
+            if (offset + 8 > length) return null
+            if (nextHeader == 0 || nextHeader == 43 || nextHeader == 60) { // Hop-by-Hop, Routing, Destination
+                val extLen = (packet[offset + 1].toInt() and 0xFF) * 8 + 8
+                nextHeader = packet[offset].toInt() and 0xFF
+                offset += extLen
+            } else if (nextHeader == 44) { // Fragment Header
+                nextHeader = packet[offset].toInt() and 0xFF
+                offset += 8
+            } else {
+                return null // 不支持其他扩展头
+            }
+        }
+        if (offset + 8 > length) return null
+        return parseQName(packet, offset + 8, length)
     }
 
     private fun parseQName(packet: ByteArray, dnsOffset: Int, length: Int): String? {
         if (dnsOffset + 12 > length) return null
+        
+        // D-9 修复：严格校验 DNS Header
+        val flags = readU16BE(packet, dnsOffset + 2)
+        if ((flags and 0x8000) != 0) return null // 必须是请求包 (QR=0)
+        val opcode = (flags shr 11) and 0x0F
+        if (opcode != 0) return null // 必须是标准查询
+        val qdcount = readU16BE(packet, dnsOffset + 4)
+        if (qdcount == 0) return null // 必须包含至少一个问题
+
         var pos = dnsOffset + 12
         val sb = StringBuilder()
         while (pos < length) {
             val len = packet[pos].toInt() and 0xFF
             if (len == 0) break
-            if (len >= 192) return null
+            // D-9 修复：压缩指针 0xC0，以及 64-191 的保留标签，一律拒绝
+            if (len >= 0x40) return null 
             if (pos + 1 + len > length) return null
             if (sb.isNotEmpty()) sb.append('.')
             sb.append(String(packet, pos + 1, len, Charsets.US_ASCII))
@@ -124,6 +150,21 @@ object DnsPacketCodec {
         val ck = udp6Checksum(response, udpOffset, udpLen)
         writeU16BE(response, udpOffset + 6, if (ck == 0) 0xFFFF else ck)
         return response
+    }
+
+
+    /** 构造 FORMERR 响应 (RCODE=1) */
+    fun buildFormErrResponse(request: ByteArray, length: Int): ByteArray {
+        val resp = buildNxDomainResponse(request, length) // 借用基础构造
+        try {
+            if ((request[0].toInt() shr 4) and 0x0F == 6) {
+                resp[40 + 8 + 3] = 0x81.toByte() // RCODE = 1 (FORMERR)
+            } else {
+                val ihl = (request[0].toInt() and 0x0F) * 4
+                resp[ihl + 8 + 3] = 0x81.toByte()
+            }
+        } catch (_: Exception) {}
+        return resp
     }
 
     internal fun ipv4Checksum(buf: ByteArray, offset: Int, len: Int): Int {

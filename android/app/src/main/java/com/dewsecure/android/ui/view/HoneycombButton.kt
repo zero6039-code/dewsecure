@@ -60,6 +60,7 @@ class HoneycombButton @JvmOverloads constructor(
     private val hexCenters = mutableListOf<PointF>()
     
     private var flowProgress = 0f
+    private var flowAnimator: ValueAnimator? = null
 
     // 六边形几何参数 (半径 36)
     private val r = 36f
@@ -194,7 +195,7 @@ class HoneycombButton @JvmOverloads constructor(
     }
 
     private fun startFlowAnimation() {
-        ValueAnimator.ofFloat(0f, 1.2f).apply {
+        flowAnimator = ValueAnimator.ofFloat(0f, 1.2f).apply {
             duration = 3000
             repeatCount = ValueAnimator.INFINITE
             interpolator = LinearInterpolator()
@@ -204,5 +205,12 @@ class HoneycombButton @JvmOverloads constructor(
             }
             start()
         }
+    }
+
+    // 🛡️ D-10 修复：在 View 销毁时取消动画，防止内存泄漏
+    override fun onDetachedFromWindow() {
+        super.onDetachedFromWindow()
+        flowAnimator?.cancel()
+        flowAnimator = null
     }
 }
