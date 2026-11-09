@@ -2,8 +2,6 @@
 //!
 //! 生成动态变异的 JavaScript 代码，绕过反拦截检测。
 
-use std::collections::hash_map::DefaultHasher;
-use std::hash::{Hash, Hasher};
 
 /// Scriptlet 类型
 #[derive(Debug, Clone, Copy)]
@@ -133,32 +131,20 @@ pub fn generate_anti_bypass_script(seed: u64) -> String {
     script
 }
 
-/// 基于种子生成变量名
+/// 基于种子生成变量名 (🛡️ C-11 修复：使用确定性的 FNV-1a 算法替代 DefaultHasher)
 fn generate_var_name(seed: u64, index: u64) -> String {
-    let mut hasher = DefaultHasher::new();
-    seed.hash(&mut hasher);
-    index.hash(&mut hasher);
-    let hash = hasher.finish();
-
+    let mut hash: u64 = 0xcbf29ce484222325;
+    
+    // FNV-1a 哈希
+    for &b in seed.to_le_bytes().iter().chain(index.to_le_bytes().iter()) {
+        hash ^= b as u64;
+        hash = hash.wrapping_mul(0x100000001b3);
+    }
+    
     format!("_0x{:x}", hash & 0xFFFFFFFF)
 }
 
+
 #[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_generate_scriptlet() {
-        let s1 = generate_scriptlet(ScriptletType::Noop, 12345);
-        let s2 = generate_scriptlet(ScriptletType::Noop, 67890);
-        // 不同种子应该生成不同的变量名
-        assert_ne!(s1, s2);
-    }
-
-    #[test]
-    fn test_anti_bypass_script() {
-        let script = generate_anti_bypass_script(42);
-        assert!(script.contains("adBlock"));
-        assert!(script.contains("Object.defineProperty"));
-    }
-}
+#[path = "scriptlet_test.rs"]
+mod tests;
