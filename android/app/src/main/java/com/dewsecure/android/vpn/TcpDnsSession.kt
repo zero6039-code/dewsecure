@@ -1,6 +1,7 @@
 package com.dewsecure.android.vpn
 
 import android.util.Log
+import com.dewsecure.android.policy.EngineBridge
 import java.net.InetSocketAddress
 import java.net.Socket
 import java.util.concurrent.atomic.AtomicBoolean
@@ -73,6 +74,23 @@ class TcpDnsSession(private val key: TcpDnsRelay.SessionKey) {
     }
 
     private fun handleData(info: TcpDnsRelay.TcpInfo, payload: ByteArray) {
+        // D-1 修复：解析 TCP DNS 并执行阻断
+        if (payload.size > 2) {
+            val len = ((payload[0].toInt() and 0xFF) shl 8) or (payload[1].toInt() and 0xFF)
+            if (len == payload.size - 2) {
+                val dnsMsg = payload.copyOfRange(2, payload.size)
+                val domain = DnsPacketCodec.extractDomain(dnsMsg, dnsMsg.size)
+                if (domain != null && EngineBridge.shouldBlock(domain).decision != com.dewsecure.core.BlockDecision.ALLOW) {
+                    Log.i(TAG, "🛑 TCP DNS 拦截: $domain")
+                    val nx = DnsPacketCodec.buildNxDomainResponse(dnsMsg, dnsMsg.size)
+                    val framed = byteArrayOf((nx.size shr 8).toByte(), nx.size.toByte()) + nx
+                    sendSegment(info, mySeq, expectClientSeq, FLAG_ACK or FLAG_PSH, framed)
+                    mySeq = (mySeq + framed.size) and 0xFFFFFFFFL
+                    return // 阻断，不发给上游
+                }
+            }
+        }
+
         val os = upstream?.getOutputStream() ?: run { forceClose(); return }
         try {
             os.write(payload)

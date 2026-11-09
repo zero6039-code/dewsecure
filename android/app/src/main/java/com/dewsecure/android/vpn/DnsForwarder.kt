@@ -14,13 +14,13 @@ import java.net.SocketTimeoutException
 object DnsForwarder {
     private const val TAG = "DnsForwarder"
 
-    fun forward(request: ByteArray, length: Int, socket: DatagramSocket,
-                outStream: OutputStream, initialDns: String) {
+    fun forward(request: ByteArray, length: Int, outStream: OutputStream, 
+                initialDns: String, protect: (DatagramSocket) -> Boolean) {
         try {
             val version = (request[0].toInt() shr 4) and 0x0F
             val ok = when (version) {
-                4 -> forwardV4(request, length, socket, outStream, initialDns)
-                6 -> forwardV6(request, length, socket, outStream, initialDns)
+                4 -> forwardV4(request, length, outStream, initialDns, protect)
+                6 -> forwardV6(request, length, outStream, initialDns, protect)
                 else -> false
             }
             if (!ok) outStream.write(buildServfailResponse(request, length))
@@ -30,8 +30,8 @@ object DnsForwarder {
         }
     }
 
-    private fun forwardV4(request: ByteArray, length: Int, socket: DatagramSocket,
-                          outStream: OutputStream, initialDns: String): Boolean {
+    private fun forwardV4(request: ByteArray, length: Int, outStream: OutputStream, 
+                          initialDns: String, protect: (DatagramSocket) -> Boolean): Boolean {
         var dnsToTry = initialDns
         for (attempt in 0..1) {
             try {
@@ -81,8 +81,8 @@ object DnsForwarder {
         return false
     }
 
-    private fun forwardV6(request: ByteArray, length: Int, socket: DatagramSocket,
-                          outStream: OutputStream, initialDns: String): Boolean {
+    private fun forwardV6(request: ByteArray, length: Int, outStream: OutputStream, 
+                          initialDns: String, protect: (DatagramSocket) -> Boolean): Boolean {
         var dnsToTry = if (isIpv4(initialDns)) initialDns else "1.1.1.1"
         for (attempt in 0..1) {
             try {
