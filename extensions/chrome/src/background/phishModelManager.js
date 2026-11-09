@@ -39,7 +39,12 @@ export async function checkAndUpdatePhishModel() {
             // 可选：加入签名与哈希校验逻辑（待服务端支持）
             // if (newModel.sig && !await verifySig(newModel)) throw new Error('Signature invalid');
             
-            await chrome.storage.local.set({ phishscout_model_data: newModel });
+            const newEtag = res.headers.get('ETag');
+            await chrome.storage.local.set({ 
+                phishscout_model_data: newModel,
+                phish_model_last_fetch: now,
+                ...(newEtag ? { phish_model_etag: newEtag } : {})
+            });
             console.log('🔄 [AI] PhishScout 模型热更新成功 (已验证结构安全)');
             
             // 通知运行中的模块重新加载模型
