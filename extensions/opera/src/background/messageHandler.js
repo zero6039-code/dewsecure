@@ -12,41 +12,78 @@ const EXTRA_RULESETS = ['annoyances']; // 'privacy' 由 background.js 动态注�
 
 export async function updateDNRRulesets(dnrEnabled, blockTrackers) {
     try {
-        const enable = [];
-        const disable = [];
+        const allRulesets = [
+            'allowlist',
+            ...ADS_RULESETS,
+            ...EXTRA_RULESETS,
+            ...TRACKER_RULESETS
+        ];
 
-        // 🛡️ B5 修复：检查 DNR 全局可用额度（精确比对，不再一刀切 30000）
-        let hasEnoughQuota = true;
-        if (dnrEnabled && chrome.declarativeNetRequest.getAvailableStaticRuleCount) {
+        if (!dnrEnabled) {
+            await chrome.declarativeNetRequest.updateEnabledRulesets({
+                disableRulesetIds: allRulesets
+            });
+            console.log('[DNR] DNR 已关闭，所有规则集已禁用');
+            return;
+        }
+
+        // allowlist 必须最优先，确保白名单永远生效
+        const desired = ['allowlist', ...ADS_RULESETS, ...EXTRA_RULESETS];
+        if (blockTrackers) desired.push(...TRACKER_RULESETS);
+
+        const currentlyEnabled = await chrome.declarativeNetRequest.getEnabledRulesets();
+        const currentlyEnabledSet = new Set(currentlyEnabled);
+        const newlyEnabled = [];
+
+        // 逐个尝试启用；每次启用后用 getEnabledRulesets 验证是否真的生效
+        // Firefox 在配额不足时会静默丢弃规则集，不抛错，必须主动验证
+        for (const rulesetId of desired) {
+            if (currentlyEnabledSet.has(rulesetId)) continue;
+
+            if (chrome.declarativeNetRequest.getAvailableStaticRuleCount) {
+                try {
+                    const quota = await chrome.declarativeNetRequest.getAvailableStaticRuleCount();
+                    if (quota < 50) {
+                        console.warn(`⚠️ [DNR] 剩余配额 (${quota}) 过低，停止启用`);
+                        break;
+                    }
+                } catch (e) {
+                    console.warn('[DNR] 无法获取配额，继续', e);
+                }
+            }
+
             try {
-                const quota = await chrome.declarativeNetRequest.getAvailableStaticRuleCount();
-                // DewSecure 追踪器规则集约 40000 条，如果剩余额度不够加载它，再降级
-                const neededTrackersQuota = 40000; 
-                if (quota < neededTrackersQuota) {
-                    hasEnoughQuota = false;
-                    console.warn(`⚠️ [DNR] 全局可用额度 (${quota}) 不足以加载追踪器规则 (${neededTrackersQuota})，已静默降级。请提示用户关闭其他拦截插件。`);
-                    blockTrackers = false; // 精确关闭
+                await chrome.declarativeNetRequest.updateEnabledRulesets({
+                    enableRulesetIds: [rulesetId]
+                });
+                const after = await chrome.declarativeNetRequest.getEnabledRulesets();
+                if (after.includes(rulesetId)) {
+                    newlyEnabled.push(rulesetId);
+                    console.log(`✅ [DNR] 已启用: ${rulesetId}`);
+                } else {
+                    console.warn(`⚠️ [DNR] ${rulesetId} 被 Firefox 静默丢弃（配额不足），继续尝试下一个`);
                 }
             } catch (e) {
-                console.warn('无法获取 DNR 额度，采用默认策略', e);
+                console.warn(`❌ [DNR] ${rulesetId} 启用失败，继续:`, e);
             }
         }
 
-        if (dnrEnabled) enable.push(...ADS_RULESETS, ...EXTRA_RULESETS);
-        else disable.push(...ADS_RULESETS, ...EXTRA_RULESETS);
+        // 禁用不再需要的规则集
+        const desiredSet = new Set(desired);
+        const toDisable = currentlyEnabled.filter(id => !desiredSet.has(id) && allRulesets.includes(id));
+        if (toDisable.length > 0) {
+            await chrome.declarativeNetRequest.updateEnabledRulesets({
+                disableRulesetIds: toDisable
+            });
+            console.log(`[DNR] 已禁用: ${toDisable.join(', ')}`);
+        }
 
-        if (dnrEnabled && blockTrackers) enable.push(...TRACKER_RULESETS);
-        else disable.push(...TRACKER_RULESETS);
-
-        await chrome.declarativeNetRequest.updateEnabledRulesets({
-            enableRulesetIds: enable,
-            disableRulesetIds: disable
-        });
-        console.log(`✅ [DNR] 规则集已更新 (广告:${dnrEnabled}, 追踪器:${blockTrackers}, 额度充足:${hasEnoughQuota})`);
+        console.log(`✅ [DNR] 更新完成 (广告:${dnrEnabled}, 追踪器:${blockTrackers})，新启用: ${newlyEnabled.join(', ') || '无'}`);
     } catch (e) {
-        console.warn('❌ [DNR] 规则集更新失败:', e);
+        console.warn('❌ [DNR] 更新失败:', e);
     }
 }
+
 
 // 🛡️ N-13 修复：仅允许通过 UPDATE_SETTING_KEY/UPDATE_SETTINGS 修改基础布尔开关
 // whitelist、tempWhitelist、dailyUsed 等敏感数据必须走各自专用的消息路径（且需经 isValidWhitelistDomain）
@@ -133,13 +170,17 @@ export async function handleMessage(message, sender) {
 
     switch (message.type) {
         case 'DOM_AD_HIDDEN':
+            console.log('[DewSecure Background] 收到拦截统计消息:', message.url);
             try {
                 const host = new URL(message.url).hostname;
                 let settings = await getSettings();
                 settings = await cleanExpiredTempWhitelist(settings);
                 const isWhitelisted = (settings.whitelist || []).some(d => host === d || host.endsWith('.' + d)) ||
                                       (settings.tempWhitelist || []).some(d => host === d || host.endsWith('.' + d));
-                if (!isWhitelisted) await recordBlock(host + '/dom-hidden', 'dom-hidden');
+                if (!isWhitelisted) {
+                    console.log('[DewSecure Background] 准备记录拦截:', host);
+                    await recordBlock(host + '/dom-hidden', 'dom-hidden');
+                }
             } catch(e) {}
             return { ok: true };
         case 'GET_LOGS':
