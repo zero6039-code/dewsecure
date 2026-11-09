@@ -18,7 +18,7 @@ export function showDownloadNotification(level, filename, title, message) {
 }
 
 export function initDownloads() {
-    chrome.downloads.onDeterminingFilename.addListener((item, suggest) => {
+    if(chrome.downloads && chrome.downloads.onDeterminingFilename) chrome.downloads.onDeterminingFilename.addListener((item, suggest) => {
         // 🛡️ N-4 修复：检查是否为用户强制放行的下载
         const rawUrl = item.finalUrl || item.url || '';
         if (forceDownloadUrls.has(rawUrl)) {

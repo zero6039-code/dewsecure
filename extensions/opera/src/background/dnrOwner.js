@@ -40,6 +40,14 @@ export function syncRules(owned, rules) {
         const have = (await chrome.declarativeNetRequest.getDynamicRules())
             .map(r => r.id)
             .filter(id => inRange(id, owned));
+
+        // 🌟 核心修复：在注入动态规则前，强制将所有 requestDomains 转为小写，修复 Firefox 的 Invalid domain 报错
+        for (const rule of rules) {
+            if (rule.condition && rule.condition.requestDomains) {
+                rule.condition.requestDomains = rule.condition.requestDomains.map(d => String(d).toLowerCase());
+            }
+        }
+
         await chrome.declarativeNetRequest.updateDynamicRules({
             removeRuleIds: have,
             addRules: rules,
