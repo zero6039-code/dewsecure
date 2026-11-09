@@ -21,6 +21,7 @@ pub enum Prediction {
 }
 
 /// 分类器
+#[derive(Debug)]
 pub struct Classifier {
     weights: Vec<f32>,
     bias: f32,
@@ -31,7 +32,14 @@ impl Classifier {
     /// 从文件加载模型
     pub fn load(path: &str) -> Result<Self, ModelError> {
         tracing::info!("加载分类器模型: {}", path);
-        Ok(Self::default_model())
+        let data = std::fs::read(path).map_err(|e| {
+            if e.kind() == std::io::ErrorKind::NotFound {
+                ModelError::NotFound(path.to_string())
+            } else {
+                ModelError::InvalidFormat(format!("读取模型文件失败: {}", e))
+            }
+        })?;
+        Self::from_bytes(&data)
     }
 
     /// 使用默认权重（用于测试和冷启动）
@@ -121,24 +129,7 @@ fn sigmoid(x: f32) -> f32 {
     1.0 / (1.0 + (-x).exp())
 }
 
+
 #[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::classifier::extract_features;
-
-    #[test]
-    fn test_default_model() {
-        let classifier = Classifier::default_model();
-        let features = extract_features("https://doubleclick.net/ad");
-        let result = classifier.predict(&features);
-        assert!(matches!(result, Prediction::Ad | Prediction::Tracker));
-    }
-
-    #[test]
-    fn test_normal_url() {
-        let classifier = Classifier::default_model();
-        let features = extract_features("https://example.com/page");
-        let result = classifier.predict(&features);
-        assert!(matches!(result, Prediction::Normal));
-    }
-}
+#[path = "model_test.rs"]
+mod tests;
