@@ -54,14 +54,19 @@ pub fn parse_rule(line: &str) -> Option<FilterRule> {
     // 解析 options
     let mut resource_types = Vec::new();
     let mut domains = Vec::new();
+    let mut third_party = None;
 
     if let Some(opts) = options {
         for opt in opts.split(',') {
             let opt = opt.trim();
             if let Some(domain_list) = opt.strip_prefix("domain=") {
                 for d in domain_list.split('|') {
-                    domains.push(d.to_string());
+                    domains.push(d.trim_start_matches('~').to_string());
                 }
+            } else if opt == "third-party" {
+                third_party = Some(true);
+            } else if opt == "~third-party" || opt == "first-party" {
+                third_party = Some(false);
             } else if is_resource_type(opt) {
                 resource_types.push(opt.to_string());
             }
@@ -73,6 +78,7 @@ pub fn parse_rule(line: &str) -> Option<FilterRule> {
         is_exception,
         resource_types,
         domains,
+        third_party,
     })
 }
 
@@ -115,7 +121,9 @@ mod tests {
     fn test_parse_rule_with_options() {
         let rule = parse_rule("||ads.com^$script,image,domain=example.com").unwrap();
         assert_eq!(rule.pattern, "||ads.com^");
+        assert_eq!(rule.third_party, None);
         assert!(rule.resource_types.contains(&"script".to_string()));
         assert!(rule.domains.contains(&"example.com".to_string()));
+        assert_eq!(rule.third_party, None);
     }
 }

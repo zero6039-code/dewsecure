@@ -58,6 +58,7 @@ pub struct FilterRule {
     pub is_exception: bool,
     pub resource_types: Vec<String>,
     pub domains: Vec<String>,
+    pub third_party: Option<bool>, // 🛡️ C-4 修复：增加第三方标识支持
 }
 
 /// DewSecure 引擎 (主要供旧接口兼容或纯规则测试)
