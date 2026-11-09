@@ -302,6 +302,9 @@ fn parse_url(raw: &str) -> Option<ParsedUrl> {
 // ───────────── 主入口 ─────────────
 
 pub fn extract_features(raw_url: &str) -> [f32; TOTAL_DIM] {
+    // 🛡️ C-10 修复：强行截断超长域名，防止内存与 CPU 耗尽
+    let raw_url = if raw_url.len() > 253 { &raw_url[..253] } else { raw_url };
+
     let mut feats = [0.0f32; TOTAL_DIM];
 
     let parsed = match parse_url(raw_url) {
