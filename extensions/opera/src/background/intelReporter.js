@@ -3,11 +3,11 @@
 // ==========================================
 
 import { ensureAlarm, due } from './alarmHelper.js';
-import { parse, getDomain } from 'tldts'; // 🛡️ N-9 修复：用于过滤内网域名
+import { parse, getDomain } from 'tldts';
 
 export async function initIntelReporter() {
     await ensureAlarm('dewsecure_report_candidates', { periodInMinutes: 1440, delayInMinutes: 1 });
-    
+
     chrome.alarms.onAlarm.addListener(async (alarm) => {
         if (alarm.name === 'dewsecure_report_candidates') {
             await reportCandidates();
@@ -21,8 +21,8 @@ export async function initIntelReporter() {
 
 async function reportCandidates() {
     try {
-        const res = await chrome.storage.local.get(['ai_suggested_rules', 'dewsecure_installation_id', 'dewsecure_user', 'dewsecure_settings']);
-        
+        const res = await chrome.storage.local.get(['ai_suggested_rules', 'dewsecure_installation_id', 'dewsecure_settings']);
+
         // 🛡️ N-9 修复：必须用户显式同意才上报（默认关闭）
         const settings = res.dewsecure_settings || {};
         if (settings.shareThreatCandidates !== true) {
@@ -45,32 +45,41 @@ async function reportCandidates() {
             .filter(r => isPublicDomain(r.domain))
             .sort((a, b) => b.score - a.score)
             .slice(0, 20)
-            .map(r => ({
-                domain: getDomain(r.domain), 
-                score: parseFloat(Number(r.score).toFixed(1))
-            }));
+            .map(r => {
+                // 🛡️ A-12 修复：强制对 score 进行类型和范围裁剪，防止客户端极端投毒
+                let s = parseFloat(r.score);
+                if (isNaN(s)) s = 0;
+                s = Math.max(0.1, Math.min(100, s)); // 限制在 0.1 - 100 之间
+                return {
+                    domain: getDomain(r.domain),
+                    score: Number(s.toFixed(1))
+                };
+            });
 
         if (validRules.length === 0) return;
 
-        // 🛡️ N-9 修复：身份脱敏，每月轮换一次
+        // 🛡️ A-12 修复：使用 Web Crypto API 生成真正的 SHA-256 匿名 ID
         const monthStr = new Date().toISOString().slice(0, 7).replace('-', ''); // e.g. '202611'
         let reporterId = res.dewsecure_installation_id || 'unknown_device';
-        // 用安装 ID 和月份生成一个不可逆的短哈希
-        let hash = 0;
         const rawId = `${reporterId}_${monthStr}`;
-        for (let i = 0; i < rawId.length; i++) {
-            hash = ((hash << 5) - hash) + rawId.charCodeAt(i);
-            hash |= 0;
+        
+        let anonId = 'anon_unknown';
+        try {
+            const msgBuffer = new TextEncoder().encode(rawId);
+            const hashBuffer = await crypto.subtle.digest('SHA-256', msgBuffer);
+            const hashArray = Array.from(new Uint8Array(hashBuffer));
+            const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+            anonId = `anon_${hashHex.substring(0, 12)}_${monthStr}`; // 截取前 12 位确保唯一性
+        } catch (e) {
+            console.warn('[IntelReporter] 生成匿名哈希失败，跳过本次上报。');
+            return;
         }
-        const anonId = `anon_${Math.abs(hash).toString(36)}_${monthStr}`;
 
         console.log(`[IntelReporter] 准备上报 ${validRules.length} 条候选情报... (Anon: ${anonId})`);
 
-        // 🛡️ N-9 修复：带上用户 Token（如果登录）以便后台鉴权，但绝不带邮箱
+        // 🛡️ A-12 修复：移除 Authorization 头（彻底切断身份关联）
+        // 如果服务端为了防刷必须校验身份，建议使用独立的匿名可撤销 Token，而不是用户主 JWT
         const headers = { 'Content-Type': 'application/json' };
-        if (res.dewsecure_user && res.dewsecure_user.token) {
-            headers['Authorization'] = `Bearer ${res.dewsecure_user.token}`;
-        }
 
         const resp = await fetch('https://api.dewsecure.com/api/intel/contribute', {
             method: 'POST',
