@@ -39,10 +39,8 @@ export function initStatsListener() {
     }
 
     // 2. 🦊 Firefox 主力：通过阻塞式 webRequest 实时统计
-    // AdGuard 在 Firefox 上正是依赖此 API 来精确计数
     if (navigator.userAgent.includes('Firefox') && chrome.webRequest?.onBeforeRequest) {
         try {
-            // 注意：这里不能传第三个参数 ["blocking"]，因为我们只监听不阻断，否则报错
             chrome.webRequest.onBeforeRequest.addListener(
                 (details) => {
                     if (details.url.includes('dewsecure.com')) return;
@@ -53,10 +51,7 @@ export function initStatsListener() {
                 },
                 { urls: ["<all_urls>"] }
             );
-            console.log('[DewSecure Stats] ✅ 已启用 webRequest 实时统计 (Firefox 主力方案)');
-        } catch (e) {
-            console.warn('[DewSecure Stats] ⚠️ webRequest 监听器注册失败:', e.message);
-        }
+        } catch (e) {}
     }
 
     // 3. 兜底：开发版 onRuleMatchedDebug
@@ -70,11 +65,19 @@ export function initStatsListener() {
         } catch(e) {}
     }
 
-    // 4. 辅助兜底：getMatchedRules 增量轮询
+    // 4. 🌟 P-5 终极修复：由页面加载和完成事件驱动 getMatchedRules
+    // 移除不可靠且容易超配额的 setInterval 轮询，避免 MV3 SW 休眠导致的统计中断
     if (chrome.declarativeNetRequest?.getMatchedRules) {
         let lastFetchTime = Date.now();
-        const safeIntervalMs = 30000; 
-        setInterval(async () => {
+        let isFetching = false;
+
+        // 节流执行函数
+        const fetchDNRStats = async () => {
+            if (isFetching) return;
+            // 保证两次调用至少间隔 5 秒，防止频繁导航耗尽配额 (配额限制: 10分钟20次)
+            if (Date.now() - lastFetchTime < 5000) return;
+            isFetching = true;
+
             try {
                 const now = Date.now();
                 const matched = await chrome.declarativeNetRequest.getMatchedRules({ minTimeStamp: lastFetchTime });
@@ -86,8 +89,31 @@ export function initStatsListener() {
                     scheduleSave();
                 }
                 lastFetchTime = now;
-            } catch (e) { /* 忽略配额错误 */ }
-        }, safeIntervalMs);
+            } catch (e) {
+                // 如果是 429 Too Many Requests 配额错误，推迟下次执行时间
+                if (e.message && e.message.includes('quota')) {
+                    lastFetchTime = Date.now() + 30000;
+                }
+            } finally {
+                isFetching = false;
+            }
+        };
+
+        // 触发时机 1：标签页加载状态改变（complete 意味着页面及资源基本加载完毕）
+        chrome.tabs.onUpdated.addListener((tabId, changeInfo) => {
+            if (changeInfo.status === 'complete') {
+                fetchDNRStats();
+            }
+        });
+
+        // 触发时机 2：主框架导航提交（补足部分不触发 complete 的情况）
+        if (chrome.webNavigation?.onCommitted) {
+            chrome.webNavigation.onCommitted.addListener((details) => {
+                if (details.frameId === 0) {
+                    fetchDNRStats();
+                }
+            });
+        }
     }
 }
 
