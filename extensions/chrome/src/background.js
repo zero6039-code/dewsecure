@@ -32,6 +32,7 @@ import { initDevice } from './background/device.js';
 import { initSchedules } from './background/schedules.js';
 import { bootstrapDNR } from './background/dnr-bootstrap.js';
 import { loadBgI18n } from './background/i18n.js';
+import { ensureAlarm } from './background/alarmHelper.js';
 
 // ==========================================
 // 🚀 顶层初始化
@@ -78,18 +79,18 @@ initDownloads();   // 下载守卫
 initDevice();      // 设备上报 + Firefox 侧边栏
 initSchedules();   // 威胁情报 + 模型更新定时任务
 bootstrapDNR();
-checkAndUpdatePhishModel(); // 启动时检查（内部已有节流保护）
+checkAndUpdatePhishModel({ force: false }).catch(() => {});
 loadBgI18n();      // 后台多语言引擎
 
 // 🛡️ A-2 修复：每 10 分钟清理一次过期的临时白名单 Session 规则
-chrome.alarms.create('dew_purge_temp', { periodInMinutes: 10 });
-chrome.alarms.create('dew_check_phish_model', { periodInMinutes: 360 }); // 6 小时检查一次模型
+ensureAlarm('dew_purge_temp', { periodInMinutes: 10 }).catch(() => {});
+ensureAlarm('dew_check_phish_model', { periodInMinutes: 360 }).catch(() => {}); // 6 小时检查一次模型
 chrome.alarms.onAlarm.addListener(a => {
     if (a.name === 'dew_purge_temp') {
         purgeExpiredTempAllow();
     }
     if (a.name === 'dew_check_phish_model') {
-        checkAndUpdatePhishModel();
+        checkAndUpdatePhishModel({ force: true });
     }
 });
 // 启动时立即清理一次
