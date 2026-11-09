@@ -1,4 +1,21 @@
 (function() {
+    // 🛡️ B-9 终极防御：全局 toString 劫持，防止 nativeToString 穿透
+    const hookedFns = new WeakSet();
+    const nativeToString = Function.prototype.toString;
+    
+    Function.prototype.toString = function() {
+        if (hookedFns.has(this)) {
+            return `function ${this.name || ''}() { [native code] }`;
+        }
+        return nativeToString.call(this);
+    };
+    
+    // 伪装 toString 自身
+    Object.defineProperty(Function.prototype.toString, 'toString', {
+        value: function() { return 'function toString() { [native code] }'; },
+        writable: false, configurable: false
+    });
+
     // F-03: 主世界无法调用 chrome.runtime，完全依赖 content.js 通过 postMessage 传递 DEWSECURE_PAUSE 信号
 
     // A2 修复（inject 侧）：暂停状态只由扩展消息设置，不再读取页面可写的 DOM 属性
@@ -91,7 +108,7 @@
         try {
             if (window.Notification) {
                 const _requestPermission = window.Notification.requestPermission;
-                window.Notification.requestPermission = function(callback) {
+                const hookedRequestPermission = function(callback) {
                     const h = location.hostname;
                     const isAllowedHost = NOTIFICATION_ALLOW_HOSTS.some(d => h === d || h.endsWith('.' + d));
                     if (!isPaused() && dwSettings.antiHijackEnabled !== false && !isAllowedHost) {
@@ -101,8 +118,11 @@
                     }
                     return _requestPermission.apply(this, arguments);
                 };
+                // 伪装 Notification
+                try { hookedFns.add(hookedRequestPermission); } catch (e) {}
+                window.Notification.requestPermission = hookedRequestPermission;
                 // 🛡️ B-9 修复：伪装 toString 防止被页面检测
-                window.Notification.requestPermission.toString = function() { return _requestPermission.toString(); };
+                hookedFns.add(window.Notification.requestPermission);
             }
         } catch(e) {}
 
@@ -113,32 +133,31 @@
             const isSkidrow = window.location.hostname.includes('skidrowreloaded.com');
 
             const hookedOpen = function(url, target, features) {
-                if (!isPaused() && isSkidrow) {
-                    // 🛡️ 行为特征秒杀：Skidrow 上的任何跨域 popup 一律秒杀
-                    if (url && !String(url).startsWith(location.origin) && !String(url).includes('skidrowreloaded.com')) {
-                        console.warn('[DewSecure] 彻底封锁 Skidrow 跨域弹窗:', url);
+                    if (!isPaused() && isSkidrow) {
+                        if (url && !String(url).startsWith(location.origin) && !String(url).includes('skidrowreloaded.com')) {
+                            console.warn('[DewSecure] 彻底封锁 Skidrow 跨域弹窗:', url);
+                            if (port) port.postMessage({ type: 'DEWSECURE_STAT_INCREMENT' });
+                            else window.postMessage({ type: 'DEWSECURE_STAT_INCREMENT' }, '*');
+                            return null;
+                        }
+                    }
+                    if (!isPaused() && isAdUrl(url)) {
+                        console.warn('[DewSecure] 拦截恶意/劫持弹窗:', url);
                         if (port) port.postMessage({ type: 'DEWSECURE_STAT_INCREMENT' });
-                          else window.postMessage({ type: 'DEWSECURE_STAT_INCREMENT' }, '*');
+                        else window.postMessage({ type: 'DEWSECURE_STAT_INCREMENT' }, '*');
                         return null;
                     }
-                }
-                if (!isPaused() && isAdUrl(url)) {
-                    console.warn('[DewSecure] 拦截恶意/劫持弹窗:', url);
-                    if (port) port.postMessage({ type: 'DEWSECURE_STAT_INCREMENT' });
-                          else window.postMessage({ type: 'DEWSECURE_STAT_INCREMENT' }, '*');
-                    return null;
-                }
-                return _windowOpen.apply(this, arguments);
-            };
+                    return _windowOpen.apply(this, arguments);
+                };
+                // 伪装 open
+                try { hookedFns.add(hookedOpen); } catch (e) {}
 
-            hookedOpen.toString = function() { return nativeOpenStr; };
-
-            Object.defineProperty(window, 'open', {
-                get: function() { return hookedOpen; },
-                set: function() { /* 劫持赋值，保持静默 */ },
-                configurable: true,
-                enumerable: true
-            });
+                Object.defineProperty(window, 'open', {
+                    get: function() { return hookedOpen; },
+                    set: function() { },
+                    configurable: true,
+                    enumerable: true
+                });
         } catch (e) {
             try {
                 const _fallbackOpen = window.open;
@@ -153,30 +172,29 @@
 
         // 3. A 标签点击
         try {
-            HTMLAnchorElement.prototype.click = function() {
-                if (!isPaused()) {
-                    if (isAdUrl(this.href)) return;
-                    
-                    // 🛡️ Skidrow 专项秒杀：只要跨域，不管是不是真实点击，不管有没有 target，直接拦死
-                    if (window.location.hostname.includes('skidrowreloaded.com') && this.href && !this.href.startsWith(location.origin) && !this.href.includes('skidrowreloaded.com')) {
-                        console.warn('[DewSecure] 拦截 Skidrow 脚本强制点击跳转:', this.href);
-                        return;
-                    }
-
-                    // 任何非 _self 的 target (如 _blank, 自定义窗口名) 且是跨域链接，全部拦截
-                    if (this.target && this.target !== '_self' && this.href && !this.href.startsWith(location.origin)) {
-                        if (window.event && window.event.isTrusted) {
-                            // 真实点击放行
-                        } else {
-                            console.warn('[DewSecure] 拦截脚本模拟的跨域弹窗:', this.href);
+            const hookedClick = function() {
+                    if (!isPaused()) {
+                        if (isAdUrl(this.href)) return;
+                        if (window.location.hostname.includes('skidrowreloaded.com') && this.href && !this.href.startsWith(location.origin) && !this.href.includes('skidrowreloaded.com')) {
+                            console.warn('[DewSecure] 拦截 Skidrow 脚本强制点击跳转:', this.href);
                             return;
                         }
+                        if (this.target && this.target !== '_self' && this.href && !this.href.startsWith(location.origin)) {
+                            if (window.event && window.event.isTrusted) {
+                                // 真实点击放行
+                            } else {
+                                console.warn('[DewSecure] 拦截脚本模拟的跨域弹窗:', this.href);
+                                return;
+                            }
+                        }
                     }
-                }
-                _anchorClick.apply(this, arguments);
-            };
+                    _anchorClick.apply(this, arguments);
+                };
+                // 伪装 click
+                try { hookedFns.add(hookedClick); } catch (e) {}
+                HTMLAnchorElement.prototype.click = hookedClick;
             // 🛡️ B-9 修复：伪装 toString
-            HTMLAnchorElement.prototype.click.toString = function() { return _anchorClick.toString(); };
+            hookedFns.add(HTMLAnchorElement.prototype.click);
         } catch (e) {}
 
         // 4. Form 提交
