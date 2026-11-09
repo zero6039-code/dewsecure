@@ -55,7 +55,11 @@
                 } catch (e) {}
             }
             if (newHosts.length > 0) {
-                safeSendMessage({ type: 'THIRD_PARTY_HOSTS', hosts: newHosts });
+                // 🛡️ A-3 修复：分批发送，单批最多 20 个，避免恶意页面瞬间请求海量域名导致后台阻塞
+                const MAX_BATCH = 20;
+                for (let i = 0; i < newHosts.length; i += MAX_BATCH) {
+                    safeSendMessage({ type: 'THIRD_PARTY_HOSTS', hosts: newHosts.slice(i, i + MAX_BATCH) });
+                }
             }
         });
         observer.observe({ type: 'resource', buffered: true });
