@@ -178,6 +178,9 @@ impl HostEngine {
         sha256_hex: &str,
         sig_b64: &str,
         body: &str,
+        model_type: &str,
+        channel: &str,
+        valid_until: u64,
         local_version: Option<&str>,
     ) -> Result<(), EngineError> {
         // 防 OOM
@@ -185,8 +188,8 @@ impl HostEngine {
             return Err(EngineError::ModelLoadFailed("Model size exceeds 4MB limit".into()));
         }
 
-        // 强制验签（假设 bundle::verify 返回 Result<(), String> 或类似）
-        crate::model::bundle::verify(version, sha256_hex, sig_b64, body.as_bytes(), local_version)
+        // 强制验签
+        crate::model::bundle::verify(version, sha256_hex, sig_b64, body.as_bytes(), model_type, channel, valid_until, local_version)
             .map_err(|e| EngineError::ModelLoadFailed(format!("Signature verification failed: {:?}", e)))?;
 
         let model = AdblockModel::load_from_json(body).map_err(EngineError::ModelLoadFailed)?;
