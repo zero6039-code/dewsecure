@@ -40,5 +40,5 @@ dependencies {
     implementation("androidx.appcompat:appcompat:1.6.1")
     implementation("com.google.android.material:material:1.11.0")
     implementation("androidx.recyclerview:recyclerview:1.3.2")
-    implementation("net.java.dev.jna:jna:5.13.0@aar")
+    implementation("net.java.dev.jna:jna:5.19.1@aar")
 }
