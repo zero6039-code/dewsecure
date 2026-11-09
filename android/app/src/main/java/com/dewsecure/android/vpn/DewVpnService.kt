@@ -158,6 +158,7 @@ class DewVpnService : VpnService() {
     private fun stopVpn() {
         isRunning = false
         TcpDnsRelay.removeAll()
+        TcpDnsRelay.releaseService()
         vpnInterface?.close()
         vpnInterface = null
         networkCallback?.let {

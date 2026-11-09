@@ -35,8 +35,7 @@ class TcpDnsSession(private val key: TcpDnsRelay.SessionKey) {
     fun onPacket(info: TcpDnsRelay.TcpInfo, payload: ByteArray?) {
         if (closed.get()) return
         lastActive = System.currentTimeMillis()
-
-        if (System.currentTimeMillis() - lastActive > TIMEOUT_MS) { forceClose(); return }
+        // 移除死代码，超时逻辑交由 Socket soTimeout 控制
 
         when {
             (info.flags and FLAG_RST) != 0 -> forceClose()
@@ -58,7 +57,7 @@ class TcpDnsSession(private val key: TcpDnsRelay.SessionKey) {
             val sock = Socket()
             vpn.protect(sock)
             sock.connect(InetSocketAddress(TcpDnsRelay.getUpstreamDns(), 53), 3000)
-            sock.soTimeout = 0
+            sock.soTimeout = TIMEOUT_MS.toInt()
             upstream = sock
         } catch (e: Exception) {
             Log.w(TAG, "上游连接失败", e)
@@ -74,6 +73,12 @@ class TcpDnsSession(private val key: TcpDnsRelay.SessionKey) {
     }
 
     private fun handleData(info: TcpDnsRelay.TcpInfo, payload: ByteArray) {
+        // D-7 修复：严格校验序列号，不匹配则回 ACK 丢弃
+        if (info.seq != expectClientSeq) {
+            sendSegment(info, mySeq, expectClientSeq, FLAG_ACK, null)
+            return
+        }
+
         // D-1 修复：解析 TCP DNS 并执行阻断
         if (payload.size > 2) {
             val len = ((payload[0].toInt() and 0xFF) shl 8) or (payload[1].toInt() and 0xFF)
@@ -105,7 +110,7 @@ class TcpDnsSession(private val key: TcpDnsRelay.SessionKey) {
 
     private fun readLoop(info: TcpDnsRelay.TcpInfo) {
         val ins = upstream?.getInputStream() ?: return
-        val buf = ByteArray(4096)
+        val buf = ByteArray(1400) // D-7 修复：防止超出 TUN MTU
         try {
             while (!closed.get()) {
                 val n = ins.read(buf)
