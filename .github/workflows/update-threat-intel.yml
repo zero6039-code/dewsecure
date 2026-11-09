@@ -18,9 +18,6 @@ jobs:
       - name: 安装签名依赖
         run: pip install pynacl
 
-      - name: 安装 Python 依赖
-        run: pip install pynacl
-
       - name: 下载并生成传统 DNR 规则 (Top 5000)
         env:
           URLHAUS_AUTH_KEY: ${{ secrets.URLHAUS_AUTH_KEY }}
@@ -44,10 +41,11 @@ jobs:
       - name: 安装 rclone (安全校验版)
         run: |
           wget https://downloads.rclone.org/v1.68.1/rclone-v1.68.1-linux-amd64.deb
-          EXPECTED_SHA="$(wget -qO- https://downloads.rclone.org/v1.68.1/SHA256SUMS | grep 'rclone-v1.68.1-linux-amd64.deb' | awk '{print $1}')"
+          # 🛡️ E-6 修复：使用硬编码的 SHA 常量作为独立信任根，防止同源篡改
+          EXPECTED_SHA="87b8c52145a785742fa2dd151e028b5ec8e7ecfc8813474c29793b242b7cb42a"
           ACTUAL_SHA=$(sha256sum rclone-v1.68.1-linux-amd64.deb | awk '{print $1}')
           if [ "$EXPECTED_SHA" != "$ACTUAL_SHA" ]; then
-            echo "❌ SHA256 mismatch!"
+            echo "❌ SHA256 mismatch! Security risk."
             exit 1
           fi
           sudo dpkg -i rclone-v1.68.1-linux-amd64.deb
