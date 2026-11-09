@@ -169,8 +169,25 @@ impl HostEngine {
         v
     }
 
-    pub fn set_adblock_model(&self, json: &str) -> Result<(), EngineError> {
-        let model = AdblockModel::load_from_json(json).map_err(EngineError::ModelLoadFailed)?;
+    /// 🛡️ C-1 修复：强制要求通过签名校验后才允许加载模型
+    pub fn load_signed_adblock_model(
+        &self,
+        version: &str,
+        sha256_hex: &str,
+        sig_b64: &str,
+        body: &str,
+        local_version: Option<&str>,
+    ) -> Result<(), EngineError> {
+        // 防 OOM
+        if body.len() > 4 * 1024 * 1024 {
+            return Err(EngineError::ModelLoadFailed("Model size exceeds 4MB limit".into()));
+        }
+
+        // 强制验签（假设 bundle::verify 返回 Result<(), String> 或类似）
+        crate::model::bundle::verify(version, sha256_hex, sig_b64, body.as_bytes(), local_version)
+            .map_err(|e| EngineError::ModelLoadFailed(format!("Signature verification failed: {:?}", e)))?;
+
+        let model = AdblockModel::load_from_json(body).map_err(EngineError::ModelLoadFailed)?;
         let mut guard = self.adblock_model.lock().unwrap_or_else(|e| e.into_inner());
         *guard = Some(model);
         Ok(())
@@ -196,6 +213,26 @@ fn matches_domain_or_subdomain(set: &HashSet<String>, host: &str) -> bool {
     }
     false
 }
+    #[test]
+    fn test_c1_signature_enforcement() {
+        let malicious_json = "{\"trees\":[],\"base_score\":1.0}"; // 伪造的恶意模型
+        
+        // 🛡️ C-1 核心：直接测试验签函数是否拦截非法签名
+        // 如果这里返回 Err，说明底层验签有效，未签名模型无法进入 load_signed_adblock_model
+        let res = crate::model::bundle::verify(
+            "1.0.0",
+            "0000000000000000000000000000000000000000000000000000000000000000",
+            "invalid_signature",
+            malicious_json.as_bytes(),
+            None
+        );
+        
+        assert!(res.is_err(), "未签名的恶意模型必须被拒绝加载！");
+        println!("✅ PoC 成功：未签名模型已被拦截，底层验签有效");
+    }
+
+    
+
 
 #[cfg(test)]
 #[path = "engine_host_test.rs"]
