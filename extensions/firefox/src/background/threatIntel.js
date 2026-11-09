@@ -83,7 +83,8 @@ class HashSetFilter {
         if (dv.getUint32(0, false) !== 0x44455731) throw new Error('bad magic');
         this.h = dv.getUint8(4);
         this.n = dv.getUint32(5, true);
-        if (this.h < 4 || this.h > 8) throw new Error('bad h');
+        // 🛡️ A-7 修复：强制要求最小 6 字节（48位），避免 h=4 时百万级数据引发 0.023% 的误报率
+        if (this.h < 6 || this.h > 8) throw new Error('bad h');
         if (ab.byteLength !== 9 + this.h * this.n) throw new Error('bad size');
         this.b = new Uint8Array(ab, 9);
     }
@@ -181,12 +182,12 @@ async function updateThreatFilterBinary(userToken) {
         // 🛡️ B3 修复：二进制过滤器版本防回滚与有效期校验
         const cached = await loadFilterFromDB();
         
-        // 校验 purpose (防域分隔攻击，如果服务端下发)
-        if (metaData.purpose && metaData.purpose !== 'dewsecure/filter/v1') {
-            console.error('❌ [ThreatIntel] 拒绝未知的 purpose:', metaData.purpose);
+        // 🛡️ A-6 修复：强制要求 purpose 必填，防止中间人剥离 purpose 降级绕过
+        if (!metaData.purpose || metaData.purpose !== 'dewsecure/filter/v1') {
+            console.error('❌ [ThreatIntel] 缺少或未知的 purpose，拒绝加载:', metaData.purpose);
             return;
         }
-        // 校验 valid_until (防冻结攻击，如果服务端下发)
+        // 校验 valid_until (防冻结攻击)
         if (metaData.valid_until && Date.now() > metaData.valid_until) {
             console.error('❌ [ThreatIntel] 拒绝过期的过滤器元数据');
             return;
@@ -217,8 +218,13 @@ async function updateThreatFilterBinary(userToken) {
             return;
         }
         
-        // 验签 (兼容旧的 version:sha256 与新的 purpose:version:sha256)
-        const msg = metaData.purpose ? `${metaData.purpose}:${metaData.version}:${metaData.sha256}` : `${metaData.version}:${metaData.sha256}`;
+        // 🛡️ A-6 修复：签名强绑定。如果服务端支持 sig_version >= 2，则使用域分隔且包含 valid_until 的强化格式
+        let msg;
+        if (metaData.sig_version >= 2) {
+            msg = `${metaData.purpose}|${metaData.version}|${metaData.sha256}|${metaData.valid_until || 0}`;
+        } else {
+            msg = `${metaData.purpose}:${metaData.version}:${metaData.sha256}`; // 兼容旧格式，但已强制包含 purpose
+        }
         const sigBytes = Uint8Array.from(atob(metaData.signature.trim()), c => c.charCodeAt(0));
         const pubKeyBytes = new Uint8Array(ED25519_PUBLIC_KEY_HEX.match(/.{1,2}/g).map(b => parseInt(b, 16)));
         
@@ -321,9 +327,9 @@ export async function updateThreatIntel() {
         if (!sigRes.ok) throw new Error(`sig HTTP ${sigRes.status}`);
         const sigData = await sigRes.json();
 
-        // 🛡️ B3 修复：规则文件版本防回滚与有效期校验
-        if (sigData.purpose && sigData.purpose !== 'dewsecure/rules/v1') {
-            console.error('❌ [ThreatIntel] 拒绝未知的 rules purpose:', sigData.purpose);
+        // 🛡️ A-6 修复：强制要求 rules purpose 必填
+        if (!sigData.purpose || sigData.purpose !== 'dewsecure/rules/v1') {
+            console.error('❌ [ThreatIntel] 缺少或未知的 rules purpose，拒绝加载:', sigData.purpose);
             return;
         }
         if (sigData.valid_until && Date.now() > sigData.valid_until) {
@@ -347,7 +353,13 @@ export async function updateThreatIntel() {
         const actualHash = await crypto.subtle.digest('SHA-256', rulesBuffer).then(buf => Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, '0')).join(''));
         if (actualHash !== sigData.sha256) throw new Error('SHA-256 mismatch');
 
-        const msgStr = `${sigData.version}:${sigData.sha256}`;
+        // 🛡️ A-6 修复：强绑定验证串
+        let msgStr;
+        if (sigData.sig_version >= 2) {
+            msgStr = `${sigData.purpose}|${sigData.version}|${sigData.sha256}|${sigData.valid_until || 0}`;
+        } else {
+            msgStr = `${sigData.purpose}:${sigData.version}:${sigData.sha256}`;
+        }
         const sigBytes = Uint8Array.from(atob(sigData.signature.trim()), c => c.charCodeAt(0));
         const pubKeyBytes = new Uint8Array(ED25519_PUBLIC_KEY_HEX.match(/.{1,2}/g).map(byte => parseInt(byte, 16)));
 
