@@ -50,10 +50,17 @@ export async function updateDNRRulesets(dnrEnabled, blockTrackers) {
         ];
 
         if (!dnrEnabled) {
-            await chrome.declarativeNetRequest.updateEnabledRulesets({
-                disableRulesetIds: allRulesets
-            });
-            console.log('[DNR] DNR 已关闭，所有规则集已禁用');
+            // 🛡️ P-4 优化：仅在当前有启用规则时，才发送禁用指令，避免无谓 IPC 重编译
+            const currentlyEnabled = await chrome.declarativeNetRequest.getEnabledRulesets();
+            const toDisable = currentlyEnabled.filter(id => allRulesets.includes(id));
+            if (toDisable.length > 0) {
+                await chrome.declarativeNetRequest.updateEnabledRulesets({
+                    disableRulesetIds: toDisable
+                });
+                console.log(`[DNR] DNR 已关闭，已禁用 ${toDisable.length} 个规则集`);
+            } else {
+                console.log('[DNR] DNR 已关闭，所有规则集均未启用，跳过更新');
+            }
             return;
         }
 
