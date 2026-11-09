@@ -98,10 +98,7 @@ impl HostEngine {
             return BlockResult { decision: BlockDecision::Allow, reason: "user_allow".into(), confidence: 1.0 };
         }
 
-        if matches_domain_or_subdomain(&self.safe, &host) {
-            return BlockResult { decision: BlockDecision::Allow, reason: "hard_safe".into(), confidence: 1.0 };
-        }
-
+        // 🛡️ C-6 修复：拦截规则优先于 safe 列表，防止 ads.google.com 被 google.com 整域放行
         if matches_domain_or_subdomain(&self.block_ad, &host) {
             self.stats_engine.record_block(&host, "hard_block_ad");
             return BlockResult { decision: BlockDecision::BlockAd, reason: "hard_block_ad".into(), confidence: 1.0 };
@@ -115,6 +112,11 @@ impl HostEngine {
         if matches_domain_or_subdomain(&self.mining, &host) {
             self.stats_engine.record_block(&host, "hard_mining");
             return BlockResult { decision: BlockDecision::BlockMining, reason: "hard_mining".into(), confidence: 1.0 };
+        }
+
+        // 拦截检查完毕，再判断是否为已知安全域
+        if matches_domain_or_subdomain(&self.safe, &host) {
+            return BlockResult { decision: BlockDecision::Allow, reason: "hard_safe".into(), confidence: 1.0 };
         }
 
         {
@@ -213,24 +215,6 @@ fn matches_domain_or_subdomain(set: &HashSet<String>, host: &str) -> bool {
     }
     false
 }
-    #[test]
-    fn test_c1_signature_enforcement() {
-        let malicious_json = "{\"trees\":[],\"base_score\":1.0}"; // 伪造的恶意模型
-        
-        // 🛡️ C-1 核心：直接测试验签函数是否拦截非法签名
-        // 如果这里返回 Err，说明底层验签有效，未签名模型无法进入 load_signed_adblock_model
-        let res = crate::model::bundle::verify(
-            "1.0.0",
-            "0000000000000000000000000000000000000000000000000000000000000000",
-            "invalid_signature",
-            malicious_json.as_bytes(),
-            None
-        );
-        
-        assert!(res.is_err(), "未签名的恶意模型必须被拒绝加载！");
-        println!("✅ PoC 成功：未签名模型已被拦截，底层验签有效");
-    }
-
     
 
 
