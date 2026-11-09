@@ -14,6 +14,7 @@ use std::sync::OnceLock;
 
 pub struct PslSet {
     multi: HashSet<String>,
+    max_suffix_len: usize, // 🛡️ C-10 修复：记录最长后缀标签数，防止 O(L²)
 }
 
 impl PslSet {
@@ -24,8 +25,16 @@ impl PslSet {
         }
         let f: File =
             serde_json::from_str(json).map_err(|e| format!("PSL JSON 解析失败: {}", e))?;
+        let mut max_suffix_len = 1;
+        for s in &f.multi_label_suffixes {
+            let len = s.split('.').count();
+            if len > max_suffix_len {
+                max_suffix_len = len;
+            }
+        }
         Ok(Self {
             multi: f.multi_label_suffixes.into_iter().collect(),
+            max_suffix_len,
         })
     }
 
@@ -62,7 +71,9 @@ impl PslSet {
 
         // 最长多标签后缀匹配
         let mut suffix_len = 1usize;
-        for n in (2..=labels.len()).rev() {
+        // 🛡️ C-10 修复：最大只检查到 max_suffix_len，不再遍历整个 labels
+        let check_limit = labels.len().min(self.max_suffix_len);
+        for n in (2..=check_limit).rev() {
             let candidate = labels[labels.len() - n..].join(".");
             if self.multi.contains(&candidate) {
                 suffix_len = n;
@@ -97,55 +108,7 @@ fn is_ipv4(s: &str) -> bool {
     })
 }
 
+
 #[cfg(test)]
-mod tests {
-    use super::*;
-
-    fn psl() -> &'static PslSet {
-        PslSet::global()
-    }
-
-    #[test]
-    fn psl_basics() {
-        let (s, d, t) = psl().split("google.com");
-        assert_eq!((s.as_str(), d.as_str(), t.as_str()), ("", "google.com", "com"));
-
-        let (s, d, t) = psl().split("www.google.com");
-        assert_eq!((s.as_str(), d.as_str(), t.as_str()), ("www", "google.com", "com"));
-
-        let (s, d, t) = psl().split("a.b.c.example.com");
-        assert_eq!((s.as_str(), d.as_str(), t.as_str()), ("a.b.c", "example.com", "com"));
-
-        let (s, d, t) = psl().split("example.co.uk");
-        assert_eq!((s.as_str(), d.as_str(), t.as_str()), ("", "example.co.uk", "co.uk"));
-
-        let (s, d, t) = psl().split("www.example.co.uk");
-        assert_eq!((s.as_str(), d.as_str(), t.as_str()), ("www", "example.co.uk", "co.uk"));
-
-        let (s, d, t) = psl().split("test.com.my");
-        assert_eq!((s.as_str(), d.as_str(), t.as_str()), ("", "test.com.my", "com.my"));
-    }
-
-    #[test]
-    fn psl_edge_cases() {
-        // 单标签
-        let (s, d, t) = psl().split("localhost");
-        assert_eq!((s.as_str(), d.as_str(), t.as_str()), ("", "", ""));
-
-        // 空串
-        let (s, d, t) = psl().split("");
-        assert_eq!((s.as_str(), d.as_str(), t.as_str()), ("", "", ""));
-    }
-
-    #[test]
-    fn psl_ipv4() {
-        // tldextract 5.x：纯 IPv4 三段全空
-        let (s, d, t) = psl().split("127.0.0.1");
-        assert_eq!((s.as_str(), d.as_str(), t.as_str()), ("", "", ""));
-        let (s, d, t) = psl().split("192.168.1.1");
-        assert_eq!((s.as_str(), d.as_str(), t.as_str()), ("", "", ""));
-        // 非法 IP（256 越界）走 PSL 路径，不被误判为 IP
-        let (_s, d, _t) = psl().split("256.1.1.1");
-        assert!(!d.is_empty(), "非法 IP 不应被短路，应走 PSL 匹配");
-    }
-}
+#[path = "psl_test.rs"]
+mod tests;
