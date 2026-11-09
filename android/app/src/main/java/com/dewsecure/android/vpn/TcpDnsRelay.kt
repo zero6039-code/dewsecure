@@ -11,6 +11,7 @@ import java.util.concurrent.ConcurrentHashMap
  */
 object TcpDnsRelay {
     private const val TAG = "TcpDnsRelay"
+    private const val MAX_SESSIONS = 1000
     private val sessions = ConcurrentHashMap<SessionKey, TcpDnsSession>()
 
     @Volatile private var outputStream: OutputStream? = null
@@ -31,6 +32,10 @@ object TcpDnsRelay {
                 info.payloadOffset + info.payloadLen <= length)
                 packet.copyOfRange(info.payloadOffset, info.payloadOffset + info.payloadLen)
             else null
+            if (!sessions.containsKey(key) && sessions.size >= MAX_SESSIONS) {
+                Log.w(TAG, "TCP 会话数量已达上限 ($MAX_SESSIONS)，拒绝新连接")
+                return
+            }
             val session = sessions.getOrPut(key) { TcpDnsSession(key) }
             session.onPacket(info, payload)
         } catch (e: Exception) {
@@ -39,6 +44,8 @@ object TcpDnsRelay {
     }
 
     fun removeSession(key: SessionKey) { sessions.remove(key) }
+    fun releaseService() { vpnService = null }
+
     fun removeAll() {
         sessions.values.forEach { it.forceClose() }
         sessions.clear()
