@@ -122,8 +122,7 @@
       "32": "icons/icon-32.png",
       "48": "icons/icon-48.png",
       "128": "icons/icon-128.png"
-    },
-    "default_popup": "popup/index.html"
+    }
   },
   "externally_connectable": {
     "matches": [
