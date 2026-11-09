@@ -5,14 +5,13 @@ let memoryLogs = [];
 let loadPromise = null;
 let saveTimeout = null;
 
-// 🚀 优化 1：Promise 并发锁，防止同时触发多次读取
 async function ensureLoaded() {
     if (loadPromise) return loadPromise;
     loadPromise = (async () => {
         const res = await chrome.storage.local.get([STATS_KEY, LOG_KEY]);
         if (res[STATS_KEY]) memoryStats = res[STATS_KEY];
         if (res[LOG_KEY]) memoryLogs = res[LOG_KEY];
-        
+
         const todayStr = new Date().toDateString();
         if (memoryStats.date !== todayStr) {
             memoryStats.todayBlocked = 0;
@@ -22,7 +21,6 @@ async function ensureLoaded() {
     return loadPromise;
 }
 
-// 🚀 优化 2：延长至 5 秒批量落盘，极大减少 IO 压力
 function scheduleSave() {
     if (saveTimeout) return;
     saveTimeout = setTimeout(async () => {
@@ -31,57 +29,88 @@ function scheduleSave() {
             [STATS_KEY]: memoryStats,
             [LOG_KEY]: memoryLogs
         });
-    }, 5000); 
+    }, 5000);
 }
 
 export function initStatsListener() {
-    // 🚀 优化 3：正式版角标更新方案
-    // 仅解压版可用 onRuleMatchedDebug。正式版靠底层直接显示 DNR 命中次数
-    if (chrome.declarativeNetRequest && chrome.declarativeNetRequest.setExtensionActionOptions) {
-        chrome.declarativeNetRequest.setExtensionActionOptions({
-            displayActionCountAsBadgeText: true
-        }).catch(e => console.warn('DNR 角标接管失败:', e));
+    // 1. 角标接管（所有平台）
+    if (chrome.declarativeNetRequest?.setExtensionActionOptions) {
+        chrome.declarativeNetRequest.setExtensionActionOptions({ displayActionCountAsBadgeText: true }).catch(() => {});
     }
 
-    // 仅开发环境用于记录详细日志
-    if (chrome.declarativeNetRequest && chrome.declarativeNetRequest.onRuleMatchedDebug) {
+    // 2. 🦊 Firefox 主力：通过阻塞式 webRequest 实时统计
+    // AdGuard 在 Firefox 上正是依赖此 API 来精确计数
+    if (navigator.userAgent.includes('Firefox') && chrome.webRequest?.onBeforeRequest) {
+        try {
+            // 注意：这里不能传第三个参数 ["blocking"]，因为我们只监听不阻断，否则报错
+            chrome.webRequest.onBeforeRequest.addListener(
+                (details) => {
+                    if (details.url.includes('dewsecure.com')) return;
+                    try {
+                        const host = new URL(details.url).hostname;
+                        recordBlock(host + '/webRequest', 'webRequest');
+                    } catch (e) {}
+                },
+                { urls: ["<all_urls>"] }
+            );
+            console.log('[DewSecure Stats] ✅ 已启用 webRequest 实时统计 (Firefox 主力方案)');
+        } catch (e) {
+            console.warn('[DewSecure Stats] ⚠️ webRequest 监听器注册失败:', e.message);
+        }
+    }
+
+    // 3. 兜底：开发版 onRuleMatchedDebug
+    if (chrome.declarativeNetRequest?.onRuleMatchedDebug) {
         try {
             chrome.declarativeNetRequest.onRuleMatchedDebug.addListener(async (info) => {
-                try {
-                    const { request } = info;
-                    if (!request || !request.url) return;
-                    const host = new URL(request.url).hostname;
-                    if (host === 'api.dewsecure.com' || host.endsWith('.dewsecure.com')) return;
-                    
-                    await recordBlock(host + '/dnr', 'dnr');
-                } catch (e) {}
+                if (info.request?.url && !info.request.url.includes('dewsecure.com')) {
+                    await recordBlock(new URL(info.request.url).hostname + '/dnr-debug', 'dnr-debug');
+                }
             });
-        } catch(e) {
-            console.warn('onRuleMatchedDebug 不可用:', e);
-        }
+        } catch(e) {}
+    }
+
+    // 4. 辅助兜底：getMatchedRules 增量轮询
+    if (chrome.declarativeNetRequest?.getMatchedRules) {
+        let lastFetchTime = Date.now();
+        const safeIntervalMs = 30000; 
+        setInterval(async () => {
+            try {
+                const now = Date.now();
+                const matched = await chrome.declarativeNetRequest.getMatchedRules({ minTimeStamp: lastFetchTime });
+                if (matched?.rulesMatchedInfo?.length > 0) {
+                    const count = matched.rulesMatchedInfo.length;
+                    await ensureLoaded();
+                    memoryStats.totalBlocked += count;
+                    memoryStats.todayBlocked += count;
+                    scheduleSave();
+                }
+                lastFetchTime = now;
+            } catch (e) { /* 忽略配额错误 */ }
+        }, safeIntervalMs);
     }
 }
 
 export async function getMatchedStats() {
     await ensureLoaded();
-    return { 
-        totalBlocked: memoryStats.totalBlocked, 
-        todayBlocked: memoryStats.todayBlocked 
+    return {
+        totalBlocked: memoryStats.totalBlocked,
+        todayBlocked: memoryStats.todayBlocked
     };
 }
 
 export async function recordBlock(url, type) {
     await ensureLoaded();
-    
+
     const todayStr = new Date().toDateString();
     if (memoryStats.date !== todayStr) {
         memoryStats.todayBlocked = 0;
         memoryStats.date = todayStr;
     }
-    
+
     memoryStats.totalBlocked += 1;
     memoryStats.todayBlocked += 1;
-    
+
     let domain = '未知';
     try {
         if (url.startsWith('http')) {
@@ -92,13 +121,10 @@ export async function recordBlock(url, type) {
     } catch (e) {}
 
     memoryLogs.push({ domain, url, type, date: todayStr, ts: Date.now() });
-    
-    // 🚀 优化 4：取代连续 shift()，批量截断更高效
+
     if (memoryLogs.length > 1000) {
         memoryLogs.splice(0, memoryLogs.length - 1000);
     }
-    
+
     scheduleSave();
-    
-    // 🚀 优化 5：移除了 chrome.action.setBadgeText，防止高频 DOM 操作卡死主线程
 }

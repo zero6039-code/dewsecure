@@ -52,6 +52,9 @@ function generateFirefoxManifest() {
     }
     if (chrome.permissions) {
         chrome.permissions = chrome.permissions.filter(p => p !== 'offscreen' && p !== 'sidePanel');
+        // 🦊 为 Firefox 动态添加 webRequest 权限（支持实时统计与拦截）
+        if (!chrome.permissions.includes('webRequest')) chrome.permissions.push('webRequest');
+        if (!chrome.permissions.includes('webRequestBlocking')) chrome.permissions.push('webRequestBlocking');
     }
     
     // 添加 Firefox 专属配置
@@ -81,6 +84,68 @@ function generateFirefoxManifest() {
     console.log('✅ 已从 Chrome 自动生成 Firefox manifest.json');
 }
 
+
+function splitRulesets() {
+    console.log('✂️ 正在切分 Firefox 规则文件 (每块 1500 条)...');
+    const rulesDir = path.join('dist', 'rules');
+    const files = fs.readdirSync(rulesDir).filter(f => f.endsWith('.json') && !f.includes('.p'));
+    
+    const index = { allowlist: [], ads: [], trackers: [], extra: [] };
+    
+    // 定义文件到索引的映射
+    const getTargetArr = (filename) => {
+        if (filename.includes('allowlist')) return index.allowlist;
+        if (filename.includes('tracker')) return index.trackers;
+        if (filename.includes('annoyance')) return index.extra;
+        return index.ads;
+    };
+
+    const manifestPath = path.join('dist', 'manifest.json');
+    const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
+    const newRuleResources = [];
+
+    for (const file of files) {
+        const baseId = file.replace('.json', '').replace(/-/g, '_');
+        let rules = [];
+        try {
+            rules = JSON.parse(fs.readFileSync(path.join(rulesDir, file), 'utf8'));
+        } catch (e) {
+            console.warn(`⚠️ 无法解析 ${file}, 跳过切分`);
+            continue;
+        }
+        if (!Array.isArray(rules)) rules = [rules];
+
+        const CHUNK_SIZE = 1500;
+        const chunks = Math.ceil(rules.length / CHUNK_SIZE);
+        const targetArr = getTargetArr(file);
+
+        for (let i = 0; i < chunks; i++) {
+            const chunk = rules.slice(i * CHUNK_SIZE, (i + 1) * CHUNK_SIZE);
+            const chunkId = `${baseId}__p${i + 1}`;
+            const chunkFile = `${baseId}.p${i + 1}.json`;
+            
+            fs.writeFileSync(path.join(rulesDir, chunkFile), JSON.stringify(chunk, null, 2));
+            targetArr.push(chunkId);
+            
+            // 仅 allowlist 默认开启，其余全部 false，交由代码动态启用
+            newRuleResources.push({
+                id: chunkId,
+                enabled: baseId === 'allowlist',
+                path: `rules/${chunkFile}`
+            });
+        }
+        
+        // 删除原文件，防止冲突和体积增大
+        fs.unlinkSync(path.join(rulesDir, file));
+    }
+
+    manifest.declarative_net_request.rule_resources = newRuleResources;
+    fs.writeFileSync(manifestPath, JSON.stringify(manifest, null, 2));
+    fs.writeFileSync(path.join(rulesDir, 'ruleset-index.json'), JSON.stringify(index, null, 2));
+    
+    console.log(`✅ 切分完成: 原 ${files.length} 个文件切分为 ${newRuleResources.length} 个块。`);
+}
+
 async function build() {
     syncFromChrome();
     generateFirefoxManifest();
@@ -103,7 +168,10 @@ function copyStatic() {
     }
     if (fs.existsSync('popup')) fs.cpSync('popup', 'dist/popup', { recursive: true, force: true });
     if (fs.existsSync('icons')) fs.cpSync('icons', 'dist/icons', { recursive: true, force: true });
-    if (fs.existsSync('rules')) fs.cpSync('rules', 'dist/rules', { recursive: true, force: true });
+    if (fs.existsSync('rules')) {
+        fs.cpSync('rules', 'dist/rules', { recursive: true, force: true });
+        splitRulesets();
+    }
     if (fs.existsSync('warning.html')) fs.copyFileSync('warning.html', 'dist/warning.html');
     if (fs.existsSync('warning.js'))   fs.copyFileSync('warning.js',   'dist/warning.js');
     

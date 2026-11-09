@@ -36,9 +36,32 @@ import { loadBgI18n } from './background/i18n.js';
 // 🚀 顶层初始化
 // ==========================================
 initSettings().then(async () => {
-    // 🛡️ 修复：冷启动时同步 DNR 规则状态，防止重启浏览器后规则又默认开启
     const s = await getSettings();
-    updateDNRRulesets(s.dnrEnabled, s.blockTrackers);
+
+    // 🛡️ Firefox 关键修复：
+    // 每次重新载入扩展时，Firefox 会重新应用 manifest.enabled 状态，
+    // 导致 ads_1a + ads_1b (共 30000 条) 占满 Firefox 保证配额 (30000)，
+    // allowlist 等后续规则集全部无法启用。
+    // 这里启动时先 disable 所有大规则集释放配额，再按优先级逐个重建。
+    // allowlist 不 disable，确保白名单始终生效。
+    try {
+        try {
+            // 🛡️ 动态获取当前已启用的规则集并全部关闭，彻底释放配额（兼容切分后的 __p1 命名）
+            const enabled = await chrome.declarativeNetRequest.getEnabledRulesets();
+            if (enabled.length > 0) {
+                await chrome.declarativeNetRequest.updateEnabledRulesets({
+                    disableRulesetIds: enabled
+                });
+            }
+        } catch (e) {
+            // 忽略无法关闭的未知错误
+        }
+    } catch (e) {
+        // 部分 ID 在 Firefox 早期版本或切分后不存在，忽略即可
+        console.warn('[DNR] 启动清理警告（可忽略）:', e && e.message);
+    }
+
+    await updateDNRRulesets(s.dnrEnabled, s.blockTrackers);
 });
 chrome.action.setBadgeText({ text: '' });
 initSecurityListeners();

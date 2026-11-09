@@ -240,6 +240,19 @@
         });
     }
 
+    // ==========================================
+    // 🌟 新增：监听主世界发出的拦截信号，转发给后台统计
+    // ==========================================
+    window.addEventListener('message', (e) => {
+        if (e.source !== window || e.origin !== location.origin) return;
+        if (!e.data) return;
+        
+        if (e.data.type === 'DEWSECURE_STAT_INCREMENT') {
+            // 🛡️ 核心修复：主世界拦截了广告/弹窗/点击劫持后，在这里接住并上报给 Background 统计
+            safeSendMessage({ type: 'DOM_AD_HIDDEN', url: window.location.href });
+        }
+    });
+
     // ===== 核心初始化 =====
     function init() {
         // 🛡️ A2 修复：生成唯一的随机 Token，防止页面伪造消息
