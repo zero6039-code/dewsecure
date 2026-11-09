@@ -3,6 +3,8 @@
 // 支持 R2 + Worker 鉴权动态拉取，与本地回退兜底
 // ==========================================
 
+import { validateTreeModel } from '../treeEval.js';
+
 export async function checkAndUpdatePhishModel() {
     try {
         // 1. 获取当前用户状态，尝试鉴权
@@ -32,10 +34,13 @@ export async function checkAndUpdatePhishModel() {
         
         const newModel = await res.json();
         
-        // 3. 核心安全校验：防止拉下来的是恶意注入的脚本或损坏的 JSON
-        if (newModel && newModel.nFeatures === 579 && Array.isArray(newModel.roots)) {
+        // 3. 核心安全校验：防止恶意注入、结构破坏、环状死循环
+        if (newModel && validateTreeModel(newModel)) {
+            // 可选：加入签名与哈希校验逻辑（待服务端支持）
+            // if (newModel.sig && !await verifySig(newModel)) throw new Error('Signature invalid');
+            
             await chrome.storage.local.set({ phishscout_model_data: newModel });
-            console.log('🔄 [AI] PhishScout 模型热更新成功 (R2+Worker 安全下发)');
+            console.log('🔄 [AI] PhishScout 模型热更新成功 (已验证结构安全)');
             
             // 通知运行中的模块重新加载模型
             chrome.runtime.sendMessage({ type: 'PHISH_MODEL_UPDATED' }).catch(() => {});
