@@ -36,24 +36,28 @@
                 </div>
                 <button id="dewsecure-mining-ignore" style="background: transparent; border: 1px solid white; color: white; padding: 4px 12px; border-radius: 4px; cursor: pointer;">${t.btn}</button>
             `;
-            document.body.appendChild(banner);
-            document.getElementById('dewsecure-mining-ignore').addEventListener('click', () => banner.remove());
+            // 🛡️ B-6 修复：防止在 document_start 时 document.body 为空导致崩溃
+            const mountTarget = document.body || document.documentElement;
+            if (mountTarget) mountTarget.appendChild(banner);
+            document.getElementById('dewsecure-mining-ignore')?.addEventListener('click', () => banner.remove());
         }
 
+        let suspiciousWsCount = 0;
         function triggerMiningCheck() {
             if (isMiningDetected) return;
-            // A5 修复：矿池协议/端口权重最高，资源使用只作辅助，且不自动终止
+            // 🛡️ B-6 修复：调整权重，使无矿池端口时也能触发阈值
             let score = 0;
             let reasons = [];
-            if (socketCount > 0) { score += 50; reasons.push('Mining-Pool-Port'); }
-            if (workerCount >= 2) { score += 15; reasons.push('Worker>=2'); }
-            if (wasmCount > 0) { score += 10; reasons.push('WASM'); }
-            if (longTaskCount > 10) { score += 10; reasons.push('LongTask>10'); }
+            if (socketCount > 0) { score += 50; reasons.push('Mining-Port'); }
+            if (suspiciousWsCount > 0) { score += 40; reasons.push('Suspicious-WS-URL'); }
+            if (workerCount >= 2) { score += 30; reasons.push('Worker>=2'); }
+            if (wasmCount > 0) { score += 20; reasons.push('WASM'); }
+            if (longTaskCount > 10) { score += 15; reasons.push('LongTask>10'); }
 
             if (score >= 60) {
                 isMiningDetected = true;
                 console.warn(`[DewSecure] 检测到疑似资源滥用 (得分: ${score})，仅提示不终止。原因: ${reasons.join(', ')}`);
-                showMiningWarning();
+                try { showMiningWarning(); } catch(e) {}
             }
         }
 
@@ -64,10 +68,14 @@
                 window.Worker = new Proxy(NativeWorker, {
                     construct(target, args, newTarget) {
                         const w = Reflect.construct(target, args, newTarget);
-                        workerCount++;
-                        activeWorkers.add(w);
-                        try { w.addEventListener('error', () => activeWorkers.delete(w)); } catch (_) {}
-                        triggerMiningCheck();
+                        try {
+                            workerCount++;
+                            activeWorkers.add(w);
+                            w.addEventListener('error', () => activeWorkers.delete(w));
+                            triggerMiningCheck();
+                        } catch (e) {
+                            // 🛡️ B-6 修复：确保即使检测逻辑报错，也绝不会阻断页面的 Worker 创建
+                        }
                         return w;
                     }
                 });
@@ -82,8 +90,7 @@
                 try {
                     WebAssembly[name] = new Proxy(orig, {
                         apply(target, thisArg, args) {
-                            wasmCount++;
-                            triggerMiningCheck();
+                            try { wasmCount++; triggerMiningCheck(); } catch (e) {}
                             return Reflect.apply(target, thisArg, args);
                         }
                     });
@@ -95,17 +102,29 @@
         if (typeof window.WebSocket === 'function') {
             const NativeWS = window.WebSocket;
             const MINING_PORTS = [3333, 4444, 5555, 7777, 14433, 14444, 45700];
+            // 🛡️ B-6 修复：增加 URL 特征匹配（应对走 443 或代理的矿机）
+            const POOL_REGEX = /(pool|mine|stratum|worker|cryptonight)/i;
+            
             try {
                 window.WebSocket = new Proxy(NativeWS, {
                     construct(target, args, newTarget) {
                         try {
-                            const u = new URL(String(args[0]));
+                            const urlStr = String(args[0]);
+                            const u = new URL(urlStr);
                             const port = u.port ? parseInt(u.port, 10) : (u.protocol === 'wss:' ? 443 : 80);
+                            
                             if (MINING_PORTS.includes(port)) {
                                 socketCount++;
+                            } else if (POOL_REGEX.test(urlStr) || POOL_REGEX.test(u.hostname)) {
+                                suspiciousWsCount++;
+                            }
+                            
+                            if (socketCount > 0 || suspiciousWsCount > 0) {
                                 triggerMiningCheck();
                             }
-                        } catch (_) {}
+                        } catch (_) {
+                            // 🛡️ B-6 修复：捕获所有异常，绝不影响页面正常的 WebSocket 创建
+                        }
                         return Reflect.construct(target, args, newTarget);
                     }
                 });
