@@ -24,6 +24,7 @@ class DewVpnService : VpnService() {
     private var vpnInterface: ParcelFileDescriptor? = null
     private var isRunning = false
     private val executor = Executors.newSingleThreadExecutor()
+    private val packetPool = Executors.newFixedThreadPool(10) // D-3: 包处理线程池
     private var upstreamDns = "223.5.5.5"
     private var networkCallback: ConnectivityManager.NetworkCallback? = null
 
@@ -66,12 +67,21 @@ class DewVpnService : VpnService() {
     }
 
     private fun refreshUpstreamDns(cm: ConnectivityManager) {
-        val linkProperties = cm.getLinkProperties(cm.activeNetwork)
-        val systemDns = linkProperties?.dnsServers?.firstOrNull {
-            it is java.net.Inet4Address && it.hostAddress != "10.0.0.1"
-        }?.hostAddress
+        // D-4 修复：获取非 VPN 的底层网络，防止死循环
+        val networks = cm.allNetworks
+        var systemDns: String? = null
+        for (network in networks) {
+            val caps = cm.getNetworkCapabilities(network)
+            if (caps != null && caps.hasTransport(android.net.NetworkCapabilities.TRANSPORT_VPN)) continue // 跳过 VPN
+            val lp = cm.getLinkProperties(network)
+            val dns = lp?.dnsServers?.firstOrNull { it is java.net.Inet4Address }?.hostAddress
+            if (dns != null && dns != "10.0.0.1") {
+                systemDns = dns
+                break
+            }
+        }
 
-        if (systemDns != null && systemDns != "10.0.0.1") {
+        if (systemDns != null) {
             upstreamDns = systemDns
         } else {
             upstreamDns = if (Locale.getDefault().country.uppercase() == "CN") "223.5.5.5" else "1.1.1.1"
@@ -102,7 +112,11 @@ class DewVpnService : VpnService() {
                 try {
                     val length = inStream.read(packet)
                     if (length <= 0) continue
-                    handlePacket(packet, length, socket, outStream)
+                    // D-3 修复：丢入线程池处理，不阻塞读包
+                    val copyPacket = packet.copyOf(length)
+                    packetPool.execute { 
+                        try { handlePacket(copyPacket, length, outStream) } catch(e: Exception) { Log.w(TAG, "包处理异常", e) }
+                    }
                 } catch (e: Exception) {
                     Log.w(TAG, "单次循环异常", e)
                 }
@@ -125,7 +139,7 @@ class DewVpnService : VpnService() {
         
         // 探针：打印所有经过 VPN 的 DNS 请求
         if (domain != null) {
-            Log.d(TAG, "🔍 抓到 DNS 请求: $domain")
+            if (BuildConfig.DEBUG) Log.d(TAG, "🔍 抓到 DNS 请求: $domain")
         } else {
             // 如果返回 null，可能是解析失败或非 UDP DNS
             return
@@ -133,11 +147,11 @@ class DewVpnService : VpnService() {
 
         val result = EngineBridge.shouldBlock(domain)
         if (result.decision != com.dewsecure.core.BlockDecision.ALLOW) {
-            Log.i(TAG, "🛑 拦截: $domain (${result.reason})")
+            if (BuildConfig.DEBUG) Log.i(TAG, "🛑 拦截: $domain (${result.reason})")
             outStream.write(DnsPacketCodec.buildNxDomainResponse(packet, length))
         } else {
-            Log.d(TAG, "✅ 放行: $domain (原因: ${result.reason})")
-            DnsForwarder.forward(packet, length, socket, outStream, upstreamDns)
+            if (BuildConfig.DEBUG) Log.d(TAG, "✅ 放行: $domain (原因: ${result.reason})")
+            DnsForwarder.forward(packet, length, outStream, upstreamDns, ::protect)
         }
     }
 
@@ -153,6 +167,11 @@ class DewVpnService : VpnService() {
         }
         stopForeground(STOP_FOREGROUND_REMOVE)
         stopSelf()
+    }
+
+    override fun onRevoke() {
+        stopVpn()
+        super.onRevoke()
     }
 
     override fun onDestroy() {
