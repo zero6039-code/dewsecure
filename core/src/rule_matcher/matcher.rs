@@ -154,23 +154,26 @@ fn normalize_pattern(pattern: &str) -> String {
 
 /// 从 URL 提取主机名
 fn extract_host(url: &str) -> Option<String> {
-    // H-7 修复：先剥离协议，再处理 userinfo (user:pass@host)，最后去端口和路径
-    let url_no_scheme = url
-        .strip_prefix("https://")
-        .or_else(|| url.strip_prefix("http://"))
-        .or_else(|| url.strip_prefix("//"))
-        .unwrap_or(url);
-
-    // 分离 userinfo 与 host
-    let host_part = url_no_scheme.split('/').next()?;
-    let host_no_user = host_part.split('@').last()?;
-    let host = host_no_user.split(':').next()?;
-
-    if host.is_empty() {
-        None
+    // 🛡️ C-3 修复：严谨的 authority 截断，防止 ?x=@example.com 欺骗
+    // 只有"合法 scheme + ://"才算协议头
+    let rest = match url.find("://").filter(|&i| url[..i].chars().all(|c| c.is_ascii_alphanumeric() || "+-.".contains(c))) {
+        Some(i) => &url[i + 3..],
+        None => url.strip_prefix("//").unwrap_or(url),
+    };
+    
+    // authority 在第一个 / ? # 或反斜杠处结束
+    let end = rest.find(|c| matches!(c, '/' | '?' | '#' | '\\')).unwrap_or(rest.len());
+    let hostport = rest[..end].rsplit('@').next()?; // userinfo 只取最后一个 @ 之后
+    let host = if let Some(inner) = hostport.strip_prefix('[') {
+        inner.split(']').next()? // IPv6 字面量
     } else {
-        Some(host.trim_end_matches('.').to_lowercase())
-    }
+        match hostport.rsplit_once(':') {
+            Some((h, p)) if !p.is_empty() && p.bytes().all(|b| b.is_ascii_digit()) => h,
+            _ => hostport,
+        }
+    };
+    let host = host.trim_end_matches('.');
+    (!host.is_empty()).then(|| host.to_ascii_lowercase())
 }
 
 /// 检查 host 是否等于域名或为其子域名
@@ -187,8 +190,13 @@ mod tests {
     fn test_extract_host() {
         assert_eq!(extract_host("https://example.com/path"), Some("example.com".to_string()));
         assert_eq!(extract_host("http://sub.example.com:8080/"), Some("sub.example.com".to_string()));
-        // H-7 测试新增：处理 userinfo
         assert_eq!(extract_host("https://user:pass@evil.com/path"), Some("evil.com".to_string()));
+        
+        // 🛡️ C-3 PoC 测试：
+        assert_eq!(extract_host("https://evil.com?x=@example.com/"), Some("evil.com".to_string()));
+        assert_eq!(extract_host("https://evil.com#@example.com"), Some("evil.com".to_string()));
+        assert_eq!(extract_host("http://[::1]:80/"), Some("::1".to_string()));
+        assert_eq!(extract_host("evil.com/?u=http://x.com"), Some("evil.com".to_string()));
     }
 
     #[test]
