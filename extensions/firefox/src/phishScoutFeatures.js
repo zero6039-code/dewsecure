@@ -1,7 +1,5 @@
 // ==========================================
 // 🎣 PhishScout v2 特征提取器 (JS 版)
-// 严格对齐 features.json：67 结构化 + 512 N-gram + 1 短链接 = 580?
-// 等等！官方文档是 579，结构化最后一个是 host_is_shortener，所以直接写 579。
 // ==========================================
 
 const SHORTENERS = new Set([
@@ -32,15 +30,25 @@ function shannonEntropy(str) {
     for (const c in freq) { const p = freq[c] / str.length; entropy -= p * Math.log2(p); }
     return entropy;
 }
-function levenshtein(a, b) {
-    const matrix = Array.from({ length: b.length + 1 }, (_, i) => [i]);
-    for (let j = 0; j <= a.length; j++) matrix[0][j] = j;
+
+// 🚀 P-2 优化：带剪枝的一维 Levenshtein
+function levenshtein(a, b, cap) {
+    // 长度差已经大于等于当前最小距离，直接返回 cap
+    if (Math.abs(a.length - b.length) >= cap) return cap;
+    
+    let prev = Array.from({ length: a.length + 1 }, (_, j) => j);
     for (let i = 1; i <= b.length; i++) {
+        const cur = [i];
+        let rowMin = i;
         for (let j = 1; j <= a.length; j++) {
-            matrix[i][j] = Math.min(matrix[i-1][j-1] + (b[i-1] === a[j-1] ? 0 : 1), matrix[i][j-1] + 1, matrix[i-1][j] + 1);
+            const v = Math.min(prev[j - 1] + (b[i - 1] === a[j - 1] ? 0 : 1), cur[j - 1] + 1, prev[j] + 1);
+            cur[j] = v;
+            if (v < rowMin) rowMin = v;
         }
+        if (rowMin >= cap) return cap; // 提前终止
+        prev = cur;
     }
-    return matrix[b.length][a.length];
+    return Math.min(prev[a.length], cap);
 }
 
 export function extractFeatures(rawUrl) {
@@ -48,7 +56,7 @@ export function extractFeatures(rawUrl) {
     let idx = 0;
     let url;
     try { url = new URL(rawUrl); } catch { url = new URL(`https://${rawUrl}`); }
-    
+
     const host = url.hostname;
     const path = url.pathname;
     const query = url.search;
@@ -59,6 +67,12 @@ export function extractFeatures(rawUrl) {
     const domain = domainParts.length > 1 ? domainParts.slice(-2).join('.') : host;
     const subdomain = domainParts.length > 2 ? domainParts.slice(0, -2).join('.') : '';
     const fullUrl = rawUrl.toLowerCase();
+
+    // 🚀 P-2 优化：关键词命中只算一次
+    let kwHits = 0;
+    for (const k of SUSPICIOUS_KEYWORDS) {
+        if (fullUrl.includes(k)) kwHits++;
+    }
 
     // --- 1. 67 个结构化特征 (索引 0 - 66) ---
     features[idx++] = rawUrl.length;                               // 0
@@ -77,21 +91,29 @@ export function extractFeatures(rawUrl) {
     features[idx++] = ['com', 'org', 'net', 'gov', 'edu'].includes(tld) ? 1 : 0; // 13
     features[idx++] = (query.match(/=/g) || []).length;            // 14
     features[idx++] = path.length;                                 // 15
-    features[idx++] = SUSPICIOUS_KEYWORDS.filter(k => fullUrl.includes(k)).length; // 16
+    features[idx++] = kwHits;                                      // 16 (复用)
     const brandInHost = SUSPICIOUS_KEYWORDS.some(k => host.includes(k)) ? 1 : 0;
     features[idx++] = brandInHost;                                 // 17
     features[idx++] = SUSPICIOUS_KEYWORDS.some(k => path.includes(k)) ? 1 : 0; // 18
-    features[idx++] = SUSPICIOUS_KEYWORDS.filter(k => fullUrl.includes(k)).length; // 19
+    features[idx++] = kwHits;                                      // 19 (复用)
     features[idx++] = host.includes('xn--') ? 1 : 0;               // 20
     features[idx++] = (port && port !== '80' && port !== '443') ? 1 : 0; // 21
     features[idx++] = (rawUrl.match(/%[0-9A-Fa-f]{2}/g) || []).length; // 22
     features[idx++] = /^0x[0-9a-f]+$/i.test(host) ? 1 : 0;         // 23
     features[idx++] = rawUrl.length ? (rawUrl.match(/[A-Z]/g) || []).length / rawUrl.length : 0; // 24
     features[idx++] = (host.match(/www/g) || []).length;           // 25
+    
+    // 🚀 P-2 优化：替代 Math.max(...) 防止爆栈
     const digitRuns = rawUrl.match(/\d+/g) || [];
-    features[idx++] = digitRuns.length ? Math.max(...digitRuns.map(r => r.length)) : 0; // 26
+    let maxRun = 0;
+    for (const r of digitRuns) if (r.length > maxRun) maxRun = r.length;
+    features[idx++] = maxRun;                                      // 26
+    
     const labels = host.split('.');
-    features[idx++] = labels.length ? Math.max(...labels.map(l => l.length)) : 0; // 27
+    let maxLabel = 0;
+    for (const l of labels) if (l.length > maxLabel) maxLabel = l.length;
+    features[idx++] = maxLabel;                                    // 27
+    
     features[idx++] = labels.length;                               // 28
     features[idx++] = rawUrl.includes(domain) && path.includes(domain) ? 1 : 0; // 29
     features[idx++] = query.length;                                // 30
@@ -103,13 +125,16 @@ export function extractFeatures(rawUrl) {
     features[idx++] = 0;                                           // 36
     features[idx++] = (host.match(/[^\x00-\x7F]/g) || []).length;  // 37
     features[idx++] = /[\u0400-\u04FF]/.test(host) ? 1 : 0;        // 38
+    
+    // 🚀 P-2 优化：带剪枝的 Levenshtein
     let minDist = 999;
     for (const b of SUSPICIOUS_KEYWORDS) {
         if (host.includes(b)) { minDist = 0; break; }
-        const d = levenshtein(host, b);
+        const d = levenshtein(host, b, minDist);
         if (d < minDist) minDist = d;
     }
     features[idx++] = minDist;                                     // 39
+    
     features[idx++] = SUSPICIOUS_KEYWORDS.some(k => subdomain.includes(k)) ? 1 : 0; // 40
     features[idx++] = SUSPICIOUS_KEYWORDS.some(k => domain === k + '.' + tld || domain === k) ? 1 : 0; // 41
     features[idx++] = SUSPICIOUS_KEYWORDS.some(k => subdomain.includes(k)) && !SUSPICIOUS_KEYWORDS.some(k => domain === k) ? 1 : 0; // 42
@@ -138,7 +163,7 @@ export function extractFeatures(rawUrl) {
     features[idx++] = (rawUrl.match(/(.)\1/g) || []).length;       // 63
     features[idx++] = /[\u{1F300}-\u{1FAFF}]/u.test(rawUrl) ? 1 : 0; // 64
     features[idx++] = SUSPICIOUS_KEYWORDS.some(k => query.includes(k)) ? 1 : 0; // 65
-    features[idx++] = SHORTENERS.has(domain) ? 1 : 0;              // 66: host_is_shortener
+    features[idx++] = SHORTENERS.has(domain) ? 1 : 0;              // 66
 
     // --- 2. 512 个字符级 N-gram (索引 67 - 578) ---
     const lower = rawUrl.toLowerCase();
@@ -146,11 +171,9 @@ export function extractFeatures(rawUrl) {
         for (let i = 0; i <= lower.length - n; i++) {
             const gram = lower.substring(i, i + n);
             const hash = fnv1a32(gram) % 512;
-            features[67 + hash] = 1; 
+            features[67 + hash] = 1;
         }
     }
 
-    // --- 3. 短链接覆盖? (如果官方要求最后一个是短链接，但 N-gram 刚好占据了 578，那就不再额外覆盖)
-    // 如果 features.json 中 578 是短链接，且 66 也是，那就保留 67-578 给 N-gram。官方定义是 579 维。
     return features;
 }
