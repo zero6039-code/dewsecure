@@ -4,6 +4,7 @@ import { sha512 } from '@noble/hashes/sha512';
 import { sha256 } from '@noble/hashes/sha256';
 import { parse } from 'tldts';
 import { syncRules, RANGE } from './dnrOwner.js';
+import { buildMergedRules } from './adHostRules.js';
 
 ed.etc.sha512Sync = (...m) => sha512(ed.etc.concatBytes(...m));
 const ED25519_PUBLIC_KEY_HEX = 'a21b4c875ab246b58adc225ddf66a054cfa7b79ed2093fcc2f97598fd1197631';
@@ -252,7 +253,6 @@ async function updateThreatFilterBinary(userToken) {
 // ==========================================
 // 🛡️ N-1 修复：情报规则只管理 RANGE.intel 段
 // ==========================================
-const HARD_SAFE = ['github.com', 'githubusercontent.com', 'github.io', 'gitlab.com', 'npmjs.com', 'cloudflare.com', 'microsoft.com', 'apple.com', 'dewsecure.com', 'google.com', 'youtube.com', 'facebook.com', 'dropbox.com', 'dropboxusercontent.com'];
 // 🛡️ B4 修复：redirect 属于不安全规则，硬上限为 5000。
 // 优先读取浏览器原生常量，回退到 4900（留 100 余量给隐私/挖矿等动态规则）。
 const MAX_INTEL_RULES = (chrome.declarativeNetRequest && chrome.declarativeNetRequest.MAX_NUMBER_OF_UNSAFE_DYNAMIC_RULES) || 4900;
@@ -263,7 +263,7 @@ async function applyRulesToDNR() {
     const { dewsecure_settings: settings } = await chrome.storage.local.get('dewsecure_settings');
     const isEnabled = settings?.intelEnabled !== false;
 
-    // 非 Pro 或关闭：只清空 intel 段，绝不动其他模块的规则
+    // 非 Pro 或关闭：只清空 intel 段
     if (!isPro || !isEnabled) {
         await syncRules(RANGE.intel, []);
         return;
@@ -272,29 +272,9 @@ async function applyRulesToDNR() {
     const { [CACHE_KEY]: cache } = await chrome.storage.local.get(CACHE_KEY);
     if (!cache || !cache.rulesData) return;
 
-    const newRules = [];
-    for (const rule of cache.rulesData) {
-        const domain = normalizeHost(rule.condition?.requestDomains?.[0]);
-        if (!domain) continue; 
-        if (HARD_SAFE.some(d => domain === d || domain.endsWith('.' + d))) continue;
-        
-        // 🛡️ B4 修复：触达上限时记录警告，避免静默截断
-        if (newRules.length >= MAX_INTEL_RULES) {
-            console.warn(`⚠️ [ThreatIntel] 动态规则已达安全上限 (${MAX_INTEL_RULES} 条)，部分最新情报被截断。`);
-            break;
-        }
-
-        // 显式重映射 ID 到 RANGE.intel 段（不依赖服务端 id 策略），深拷贝 condition 防止改写缓存
-        newRules.push({
-            id: RANGE.intel[0] + newRules.length,
-            priority: rule.priority ?? 2000000,
-            action: { type: 'redirect', redirect: { extensionPath: `/warning.html?type=intel&domain=${encodeURIComponent(domain)}` } },
-            condition: {
-                ...rule.condition,
-                resourceTypes: ["main_frame", "sub_frame"],
-            },
-        });
-    }
+    // 🛡️ AD-1 修复：使用合批算法，单条规则承载 500 个域名
+    const newRules = buildMergedRules(cache.rulesData, RANGE.intel[0], MAX_INTEL_RULES);
+    
     await syncRules(RANGE.intel, newRules);
 }
 
