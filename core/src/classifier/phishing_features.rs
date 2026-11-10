@@ -74,26 +74,26 @@ pub fn extract_features(raw_url: &str) -> [f32; TOTAL_DIM] {
     feats[1] = raw_url.matches('-').count() as f32;
     feats[2] = raw_url.chars().filter(|c| c.is_ascii_digit()).count() as f32;
     feats[3] = if subdomain.is_empty() { 0.0 } else { subdomain.split('.').count() as f32 };
-    feats[4] = if scheme.is_empty() { 0.0 } else { 1.0 };
+    feats[4] = if scheme.is_empty() { 0.0 } else { 1.0 }; // TODO: F-10 冗余，恒为1
     feats[5] = raw_url.chars().filter(|c| !c.is_ascii_alphanumeric()).count() as f32;
     feats[6] = shannon_entropy(raw_url);
     feats[7] = path.split('/').filter(|s| !s.is_empty()).count() as f32;
     feats[8] = len_chars(host);
     feats[9] = if is_ipv4_host(host) { 1.0 } else { 0.0 };
-    feats[10] = if raw_url.contains('@') { 1.0 } else { 0.0 };
+    feats[10] = if raw_url.contains('@') { 1.0 } else { 0.0 }; // TODO: F-10 与 #58 重复
     {
         let tail: String = raw_url.chars().skip(8).collect();
         feats[11] = if tail.contains("//") { 1.0 } else { 0.0 };
     }
     feats[12] = len_chars(&tld);
     feats[13] = if matches!(tld.as_str(), "com" | "org" | "net" | "gov" | "edu") { 1.0 } else { 0.0 };
-    feats[14] = query.matches('=').count() as f32;
+    feats[14] = query.matches('=').count() as f32; // TODO: F-10 与 #31 重复
     feats[15] = len_chars(&path);
     let kw_count = SUSPICIOUS_KEYWORDS.iter().filter(|k| full_url.contains(*k)).count() as f32;
-    feats[16] = kw_count;
+    feats[16] = kw_count; // TODO: F-10 与 #19 重复
     feats[17] = if SUSPICIOUS_KEYWORDS.iter().any(|k| host.contains(k)) { 1.0 } else { 0.0 };
     feats[18] = if SUSPICIOUS_KEYWORDS.iter().any(|k| path.contains(k)) { 1.0 } else { 0.0 };
-    feats[19] = kw_count;
+    feats[19] = kw_count; // TODO: F-10 与 #16 重复
     feats[20] = if host.contains("xn--") { 1.0 } else { 0.0 };
     feats[21] = match port { Some(p) if p != 80 && p != 443 => 1.0, _ => 0.0 };
     feats[22] = count_percent_encoding(raw_url) as f32;
@@ -113,7 +113,7 @@ pub fn extract_features(raw_url: &str) -> [f32; TOTAL_DIM] {
         feats[29] = if path.to_lowercase().contains(&d_lower) { 1.0 } else { 0.0 };
     }
     feats[30] = len_chars(&query);
-    feats[31] = query.matches('=').count() as f32;
+    feats[31] = query.matches('=').count() as f32; // TODO: F-10 与 #14 重复
     feats[32] = if path_has_dangerous_ext(&path) { 1.0 } else { 0.0 };
     feats[33] = if distinct_suffix_count(host) > 1 { 1.0 } else { 0.0 };
     feats[34] = count_repeated_nonalnum(raw_url) as f32;
@@ -168,7 +168,7 @@ pub fn extract_features(raw_url: &str) -> [f32; TOTAL_DIM] {
         feats[56] = if !s.is_empty() && s.chars().all(|c| c.is_ascii_digit()) { 1.0 } else { 0.0 };
     }
     feats[57] = if !matches!(scheme.as_str(), "http" | "https") { 1.0 } else { 0.0 };
-    feats[58] = if raw_url.contains('@') { 1.0 } else { 0.0 };
+    feats[58] = if raw_url.contains('@') { 1.0 } else { 0.0 }; // TODO: F-10 与 #10 重复
     feats[59] = if OPEN_REDIRECT_PARAMS.iter().any(|p| full_url.contains(p)) { 1.0 } else { 0.0 };
     feats[60] = if path_has_encoded_url(&path) { 1.0 } else { 0.0 };
     feats[61] = if FREE_HOSTS.contains(&domain.as_str()) { 1.0 } else { 0.0 };

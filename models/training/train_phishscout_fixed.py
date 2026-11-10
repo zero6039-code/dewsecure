@@ -70,22 +70,22 @@ def extract_features(raw_url):
     feats[idx] = raw_url.count('-'); idx += 1
     feats[idx] = sum(c.isdigit() for c in raw_url); idx += 1
     feats[idx] = len(subdomain.split('.')) if subdomain else 0; idx += 1
-    feats[idx] = 1 if proto else 0; idx += 1
+    feats[idx] = 1 if proto else 0; idx += 1 # 4 (TODO: F-10 冗余，恒为1)
     feats[idx] = len(re.findall(r'[^a-zA-Z0-9]', raw_url)); idx += 1
     feats[idx] = shannon_entropy(raw_url); idx += 1
     feats[idx] = len([p for p in path.split('/') if p]); idx += 1
     feats[idx] = len(host); idx += 1
     feats[idx] = 1 if re.match(r'^\d{1,3}(\.\d{1,3}){3}$', host) else 0; idx += 1
-    feats[idx] = 1 if '@' in raw_url else 0; idx += 1
+    feats[idx] = 1 if '@' in raw_url else 0; idx += 1 # 10 (TODO: F-10 与 #58 重复)
     feats[idx] = 1 if '//' in raw_url[8:] else 0; idx += 1
     feats[idx] = len(tld); idx += 1
     feats[idx] = 1 if tld in ['com', 'org', 'net', 'gov', 'edu'] else 0; idx += 1
-    feats[idx] = query.count('='); idx += 1
+    feats[idx] = query.count('='); idx += 1 # 14 (TODO: F-10 与 #31 重复)
     feats[idx] = len(path); idx += 1
-    feats[idx] = sum(1 for k in SUSPICIOUS_KEYWORDS if k in full_url); idx += 1
+    feats[idx] = sum(1 for k in SUSPICIOUS_KEYWORDS if k in full_url); idx += 1 # 16 (TODO: F-10 与 #19 重复)
     feats[idx] = 1 if any(k in host for k in SUSPICIOUS_KEYWORDS) else 0; idx += 1
     feats[idx] = 1 if any(k in path for k in SUSPICIOUS_KEYWORDS) else 0; idx += 1
-    feats[idx] = sum(1 for k in SUSPICIOUS_KEYWORDS if k in full_url); idx += 1
+    feats[idx] = sum(1 for k in SUSPICIOUS_KEYWORDS if k in full_url); idx += 1 # 19 (TODO: F-10 与 #16 重复)
     feats[idx] = 1 if 'xn--' in host else 0; idx += 1
     feats[idx] = 1 if (port and port not in ['80', '443']) else 0; idx += 1
     feats[idx] = len(re.findall(r'%[0-9A-Fa-f]{2}', raw_url)); idx += 1
@@ -99,12 +99,12 @@ def extract_features(raw_url):
     feats[idx] = len(labels); idx += 1
     feats[idx] = 1 if domain in path else 0; idx += 1
     feats[idx] = len(query); idx += 1
-    feats[idx] = query.count('='); idx += 1
+    feats[idx] = query.count('='); idx += 1 # 31 (TODO: F-10 与 #14 重复)
     feats[idx] = 1 if re.search(r'\.(php|asp|aspx|jsp|cgi|exe|scr|bat|cmd|msi|vbs|js)$', path, re.I) else 0; idx += 1
     feats[idx] = 1 if len(set(re.findall(r'\.[a-z]{2,}', host))) > 1 else 0; idx += 1
     feats[idx] = len(re.findall(r'([^a-zA-Z0-9])\1', raw_url)); idx += 1
-    feats[idx] = 0; idx += 1 # homoglyph_count
-    feats[idx] = 0; idx += 1 # has_homoglyph
+    feats[idx] = 0; idx += 1 # 35 (TODO: F-10 恒为0，重训时替换) homoglyph_count
+    feats[idx] = 0; idx += 1 # 36 (TODO: F-10 恒为0，重训时替换) has_homoglyph
     feats[idx] = sum(ord(c) > 127 for c in host); idx += 1
     feats[idx] = 1 if re.search(r'[\u0400-\u04FF]', host) else 0; idx += 1
     min_dist = 999
@@ -132,7 +132,7 @@ def extract_features(raw_url):
     feats[idx] = 1 if host.isdigit() else 0; idx += 1
     feats[idx] = 1 if re.match(r'^\d+$', host.replace('.', '')) else 0; idx += 1
     feats[idx] = 1 if proto not in ['http', 'https'] else 0; idx += 1
-    feats[idx] = 1 if '@' in raw_url else 0; idx += 1
+    feats[idx] = 1 if '@' in raw_url else 0; idx += 1 # 58 (TODO: F-10 与 #10 重复)
     feats[idx] = 1 if any(p in full_url for p in OPEN_REDIRECT_PARAMS) else 0; idx += 1
     feats[idx] = 1 if re.search(r'(https?%3A%2F%2F)', path, re.I) else 0; idx += 1
     feats[idx] = 1 if domain in FREE_HOSTS else 0; idx += 1
