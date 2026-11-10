@@ -103,6 +103,8 @@
         const _anchorClick = HTMLAnchorElement.prototype.click;
         const _formSubmit = HTMLFormElement.prototype.submit;
 
+                
+
         // 0. 拦截系统通知请求
         const NOTIFICATION_ALLOW_HOSTS = ['mail.google.com', 'calendar.google.com', 'outlook.live.com', 'outlook.office.com', 'web.whatsapp.com', 'web.telegram.org'];
         try {
@@ -127,12 +129,30 @@
         } catch(e) {}
 
         // 1. window.open (修复双倍弹窗与不可配置问题)
+        
+        // 🛡️ AD-3 修复：全局用户交互追踪器
+        // 由于 userActivation 在控制台极易误判，我们改用真实的 mousedown/keydown 事件来标记
+        window.__dewsecureHasInteracted = false;
+        const markInteraction = () => { window.__dewsecureHasInteracted = true; };
+        window.addEventListener('mousedown', markInteraction, { capture: true, once: true });
+        window.addEventListener('keydown', markInteraction, { capture: true, once: true });
+        window.addEventListener('touchstart', markInteraction, { capture: true, once: true });
+
+
         try {
             const _windowOpen = window.open;
             const nativeOpenStr = _windowOpen.toString();
             const isSkidrow = window.location.hostname.includes('skidrowreloaded.com');
 
             const hookedOpen = function(url, target, features) {
+                    // 🛡️ AD-3 修复：无手势弹窗拦截 (Popunder)
+                    // 使用全局 hasUserInteracted 标记，而不是仅依赖 userActivation（控制台执行容易被误判为 true）
+                    if (!isPaused() && window.__dewsecureHasInteracted === false) {
+                        console.warn('[DewSecure] 拦截无手势自动弹窗 (Popunder):', url);
+                        if (port) port.postMessage({ type: 'DEWSECURE_STAT_INCREMENT' });
+                        else window.postMessage({ type: 'DEWSECURE_STAT_INCREMENT' }, '*');
+                        return null;
+                    }
                     if (!isPaused() && isSkidrow) {
                         if (url && !String(url).startsWith(location.origin) && !String(url).includes('skidrowreloaded.com')) {
                             console.warn('[DewSecure] 彻底封锁 Skidrow 跨域弹窗:', url);
@@ -223,6 +243,16 @@
         // 7. 点击拦截捕获
         const interceptClick = (e) => {
             if (isPaused()) return;
+            // 🛡️ AD-3 修复：拦截非真实用户点击触发的隐形锁点跳转
+            if (e.isTrusted === false) {
+                let t = e.target;
+                while (t && t.tagName !== 'A') t = t.parentElement;
+                if (t && t.href && !t.href.startsWith(location.origin)) {
+                    console.warn('[DewSecure] 拦截非信任点击 (隐形锁点):', t.href);
+                    e.preventDefault(); e.stopImmediatePropagation();
+                    return;
+                }
+            }
             let target = e.target;
             while (target && target.tagName !== 'A' && target.tagName !== 'FORM') target = target.parentElement;
 
