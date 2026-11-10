@@ -7,11 +7,15 @@ use std::collections::{HashMap, HashSet};
 pub struct RuleMatcher {
     /// 通用规则（使用 Aho-Corasick 加速）
     generic_ac: Option<AhoCorasick>,
-    /// 动态追加的通用规则（避免每次 add_rule 都重建整个 AC）
+    /// 构建 AC 自动机时对应的源模式串
+    generic_patterns: Vec<String>,
+    /// 动态追加的通用规则（批次重建前暂存于此）
     dynamic_patterns: Vec<String>,
-    /// 域名限定规则
+    /// 纯域名拦截 HashSet（O(1) 查找）
+    blocked_hosts: HashSet<String>,
+    /// 包含路径或参数限制的域名规则
     domain_rules: HashMap<String, Vec<FilterRule>>,
-    /// 例外域名（H-7 修复：仅存纯域名）
+    /// 例外域名
     exception_hosts: HashSet<String>,
     /// 所有规则
     all_rules: Vec<FilterRule>,
@@ -21,6 +25,7 @@ impl RuleMatcher {
     pub fn new(rules: Vec<FilterRule>) -> Self {
         let mut generic_patterns = Vec::new();
         let mut domain_rules: HashMap<String, Vec<FilterRule>> = HashMap::new();
+        let mut blocked_hosts = HashSet::new();
         let mut exception_hosts = HashSet::new();
 
         for rule in &rules {
@@ -42,17 +47,16 @@ impl RuleMatcher {
                         .push(rule.clone());
                 }
             } else if pat.starts_with("||") && pat.ends_with("^") && !pat.contains('/') && !pat.contains('*') {
-                // 🛡️ C-4 修复：纯域名锚点如 ||ads.com^，提取域名精确匹配，防止误杀 roads.com
+                // 🛡️ P-7 优化：纯域名锚点直接扔进 HashSet，实现 O(1) 查找
                 let domain = pat.trim_start_matches("||").trim_end_matches('^').trim_end_matches('|').to_string();
                 if !domain.is_empty() {
-                    domain_rules.entry(domain).or_default().push(rule.clone());
+                    blocked_hosts.insert(domain);
                 }
             } else {
                 generic_patterns.push(normalize_pattern(&pat));
             }
         }
 
-        // 🛡️ C-5 修复：拒绝 Fail-Open，如果自动机构建失败，直接 panic（交由 UniFFI catch_unwind 捕获）
         let generic_ac = if generic_patterns.is_empty() {
             None
         } else {
@@ -66,7 +70,9 @@ impl RuleMatcher {
 
         Self {
             generic_ac,
+            generic_patterns,
             dynamic_patterns: Vec::new(),
+            blocked_hosts,
             domain_rules,
             exception_hosts,
             all_rules: rules,
@@ -81,38 +87,43 @@ impl RuleMatcher {
                 return true;
             }
         }
-        
-        // 2. 检查动态添加的通用规则
+
+        // 2. 检查动态添加的通用规则 (未满一阈值前走线性)
         for pat in &self.dynamic_patterns {
             if url.contains(pat) {
                 return true;
             }
         }
 
-        // 3. 🛡️ C-5 修复：O(域名层数) 快速后缀匹配，不再 O(N) 遍历整个 HashMap
+        // 3. 快速后缀匹配（零内存分配）
         if let Some(host) = extract_host(url) {
-            let mut current = String::new();
-            // 从后往前拼接域名，如 sub.ads.com -> 依次检查 com, ads.com, sub.ads.com
-            let parts: Vec<&str> = host.split('.').collect();
-            for i in (0..parts.len()).rev() {
-                if i == parts.len() - 1 {
-                    current = parts[i].to_string();
-                } else {
-                    current = format!("{}.{}", parts[i], current);
-                }
-                
-                if let Some(rules) = self.domain_rules.get(&current) {
-                    for rule in rules {
-                        let pat = normalize_pattern(&rule.pattern);
-                        // 如果是纯域名锚点，直接命中
-                        if pat.starts_with("||") && pat.ends_with("^") && !pat.contains('/') && !pat.contains('*') {
-                            return true;
+            // 3.1 先查纯域名 HashSet
+            if self.blocked_hosts.contains(&host) {
+                return true;
+            }
+
+            // 3.2 按标签从右向左走后缀
+            let mut start_idx = 0;
+            let len = host.len();
+            for (i, c) in host.char_indices() {
+                if c == '.' || i == len - 1 {
+                    // 截取当前后缀并检查是否在 blocked_hosts 中
+                    let suffix = &host[start_idx..];
+                    if self.blocked_hosts.contains(suffix) {
+                        return true;
+                    }
+                    // 检查 domain_rules (带路径)
+                    if let Some(rules) = self.domain_rules.get(suffix) {
+                        for rule in rules {
+                            let pat = normalize_pattern(&rule.pattern);
+                            let clean_pat = pat.trim_start_matches("||").trim_end_matches('^').trim_end_matches('|');
+                            if clean_pat.is_empty() || url.contains(clean_pat) {
+                                return true;
+                            }
                         }
-                        // 如果是路径匹配
-                        let clean_pat = pat.trim_start_matches("||").trim_end_matches('^').trim_end_matches('|');
-                        if clean_pat.is_empty() || url.contains(clean_pat) {
-                            return true;
-                        }
+                    }
+                    if c == '.' {
+                        start_idx = i + 1;
                     }
                 }
             }
@@ -123,7 +134,6 @@ impl RuleMatcher {
     /// 判断 URL 是否匹配例外规则
     pub fn is_exception(&self, url: &str) -> bool {
         if let Some(host) = extract_host(url) {
-            // C-4 修复说明保留，未来可升级为存储 FilterRule 对象
             return self.exception_hosts.iter().any(|d| host_matches(&host, d));
         }
         false
@@ -148,11 +158,24 @@ impl RuleMatcher {
         } else if pat.starts_with("||") && pat.ends_with("^") && !pat.contains('/') && !pat.contains('*') {
             let domain = pat.trim_start_matches("||").trim_end_matches('^').trim_end_matches('|').to_string();
             if !domain.is_empty() {
-                self.domain_rules.entry(domain).or_default().push(rule.clone());
+                self.blocked_hosts.insert(domain);
             }
         } else {
-            // 🛡️ C-5 修复：动态规则不再触发全量重建 O(N²)，直接存入动态列表，在 matches 中线性检查
-            self.dynamic_patterns.push(pat);
+            // 🛡️ P-7 修复：动态规则积攒到一定阈值后，批量重建 Aho-Corasick
+            self.dynamic_patterns.push(pat.clone());
+            self.generic_patterns.push(pat);
+
+            const REBUILD_THRESHOLD: usize = 50;
+            if self.dynamic_patterns.len() >= REBUILD_THRESHOLD {
+                // 重建 AC 自动机（一次性构建）
+                self.generic_ac = Some(
+                    AhoCorasick::builder()
+                        .ascii_case_insensitive(true)
+                        .build(&self.generic_patterns)
+                        .expect("FATAL: 动态规则自动机重建失败")
+                );
+                self.dynamic_patterns.clear();
+            }
         }
         self.all_rules.push(rule);
     }
@@ -234,20 +257,25 @@ mod tests {
     }
 
     #[test]
-    fn test_c5_dynamic_add_rule_no_rebuild() {
-        // 测试动态追加通用规则不会引发全量重建，且能正常生效
+    fn test_p7_dynamic_rebuild() {
         let mut matcher = RuleMatcher::new(vec![]);
         
-        // 添加一条动态通用规则
-        matcher.add_rule(FilterRule {
-            pattern: "malicious-tracker-xyz.com/track".to_string(),
-            is_exception: false,
-            resource_types: vec![],
-            domains: vec![],
-            third_party: None,
-        });
+        // 添加 60 条动态通用规则，触发自动机重建
+        for i in 0..60 {
+            matcher.add_rule(FilterRule {
+                pattern: format!("malicious-tracker-{}.com/track", i),
+                is_exception: false,
+                resource_types: vec![],
+                domains: vec![],
+                third_party: None,
+            });
+        }
 
-        assert!(matcher.matches("https://malicious-tracker-xyz.com/track?id=1"));
+        // 第 50 条时已经合并进了 Aho-Corasick
+        assert!(matcher.dynamic_patterns.len() < 50, "动态规则数量应低于阈值");
+        
+        // 匹配应能命中重建后的 AC
+        assert!(matcher.matches("https://malicious-tracker-5.com/track?id=1"));
         assert!(!matcher.matches("https://safe.com/"));
     }
 }
