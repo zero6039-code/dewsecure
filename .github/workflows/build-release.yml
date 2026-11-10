@@ -56,6 +56,12 @@ jobs:
           node -e "const fs=require('fs'); let m=JSON.parse(fs.readFileSync('/tmp/edge_temp/manifest.json', 'utf8')); delete m.key; fs.writeFileSync('/tmp/edge_temp/manifest.json', JSON.stringify(m, null, 2));"
           cd /tmp/edge_temp && zip -r $GITHUB_WORKSPACE/releases/chrome/edge-v${{ env.VERSION }}.zip ./* && cd -
 
+          # 4. 🌟 新增：Whale 专用包（解压 -> 删 key -> 删 identity -> 重新打包）
+          mkdir -p /tmp/whale_temp
+          unzip releases/chrome/chrome-v${{ env.VERSION }}.zip -d /tmp/whale_temp
+          node -e "const fs=require('fs'); let m=JSON.parse(fs.readFileSync('/tmp/whale_temp/manifest.json', 'utf8')); delete m.key; m.permissions=m.permissions.filter(p=>p!=='identity'); fs.writeFileSync('/tmp/whale_temp/manifest.json', JSON.stringify(m, null, 2));"
+          cd /tmp/whale_temp && zip -r $GITHUB_WORKSPACE/releases/chrome/whale-v${{ env.VERSION }}.zip ./* && cd -
+
       - name: Generate SHA256SUMS
         run: |
           cd releases
@@ -74,6 +80,7 @@ jobs:
           files: |
             releases/chrome/chrome-v${{ env.VERSION }}.zip
             releases/chrome/edge-v${{ env.VERSION }}.zip
+            releases/chrome/whale-v${{ env.VERSION }}.zip
             releases/firefox/dewsecure-firefox-v${{ env.VERSION }}.zip
             releases/opera/opera-v${{ env.VERSION }}.zip
             releases/source/chrome-source-v${{ env.VERSION }}.zip

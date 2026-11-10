@@ -78,3 +78,6 @@ target/
 threat-filter.bin
 threat-filter.meta.json
 venv/
+extensions/chrome/dist-whale/
+extensions/opera/dist-opera/
+releases/
