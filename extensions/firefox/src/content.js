@@ -321,7 +321,11 @@
 
                 setTimeout(() => {
                     // 🚀 性能优化：废弃 DOM 正则遍历，改用声明式 CSS 注入
-                    if (settings.hideCookieNotices !== false || settings.hideAdPlaceholders !== false) {
+                    // 🛡️ AD-6: 增加金融站点豁免，防止误伤关键 UI
+                    const FINANCE = ['bank', 'paypal', 'chase', 'visa', 'mastercard', 'stripe', 'alipay', 'binance', 'coinbase'];
+                    const isFinance = FINANCE.some(k => host.includes(k));
+
+                    if ((settings.hideCookieNotices !== false || settings.hideAdPlaceholders !== false) && !isFinance) {
                         const link = document.createElement('link');
                         link.rel = 'stylesheet';
                         link.href = chrome.runtime.getURL('src/content.css');
