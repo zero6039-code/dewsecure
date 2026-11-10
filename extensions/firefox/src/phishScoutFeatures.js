@@ -98,23 +98,23 @@ export function extractFeatures(rawUrl) {
     features[idx++] = (rawUrl.match(/-/g) || []).length;           // 1
     features[idx++] = (rawUrl.match(/\d/g) || []).length;          // 2
     features[idx++] = subdomain ? subdomain.split('.').length : 0; // 3
-    features[idx++] = proto ? 1 : 0;                               // 4
+    features[idx++] = proto ? 1 : 0;                               // 4 (TODO: F-10 冗余，恒为1)
     features[idx++] = (rawUrl.match(/[^a-zA-Z0-9]/g) || []).length; // 5
     features[idx++] = shannonEntropy(rawUrl);                      // 6
     features[idx++] = path.split('/').filter(Boolean).length;      // 7
     features[idx++] = host.length;                                 // 8
     features[idx++] = /^\d{1,3}(\.\d{1,3}){3}$/.test(host) ? 1 : 0; // 9
-    features[idx++] = rawUrl.includes('@') ? 1 : 0;                // 10
+    features[idx++] = rawUrl.includes('@') ? 1 : 0;                // 10 (TODO: F-10 与 #58 重复)
     features[idx++] = rawUrl.includes('//') && rawUrl.indexOf('//') !== rawUrl.indexOf('://') + 1 ? 1 : 0; // 11
     features[idx++] = tld.length;                                  // 12
     features[idx++] = ['com', 'org', 'net', 'gov', 'edu'].includes(tld) ? 1 : 0; // 13
-    features[idx++] = (query.match(/=/g) || []).length;            // 14
+    features[idx++] = (query.match(/=/g) || []).length;            // 14 (TODO: F-10 与 #31 重复)
     features[idx++] = path.length;                                 // 15
-    features[idx++] = kwHits;                                      // 16 (复用)
+    features[idx++] = kwHits;                                      // 16 (TODO: F-10 与 #19 重复)
     const brandInHost = SUSPICIOUS_KEYWORDS.some(k => host.includes(k)) ? 1 : 0;
     features[idx++] = brandInHost;                                 // 17
     features[idx++] = SUSPICIOUS_KEYWORDS.some(k => path.includes(k)) ? 1 : 0; // 18
-    features[idx++] = kwHits;                                      // 19 (复用)
+    features[idx++] = kwHits;                                      // 19 (TODO: F-10 与 #16 重复)
     features[idx++] = host.includes('xn--') ? 1 : 0;               // 20
     features[idx++] = (port && port !== '80' && port !== '443') ? 1 : 0; // 21
     features[idx++] = (rawUrl.match(/%[0-9A-Fa-f]{2}/g) || []).length; // 22
@@ -136,12 +136,12 @@ export function extractFeatures(rawUrl) {
     features[idx++] = labels.length;                               // 28
     features[idx++] = rawUrl.includes(domain) && path.includes(domain) ? 1 : 0; // 29
     features[idx++] = query.length;                                // 30
-    features[idx++] = (query.match(/=/g) || []).length;            // 31
+    features[idx++] = (query.match(/=/g) || []).length;            // 31 (TODO: F-10 与 #14 重复)
     features[idx++] = /\.(php|asp|aspx|jsp|cgi|exe|scr|bat|cmd|msi|vbs|js)$/i.test(path) ? 1 : 0; // 32
     features[idx++] = (new Set(host.toLowerCase().match(/\.[a-z]{2,}/g) || []).size > 1) ? 1 : 0; // 33
     features[idx++] = (rawUrl.match(/([^a-zA-Z0-9])\1/g) || []).length; // 34
-    features[idx++] = 0;                                           // 35
-    features[idx++] = 0;                                           // 36
+    features[idx++] = 0;                                           // 35 (TODO: F-10 恒为0，重训时替换)
+    features[idx++] = 0;                                           // 36 (TODO: F-10 恒为0，重训时替换)
     features[idx++] = (host.match(/[^\x00-\x7F]/g) || []).length;  // 37
     features[idx++] = /[\u0400-\u04FF]/.test(host) ? 1 : 0;        // 38
     
@@ -174,7 +174,7 @@ export function extractFeatures(rawUrl) {
     features[idx++] = /^\d+$/.test(host) ? 1 : 0;                  // 55
     features[idx++] = /^\d+$/.test(host.replace(/\./g, '')) ? 1 : 0; // 56
     features[idx++] = proto && proto !== 'http:' && proto !== 'https:' ? 1 : 0; // 57
-    features[idx++] = rawUrl.includes('@') ? 1 : 0;                // 58
+    features[idx++] = rawUrl.includes('@') ? 1 : 0;                // 58 (TODO: F-10 与 #10 重复)
     features[idx++] = OPEN_REDIRECT_PARAMS.some(p => fullUrl.includes(p)) ? 1 : 0; // 59
     features[idx++] = /(https?%3A%2F%2F)/i.test(path) ? 1 : 0;     // 60
     features[idx++] = FREE_HOSTS.has(domain) ? 1 : 0;              // 61

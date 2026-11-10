@@ -85,8 +85,8 @@ jobs:
   publish:
     needs: train
     runs-on: ubuntu-latest
-    # 🔒 全自动发布，依靠 gate.py 做自动化门禁拦截（若失败，流水线标红并发送通知）
-    # environment: production 
+    # 🔒 AU-3 修复：加入 environment 强制人工审批，防止密钥泄露导致恶意发布
+    environment: production 
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
       
