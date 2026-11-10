@@ -279,6 +279,42 @@ async function applyRulesToDNR() {
 }
 
 // ==========================================
+// 🛡️ AD-5: Scriptlet 签名化注入骨架
+// ==========================================
+const ALLOWED_SCRIPTLETS = new Set(['noop-fn']);
+
+async function syncScriptlets(verifiedBundle) {
+    if (!verifiedBundle || !Array.isArray(verifiedBundle.scriptlets)) return;
+
+    const scripts = [];
+    for (let i = 0; i < verifiedBundle.scriptlets.length; i++) {
+        const s = verifiedBundle.scriptlets[i];
+        if (!s.use || !ALLOWED_SCRIPTLETS.has(s.use)) continue;
+        if (!Array.isArray(s.match) || !s.match.every(m => /^\*:\/\/[\w*.-]+\/\*$/.test(m))) continue;
+
+        scripts.push({
+            id: `dew-sl-${s.use}-${i}`,
+            matches: s.match,
+            js: [`src/scriptlets/${s.use}.js`],
+            world: 'MAIN',
+            runAt: 'document_start',
+            persistAcrossSessions: true
+        });
+    }
+
+    try {
+        const old = await chrome.scripting.getRegisteredContentScripts();
+        const oldIds = old.filter(o => o.id.startsWith('dew-sl-')).map(o => o.id);
+        if (oldIds.length) await chrome.scripting.unregisterContentScripts({ ids: oldIds });
+        if (scripts.length) await chrome.scripting.registerContentScripts(scripts);
+        console.log(`🛡️ [AD-5] 已注册 ${scripts.length} 个 scriptlet`);
+    } catch (e) {
+        console.warn('⚠️ [AD-5] scriptlet 注册失败:', e);
+    }
+}
+
+
+// ==========================================
 // 主入口
 // ==========================================
 export async function updateThreatIntel() {
