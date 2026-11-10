@@ -157,5 +157,6 @@
   "warn_btn_bypassing": "Contournement...",
   "warn_alert_bypass_fail": "Échec du contournement, veuillez réessayer !",
   "warn_title_affiliate": "Lien promotionnel malveillant bloqué",
-  "warn_desc_affiliate": "DewSecure a bloqué cette URL car elle contient des paramètres de suivi ou d'affiliation agressifs."
+  "warn_desc_affiliate": "DewSecure a bloqué cette URL car elle contient des paramètres de suivi ou d'affiliation agressifs.",
+  "auth_google_loading": "Chargement..."
 }

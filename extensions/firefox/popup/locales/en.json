@@ -157,5 +157,6 @@
   "warn_btn_bypassing": "Bypassing...",
   "warn_alert_bypass_fail": "Failed to bypass, please try again!",
   "warn_title_affiliate": "Malicious Promo Link Blocked",
-  "warn_desc_affiliate": "DewSecure blocked this URL because it contains aggressive tracking or affiliate parameters."
+  "warn_desc_affiliate": "DewSecure blocked this URL because it contains aggressive tracking or affiliate parameters.",
+  "auth_google_loading": "Loading..."
 }

@@ -12,7 +12,8 @@
     "webNavigation",
     "downloads",
     "notifications",
-    "scripting"
+    "scripting",
+    "identity"
   ],
   "host_permissions": [
     "<all_urls>"

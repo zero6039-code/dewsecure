@@ -4,6 +4,8 @@
 
 // 1. 绝对放行（电商、大厂、CDN）
 export const HARD_SAFE_DOMAINS = [
+    'dewsecure.com',
+    'api.dewsecure.com',
     'ziffstatic.com', 'cdnst.net', 'speedtest.net', 'ookla.com',
     'github.com', 'cloudflare.com', 'apple.com', 'microsoft.com', 'google.com', 'gstatic.com',
     'googleapis.com', 'forbes.com', 'forbesimg.com', 'cloudflareinsights.com', 'cnn.io',
