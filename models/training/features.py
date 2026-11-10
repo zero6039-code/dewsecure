@@ -1,3 +1,13 @@
+"""
+⚠️⚠️⚠️ 严重警告 (WARNING) ⚠️⚠️⚠️
+本文件是【广告拦截模型 (T1)】的特征提取器，向量维度为 16418 维。
+如果你正在寻找【钓鱼检测模型 (PhishScout)】的 579 维特征提取器，请去：
+- Python 端: `models/training/train_phishscout_fixed.py`
+- JS 端: `extensions/chrome/src/phishScoutFeatures.js`
+- Rust 端: `core/src/classifier/phishing_features.rs`
+请勿混用，否则会导致严重的 Feature Skew（特征偏移）！
+"""
+
 """特征提取（与 Rust 端保持一致）。"""
 
 import math

@@ -11,3 +11,5 @@ pub use model::{Classifier, Prediction};
 pub mod features_adblock;
 pub mod psl;
 pub mod phishing_features;
+pub mod phishing_utils;
+pub mod phishing_url;

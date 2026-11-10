@@ -1,3 +1,5 @@
+import { getDomain, getPublicSuffix } from 'tldts';
+
 // ==========================================
 // 🎣 PhishScout v2 特征提取器 (JS 版)
 // ==========================================
@@ -58,14 +60,31 @@ export function extractFeatures(rawUrl) {
     try { url = new URL(rawUrl); } catch { url = new URL(`https://${rawUrl}`); }
 
     const host = url.hostname;
-    const path = url.pathname;
+    let path = url.pathname;
+    // 🚀 F-5 修复：完全对齐 Python urlparse 的 path 提取
+    // 如果解析后是根路径 '/'，需要检查原始 URL 中域名后是否真的带有斜杠
+    if (url.pathname === '/') {
+        const schemeEnd = rawUrl.indexOf('://');
+        if (schemeEnd !== -1) {
+            const afterScheme = rawUrl.slice(schemeEnd + 3);
+            const hostEnd = afterScheme.search(/[/?#]/);
+            if (hostEnd === -1 || afterScheme[hostEnd] !== '/') {
+                path = ''; // 域名后直接结束或跟参数，无真实斜杠
+            }
+        } else {
+            const hostEnd = rawUrl.search(/[/?#]/);
+            if (hostEnd === -1 || rawUrl[hostEnd] !== '/') {
+                path = '';
+            }
+        }
+    }
     const query = url.search;
     const proto = url.protocol;
     const port = url.port;
-    const tld = host.split('.').pop() || '';
-    const domainParts = host.split('.');
-    const domain = domainParts.length > 1 ? domainParts.slice(-2).join('.') : host;
-    const subdomain = domainParts.length > 2 ? domainParts.slice(0, -2).join('.') : '';
+    // 🚀 F-5 修复：使用 tldts 精准解析，彻底对齐 Python 端的 tldextract
+    const domain = getDomain(host, { allowPrivateDomains: true }) || '';
+    const tld = getPublicSuffix(host, { allowPrivateDomains: true }) || '';
+    const subdomain = domain !== host && host.endsWith('.' + domain) ? host.slice(0, -(domain.length + 1)) : '';
     const fullUrl = rawUrl.toLowerCase();
 
     // 🚀 P-2 优化：关键词命中只算一次
@@ -119,7 +138,7 @@ export function extractFeatures(rawUrl) {
     features[idx++] = query.length;                                // 30
     features[idx++] = (query.match(/=/g) || []).length;            // 31
     features[idx++] = /\.(php|asp|aspx|jsp|cgi|exe|scr|bat|cmd|msi|vbs|js)$/i.test(path) ? 1 : 0; // 32
-    features[idx++] = (host.split('.').length > 3) ? 1 : 0;        // 33
+    features[idx++] = (new Set(host.toLowerCase().match(/\.[a-z]{2,}/g) || []).size > 1) ? 1 : 0; // 33
     features[idx++] = (rawUrl.match(/([^a-zA-Z0-9])\1/g) || []).length; // 34
     features[idx++] = 0;                                           // 35
     features[idx++] = 0;                                           // 36
@@ -174,6 +193,9 @@ export function extractFeatures(rawUrl) {
             features[67 + hash] = 1;
         }
     }
+
+    // F-5 修复：严格对齐 Python，最后一维强制覆盖为短链接特征
+    features[578] = SHORTENERS.has(domain) ? 1 : 0;
 
     return features;
 }
