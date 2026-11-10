@@ -308,17 +308,45 @@
             links.forEach(checkAndKillNode);
         };
 
+        // 🚀 P-6 优化：回调只入队，使用零延迟宏任务调度 + 单批 100 节点处理
+        const nodeQueue = new Set();
+        let scheduled = false;
+        // 使用 MessageChannel 创建零延迟宏任务，避免 setTimeout(0) 的 4ms 最小延迟惩罚
+        const channel = new MessageChannel();
+        channel.port1.onmessage = () => {
+            let processed = 0;
+            for (const node of nodeQueue) {
+                nodeQueue.delete(node);
+                if (node.isConnected) {
+                    try {
+                        if (node.className && typeof node.className === 'string' && /(^ad-slot|^ad-banner|^ad-wrapper|^ad-container|^adsbygoogle|^sponsored-ad|^advertisement)/i.test(node.className)) {
+                            node.style.setProperty('display', 'none', 'important');
+                        }
+                        killMaliciousNodes(node);
+                    } catch (e) {}
+                }
+                processed++;
+                if (processed >= 100) break; // 单批最多 100 个，确保单次耗时 < 5ms
+            }
+            scheduled = false;
+            if (nodeQueue.size > 0) {
+                scheduled = true;
+                channel.port2.postMessage(null);
+            }
+        };
+
         const observer = new MutationObserver((mutations) => {
             if (isPaused()) return;
             for (const m of mutations) {
                 for (const node of m.addedNodes) {
                     if (node.nodeType === Node.ELEMENT_NODE) {
-                        if (node.className && typeof node.className === 'string' && /(^ad-slot|^ad-banner|^ad-wrapper|^ad-container|^adsbygoogle|^sponsored-ad|^advertisement)/i.test(node.className)) {
-                            node.style.setProperty('display', 'none', 'important');
-                        }
-                        killMaliciousNodes(node);
+                        nodeQueue.add(node);
                     }
                 }
+            }
+            if (!scheduled && nodeQueue.size > 0) {
+                scheduled = true;
+                channel.port2.postMessage(null);
             }
         });
 
