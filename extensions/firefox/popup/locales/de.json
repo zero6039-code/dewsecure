@@ -157,5 +157,6 @@
   "warn_btn_bypassing": "Umgehe...",
   "warn_alert_bypass_fail": "Umgehung fehlgeschlagen, bitte erneut versuchen!",
   "warn_title_affiliate": "Bösartiger Werbelink blockiert",
-  "warn_desc_affiliate": "DewSecure hat diese URL blockiert, da sie aggressives Tracking oder Affiliate-Parameter enthält."
+  "warn_desc_affiliate": "DewSecure hat diese URL blockiert, da sie aggressives Tracking oder Affiliate-Parameter enthält.",
+  "auth_google_loading": "Wird geladen..."
 }

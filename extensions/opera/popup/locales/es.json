@@ -157,5 +157,6 @@
   "warn_btn_bypassing": "Omitiendo...",
   "warn_alert_bypass_fail": "¡Error al omitir, por favor inténtalo de nuevo!",
   "warn_title_affiliate": "Enlace promocional malicioso bloqueado",
-  "warn_desc_affiliate": "DewSecure bloqueó esta URL porque contiene parámetros de seguimiento o afiliados agresivos."
+  "warn_desc_affiliate": "DewSecure bloqueó esta URL porque contiene parámetros de seguimiento o afiliados agresivos.",
+  "auth_google_loading": "Cargando..."
 }

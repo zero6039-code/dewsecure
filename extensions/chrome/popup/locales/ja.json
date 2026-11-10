@@ -157,5 +157,6 @@
   "warn_btn_bypassing": "バイパス中...",
   "warn_alert_bypass_fail": "バイパスに失敗しました。もう一度お試しください！",
   "warn_title_affiliate": "悪意のあるプロモーションリンクをブロックしました",
-  "warn_desc_affiliate": "DewSecureは、このURLに悪質なトラッキングまたはアフィリエイトパラメータが含まれているため、ブロックしました。"
+  "warn_desc_affiliate": "DewSecureは、このURLに悪質なトラッキングまたはアフィリエイトパラメータが含まれているため、ブロックしました。",
+  "auth_google_loading": "読み込み中..."
 }

@@ -48,6 +48,15 @@ import { sanitizeForLLM } from './content/sanitizeForLLM.js';
     });
 
     function init() {
+        const hostname = window.location.hostname;
+        const QR_SKIP_HOSTS = [
+            'accounts.google.com', 
+            'login.microsoftonline.com', 
+            'appleid.apple.com',
+            'github.com'
+        ];
+        const shouldSkipQR = QR_SKIP_HOSTS.some(d => hostname === d || hostname.endsWith('.' + d));
+
         const skipDomains = ['google.com', 'youtube.com', 'facebook.com', 'twitter.com', 'x.com', 'instagram.com', 'wired.com'];
         const isSkipDomain = skipDomains.some(d => window.location.hostname === d || window.location.hostname === 'www.' + d);
 
@@ -131,13 +140,17 @@ import { sanitizeForLLM } from './content/sanitizeForLLM.js';
                 }, 100);
 
                 // 🛡️ SAN-5 修复：启动二维码扫描（内部自带延迟和特性检测）
-                initQRScanner();
+                if (!shouldSkipQR) {
+                    initQRScanner();
+                }
             });
         } catch(e) {}
         
         // 🛡️ SAN-5 修复：强制启动二维码扫描
         try {
-            initQRScanner();
+            if (!shouldSkipQR) {
+                initQRScanner();
+            }
         } catch (e) {
             console.error('🚨 [DewSecure] 启动二维码扫描器失败:', e);
         }

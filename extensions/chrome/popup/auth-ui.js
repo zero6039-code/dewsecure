@@ -208,4 +208,98 @@ export function initAuthUI() {
             }
         };
     }
+
+    // ==========================================
+    // 🚀 Google OAuth 登录逻辑 (强制 Native Implicit Flow)
+    // ==========================================
+    const googleBtn = document.getElementById('googleLoginBtn');
+    if (googleBtn) {
+        googleBtn.onclick = () => {
+            const supabaseUrl = 'https://uvbaioqqjqseapcancvi.supabase.co';
+            const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InV2YmFpb3FxanFzZWFwY2FuY3ZpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTI0OTIyODAsImV4cCI6MjEwODA2ODI4MH0.jhEaDHBvp702biC7oqM1oV5YO7rzhvmXFH5pTRF17kQ';
+
+            // 1. 获取地址并打印
+            const redirectUrl = chrome.identity.getRedirectURL();
+            console.log("==========================================");
+            console.log("🚨 [诊断点 1] 插件回调地址:", redirectUrl);
+            
+            // 🌟 核心修复：手动拼接 URL，强制加上 response_type=token 和 prompt=select_account
+            const authUrl = `${supabaseUrl}/auth/v1/authorize?provider=google&redirect_to=${encodeURIComponent(redirectUrl)}&response_type=token&prompt=select_account`;
+            
+            console.log("🚨 [诊断点 2] 强制生成的授权 URL:");
+            console.log("👉", authUrl);
+            console.log("==========================================");
+
+            googleBtn.disabled = true;
+            const originalHTML = googleBtn.innerHTML;
+            googleBtn.innerHTML = window.t ? window.t('auth_google_loading') : 'Loading...';
+            if (emailHint) emailHint.style.display = 'none';
+
+            chrome.identity.launchWebAuthFlow({
+                url: authUrl,
+                interactive: true
+            }, async (responseUrl) => {
+                if (chrome.runtime.lastError || !responseUrl) {
+                    console.error('🚨 [诊断点 3] 登录失败或取消:', chrome.runtime.lastError?.message);
+                    googleBtn.disabled = false;
+                    googleBtn.innerHTML = originalHTML;
+                    return;
+                }
+
+                console.log("🚨 [诊断点 3] 弹窗最终跳回的 URL:");
+                console.log("👉", responseUrl);
+                console.log("==========================================");
+
+                try {
+                    const urlParams = new URLSearchParams(new URL(responseUrl).hash.substring(1));
+                    const accessToken = urlParams.get('access_token');
+                    const refreshToken = urlParams.get('refresh_token');
+
+                    if (!accessToken) {
+                        throw new Error('未获取到 access_token，请检查上面打印的诊断点 3 的 URL');
+                    }
+
+                    // 获取用户信息
+                    const userRes = await fetch(`${supabaseUrl}/auth/v1/user`, {
+                        headers: {
+                            'apikey': supabaseKey,
+                            'Authorization': `Bearer ${accessToken}`
+                        }
+                    });
+
+                    if (!userRes.ok) throw new Error('获取用户信息失败');
+                    const user = await userRes.json();
+
+                    // 保存到本地 Storage
+                    await chrome.storage.local.set({
+                        dewsecure_user: {
+                            token: accessToken,
+                            refreshToken: refreshToken,
+                            email: user.email,
+                            id: user.id,
+                            tier: 'free'
+                        }
+                    });
+
+                    if (typeof window.syncUserState === 'function') {
+                        await window.syncUserState();
+                    }
+
+                    showAuthStep('logged-in');
+                    renderLoggedInView(user);
+
+                } catch (err) {
+                    console.error('🚨 [诊断点 4] 解析异常:', err);
+                    if (emailHint) {
+                        emailHint.textContent = '登录处理失败: ' + err.message;
+                        emailHint.style.color = '#f85149';
+                        emailHint.style.display = 'block';
+                    }
+                } finally {
+                    googleBtn.disabled = false;
+                    googleBtn.innerHTML = originalHTML;
+                }
+            });
+        };
+    }
 }

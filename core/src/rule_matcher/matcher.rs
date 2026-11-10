@@ -199,7 +199,7 @@ fn normalize_pattern(pattern: &str) -> String {
 }
 
 /// 从 URL 提取主机名
-fn extract_host(url: &str) -> Option<String> {
+pub fn extract_host(url: &str) -> Option<String> {
     let rest = match url.find("://").filter(|&i| url[..i].chars().all(|c| c.is_ascii_alphanumeric() || "+-.".contains(c))) {
         Some(i) => &url[i + 3..],
         None => url.strip_prefix("//").unwrap_or(url),

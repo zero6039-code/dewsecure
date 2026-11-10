@@ -1,104 +1,80 @@
-# Rust
-target/
-**/*.rs.bk
-Cargo.lock
 
+# --- 1.2.8 本地开发屏蔽规则 ---
+# IDE
 # Node
-node_modules/
-dist/
-*.log
-
+# Playwright
 # Python
-__pycache__/
-*.py[cod]
-.venv/
-venv/
-*.egg-info/
-
-# 模型权重（闭源资产）
-models/weights/
-extensions/chrome/models/*.onnx
-extensions/firefox/models/*.onnx
-
-# 数据集
-models/data/
-
-# 构建产物
-extensions/chrome/dist/
-extensions/firefox/dist/
-android/app/build/
-ios/build/
-
+# R2 凭证（含敏感信息，绝不提交）
+# Rust
+# S-11: Ignore built artifacts
 # 备份文件
+# 威胁情报生成物
+# 密钥
+# 忽略所有打包产物
+# 数据集
+# 时间戳备份文件 (*.bak.20261025-xxx)
+# 构建产物
+# 模型权重（闭源资产）
+# 环境变量
+# 系统
+# 🔒 M-14: 忽略构建产物与依赖缓存
+**/*.rs.bk
 *.bak
+*.bak*
+*.bak-1.2.8
+*.bak-1.2.8-final
+*.bak.*
 *.bak2
 *.bak3
 *.bak4
-
-# 环境变量
+*.egg-info/
+*.key
+*.log
+*.new
+*.p12
+*.pem
+*.py[cod]
+*.swo
+*.swp
+*.zip
+.DS_Store
 .env
 .env.local
-
-# IDE
-.vscode/
+.gradle/
 .idea/
-*.swp
-*.swo
-
-# 系统
-.DS_Store
-Thumbs.db
-
-# 密钥
-*.key
-*.pem
-*.p12
-keystore.jks
-
-# R2 凭证（含敏感信息，绝不提交）
-extensions/chrome/src/r2-config.js
-
-# 时间戳备份文件 (*.bak.20261025-xxx)
-*.bak.*
-
-# 忽略所有打包产物
-*.zip
-
-# S-11: Ignore built artifacts
-releases/
-extensions/*/dist/
-*.bak*
-
-# Playwright
-/test-results/
+.venv/
+.vscode/
 /playwright-report/
-releases/
-releases/
-extensions/chrome/whale_dist/
-
-# 🔒 M-14: 忽略构建产物与依赖缓存
-extensions/*/node_modules/
-extensions/*/dist/
-extensions/*/releases/
-models/weights/*.onnx
+/test-results/
+Cargo.lock
+Thumbs.db
+__pycache__/
 _metadata/
-models/extensions/
+android/app/build/
+build/
+dist/
+extensions/*/dist/
+extensions/*/manifest.json
+extensions/*/node_modules/
+extensions/*/releases/
+extensions/chrome/dist/
+extensions/chrome/models/*.onnx
+extensions/chrome/src/r2-config.js
+extensions/chrome/whale_dist/
+extensions/firefox/dist/
+extensions/firefox/models/*.onnx
 extensions/firefox/rules/allowlist.json
 extensions/opera/rules/allowlist.json
-extensions/*/manifest.json
-
-# 威胁情报生成物
+ios/build/
+keystore.jks
+models/data/
+models/extensions/
+models/training/weights/
+models/weights/
+models/weights/*.onnx
+node_modules/
+releases/
+target/
 threat-filter.bin
 threat-filter.meta.json
-
-# --- 1.2.8 本地开发屏蔽规则 ---
 venv/
-models/data/
-models/training/weights/
-*.bak-1.2.8
-*.bak-1.2.8-final
-*.bak*
-*.new
-.gradle/
-build/
-.idea/

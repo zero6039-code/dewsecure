@@ -157,5 +157,6 @@
   "warn_btn_bypassing": "Memintas...",
   "warn_alert_bypass_fail": "Gagal memintas, sila cuba lagi!",
   "warn_title_affiliate": "Pautan Promosi Berniat Jahat Disekat",
-  "warn_desc_affiliate": "DewSecure menyekat URL ini kerana ia mengandungi penjejakan atau parameter ahli gabungan yang agresif."
+  "warn_desc_affiliate": "DewSecure menyekat URL ini kerana ia mengandungi penjejakan atau parameter ahli gabungan yang agresif.",
+  "auth_google_loading": "Memuatkan..."
 }

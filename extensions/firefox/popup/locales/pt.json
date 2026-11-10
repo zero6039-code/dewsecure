@@ -157,5 +157,6 @@
   "warn_btn_bypassing": "Ignorando...",
   "warn_alert_bypass_fail": "Falha ao ignorar, por favor tente novamente!",
   "warn_title_affiliate": "Link Promocional Malicioso Bloqueado",
-  "warn_desc_affiliate": "O DewSecure bloqueou esta URL porque ela contém rastreamento agressivo ou parâmetros de afiliados."
+  "warn_desc_affiliate": "O DewSecure bloqueou esta URL porque ela contém rastreamento agressivo ou parâmetros de afiliados.",
+  "auth_google_loading": "Carregando..."
 }

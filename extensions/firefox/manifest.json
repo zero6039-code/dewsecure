@@ -12,6 +12,7 @@
     "downloads",
     "notifications",
     "scripting",
+    "identity",
     "webRequest",
     "webRequestBlocking"
   ],

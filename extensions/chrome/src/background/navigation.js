@@ -100,6 +100,14 @@ export function initNavigation() {
                 return;
             }
 
+            // 🛡️ 核心修复：强制放行官方域名，防止带 Token 的跳转被 AI 误杀
+            try {
+                const urlObj = new URL(details.url);
+                if (urlObj.hostname === 'dewsecure.com' || urlObj.hostname.endsWith('.dewsecure.com')) {
+                    return;
+                }
+            } catch (e) {}
+
             try {
                 const urlObj = new URL(details.url);
                 const host = urlObj.hostname;

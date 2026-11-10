@@ -5,5 +5,5 @@
 mod matcher;
 mod parser;
 
-pub use matcher::RuleMatcher;
+pub use matcher::{RuleMatcher, extract_host};
 pub use parser::{parse_rule, parse_rules, ParseError};
