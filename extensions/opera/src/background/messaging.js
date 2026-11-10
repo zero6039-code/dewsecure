@@ -18,6 +18,7 @@ const MESSAGE_POLICY = {
     'MODEL_UPDATED': ['extensionPage'],
     'FORCE_DOWNLOAD': ['extensionPage'],
     'AUTH_STATE_CHANGED': ['extensionPage'],
+    'FETCH_IMAGE_FOR_QR': ['contentScript', 'extensionPage'],
     // 🛡️ 显式声明核心管理消息，防止策略误判
     'REMOVE_TEMP_WHITELIST': ['extensionPage'],
     'ADD_TEMP_WHITELIST': ['extensionPage'],
@@ -84,7 +85,32 @@ export function initMessaging() {
 
         switch (message.type) {
             // --- 1. AI 异步处理 ---
-            case 'THIRD_PARTY_HOSTS':
+            case 'FETCH_IMAGE_FOR_QR':
+            (async () => {
+                try {
+                    const res = await fetch(message.url);
+                    const blob = await res.blob();
+                    const buffer = await blob.arrayBuffer();
+                    
+                    // 🛡️ 核心修复：Service Worker 中无 FileReader，使用 btoa 手动编码
+                    const bytes = new Uint8Array(buffer);
+                    let binary = '';
+                    const len = bytes.byteLength;
+                    for (let i = 0; i < len; i++) {
+                        binary += String.fromCharCode(bytes[i]);
+                    }
+                    const base64 = btoa(binary);
+                    const dataUrl = `data:${blob.type || 'image/png'};base64,${base64}`;
+                    
+                    sendResponse({ ok: true, dataUrl });
+                } catch (e) {
+                    console.warn('❌ [DewSecure] 后台代理下载图片失败:', e);
+                    sendResponse({ ok: false, error: e.message });
+                }
+            })();
+            return true; // 异步保持通道开启
+
+        case 'THIRD_PARTY_HOSTS':
                 if (!sender.tab) return false;
                 chrome.storage.local.get('dewsecure_settings').then(res => {
                     const settings = res.dewsecure_settings || {};

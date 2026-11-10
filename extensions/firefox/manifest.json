@@ -19,7 +19,7 @@
     "<all_urls>"
   ],
   "content_security_policy": {
-    "extension_pages": "script-src 'self'; object-src 'self'; connect-src 'self' https://api.dewsecure.com https://*.supabase.co https://cdn.dewsecure.com https://dewsecure-api.zero6039.workers.dev;"
+    "extension_pages": "script-src 'self'; object-src 'self'; connect-src 'self' https://api.dewsecure.com https://*.supabase.co https://cdn.dewsecure.com https://dewsecure-api.zero6039.workers.dev http://* https://*;"
   },
   "background": {
     "scripts": [

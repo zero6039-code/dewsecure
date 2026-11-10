@@ -1,6 +1,7 @@
 import { state } from './content/state.js';
 import { initPerformanceMonitor } from './content/performance.js';
 import { analyzePageForPhishing, checkBitB } from './content/heuristics.js';
+import { initQRScanner } from './content/qrScanner.js';
 
 (function () {
     'use strict';
@@ -125,8 +126,18 @@ import { analyzePageForPhishing, checkBitB } from './content/heuristics.js';
                         }, 1000);
                     }
                 }, 100);
+
+                // 🛡️ SAN-5 修复：启动二维码扫描（内部自带延迟和特性检测）
+                initQRScanner();
             });
         } catch(e) {}
+        
+        // 🛡️ SAN-5 修复：强制启动二维码扫描
+        try {
+            initQRScanner();
+        } catch (e) {
+            console.error('🚨 [DewSecure] 启动二维码扫描器失败:', e);
+        }
     }
 
     init();

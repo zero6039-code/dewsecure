@@ -21,6 +21,7 @@
     "@noble/hashes": "^1.4.0",
     "aws4fetch": "^1.0.20",
     "onnxruntime-web": "^1.19.0",
-    "tldts": "^7.4.19"
+    "tldts": "^7.4.19",
+    "zxing-wasm": "^3.1.6"
   }
 }
