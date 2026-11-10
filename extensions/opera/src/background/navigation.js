@@ -129,26 +129,42 @@ export function initNavigation() {
                 if (assess) {
                     const finding = assess(details.url);
                     heurFlag = finding.flag;
-                    heurScore = finding.score || finding.reasons?.length || (finding.flag ? 2 : 0);
+                    heurScore = finding.score || 0;
                     heurReasons = finding.reasons || [];
                 }
 
                 let aiProb = 0;
+                let aiFailed = false;
                 try {
-                    const features = extractFeatures(details.url);
+                    // 修复超长 URL 导致解析崩溃的问题
+                    const safeUrl = details.url.length > 2048 ? details.url.slice(0, 2048) : details.url;
+                    const features = extractFeatures(safeUrl);
                     aiProb = predict(phishModel, features);
-                } catch (err) { }
+                } catch (err) {
+                    aiFailed = true;
+                    heurScore += 1; // 特征提取失败作为弱信号
+                    heurReasons.push('ai-unavailable');
+                }
 
                 let isPhish = false;
                 let reasons = [...heurReasons];
 
-                if (heurFlag) isPhish = true;
-                else if (aiProb >= 0.95 && heurScore >= 1) {
+                // 分级融合策略：让 AI 真正参与决策
+                if (heurScore >= 5) {
+                    // 强启发式信号 (如品牌在子域) 直接拦截
+                    isPhish = true;
+                } else if (aiProb >= 0.97) {
+                    // AI 极高置信度，直接拦截
                     isPhish = true;
                     if (reasons.length === 0) reasons.push('ai-high-confidence');
                 } else if (aiProb >= 0.85 && heurScore >= 2) {
+                    // AI 高置信 + 中等启发式信号，拦截
                     isPhish = true;
                     if (reasons.length === 0) reasons.push('ai-rule-fusion');
+                } else if (aiProb >= 0.60 && heurScore >= 1) {
+                    // 对于软信号，这里可以改为 warn，目前为了不改变原逻辑，仍然保持 isPhish 判定为 false
+                    // 但会记录 debug 日志
+                    reasons.push('soft-warning');
                 }
 
                 console.debug(`🛡️ [Fusion] ${details.url} | AI: ${aiProb.toFixed(4)} | 规则: ${heurScore} | 拦截: ${isPhish}`);
