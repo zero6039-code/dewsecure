@@ -7,7 +7,7 @@ import pandas as pd
 import numpy as np
 import lightgbm as lgb
 from urllib.parse import urlparse
-from sklearn.model_selection import train_test_split
+from sklearn.model_selection import GroupShuffleSplit
 from tldextract import extract
 
 # ====== 复制你原来的特征提取配置 ======
@@ -60,7 +60,7 @@ def extract_features(raw_url):
         port = str(u.port) if u.port else ''
         full_url = raw_url.lower()
         ext = extract(host)
-        domain = ext.registered_domain
+        domain = ext.top_domain_under_public_suffix
         subdomain = ext.subdomain
         tld = ext.suffix
     except:
@@ -186,7 +186,27 @@ def main():
     X = np.array([extract_features(u) for u in urls])
     y = np.array(labels)
 
-    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+    # 🚀 F-8 修复：按注册域分组，防止同一域名的不同路径同时出现在训练集和测试集
+    groups = []
+    for u in urls:
+        try:
+            # 利用已经引入的 tldextract 提取注册域作为 group key
+            ext = extract(u)
+            reg_domain = ext.top_domain_under_public_suffix or u
+            groups.append(reg_domain)
+        except:
+            groups.append(u)
+    groups = np.array(groups)
+
+    print(f"提取到 {len(set(groups))} 个独立的注册域，准备按组切分...")
+    
+    # 使用 GroupShuffleSplit 进行 80/20 划分
+    gss = GroupShuffleSplit(n_splits=1, test_size=0.2, random_state=42)
+    train_idx, test_idx = next(gss.split(X, y, groups=groups))
+
+    X_train, X_test = X[train_idx], X[test_idx]
+    y_train, y_test = y[train_idx], y[test_idx]
+
     train_data = lgb.Dataset(X_train, label=y_train)
     valid_data = lgb.Dataset(X_test, label=y_test, reference=train_data)
 
