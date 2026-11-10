@@ -20,7 +20,7 @@ function isHardSafe(domain) {
  * @param {number} maxRules 最大允许生成的规则数
  * @returns {Array} 合并后的 DNR 规则数组
  */
-export function buildMergedRules(rawRulesData, baseId, maxRules = 4900) {
+export function buildMergedRules(rawRulesData, baseId, maxRules = 4900, brokenSites = []) {
     const domainsSet = new Set();
     
     // 1. 提取并清洗所有有效域名
@@ -31,7 +31,10 @@ export function buildMergedRules(rawRulesData, baseId, maxRules = 4900) {
         
         // 基础正则校验，防止恶意注入
         if (/^[a-z0-9.-]+$/.test(d) && !isHardSafe(d)) {
-            domainsSet.add(d);
+            // 🛡️ AD-8: 过滤掉用户标记为误伤的域名
+            if (!brokenSites.some(b => d === b || d.endsWith('.' + b))) {
+                domainsSet.add(d);
+            }
         }
     }
 

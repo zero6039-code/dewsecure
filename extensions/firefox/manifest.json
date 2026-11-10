@@ -11,6 +11,7 @@
     "webNavigation",
     "downloads",
     "notifications",
+    "scripting",
     "webRequest",
     "webRequestBlocking"
   ],
