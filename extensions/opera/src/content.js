@@ -206,8 +206,5 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
                 console.log("=== 🛡️ SAN-6 净化测试开始 ===");
                 console.log("📄 原始文本包含:", document.body.innerText.substring(0, 100) + "...");
                 console.log("✨ 净化后结果:", cleanText);
-                console.log("✅ 隐藏元素已剔除:", !cleanText.includes('隐藏指令') && !cleanText.includes('屏幕外指令'));
-                console.log("✅ 零宽字符已剔除:", !cleanText.includes('e\u200Bx\u200Ba\u200Bm\u200Bp\u200Bl\u200Be'));
-                console.log("✅ 正常文本已保留:", cleanText.includes('这是正常的网页内容'));
             }, 2000);
         }
