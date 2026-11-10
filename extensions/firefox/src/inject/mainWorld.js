@@ -106,6 +106,7 @@
                 
 
         // 0. 拦截系统通知请求
+        // 🛡️ AD-4 修复：区分真实用户交互与页面加载即滥用
         const NOTIFICATION_ALLOW_HOSTS = ['mail.google.com', 'calendar.google.com', 'outlook.live.com', 'outlook.office.com', 'web.whatsapp.com', 'web.telegram.org'];
         try {
             if (window.Notification) {
@@ -113,10 +114,31 @@
                 const hookedRequestPermission = function(callback) {
                     const h = location.hostname;
                     const isAllowedHost = NOTIFICATION_ALLOW_HOSTS.some(d => h === d || h.endsWith('.' + d));
-                    if (!isPaused() && dwSettings.antiHijackEnabled !== false && !isAllowedHost) {
-                        console.log('[DewSecure] 已拦截系统通知请求');
-                        if (callback) callback('denied');
-                        return Promise.resolve('denied');
+
+                    // 如果域名在白名单，直接放行
+                    if (isAllowedHost) {
+                        return _requestPermission.apply(this, arguments);
+                    }
+
+                    if (!isPaused() && dwSettings.antiHijackEnabled !== false) {
+                        // 🛡️ AD-4 核心：如果用户还没交互过，说明是页面加载自动请求，判定为滥用
+                        const hasInteracted = window.__dewsecureHasInteracted;
+                        
+                        // 检查 userActivation 作为双重保险
+                        const activation = navigator.userActivation && navigator.userActivation.isActive;
+
+                        if (!hasInteracted && !activation) {
+                            console.warn('[DewSecure] 拦截页面加载即请求通知权限的滥用行为:', h);
+                            if (port) port.postMessage({ type: 'DEWSECURE_STAT_INCREMENT' });
+                            else window.postMessage({ type: 'DEWSECURE_STAT_INCREMENT' }, '*');
+                            
+                            if (callback) callback('denied');
+                            return Promise.resolve('denied');
+                        } else {
+                            // 用户已经点击过页面，说明是主动操作（比如点击了"订阅"按钮），放行让浏览器弹窗
+                            console.log('[DewSecure] 用户有交互行为，放行通知请求:', h);
+                            return _requestPermission.apply(this, arguments);
+                        }
                     }
                     return _requestPermission.apply(this, arguments);
                 };
