@@ -30,7 +30,7 @@ export function sanitizeCSS(css) {
     return css;
 }
 
-export async function syncCosmeticRules(bundle) {
+export async function syncCosmeticRules(bundle, brokenSites = []) {
     if (!bundle || !Array.isArray(bundle.cosmetics)) return;
 
     const scripts = [];
@@ -38,6 +38,9 @@ export async function syncCosmeticRules(bundle) {
         const rule = bundle.cosmetics[i];
         if (!Array.isArray(rule.match) || typeof rule.css !== 'string') continue;
         
+        // AD-8 过滤误伤站点
+        if (rule.match.some(m => brokenSites.some(b => m.includes(b)))) continue;
+
         // 过滤金融站点
         const isSafeMatch = rule.match.every(m => !isFinancialSite(m));
         if (!isSafeMatch) {
