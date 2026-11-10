@@ -13,7 +13,19 @@ import {
 export { initThreatFilter, checkThreatFilter };
 
 ed.etc.sha512Sync = (...m) => sha512(ed.etc.concatBytes(...m));
-const ED25519_PUBLIC_KEY_HEX = 'a21b4c875ab246b58adc225ddf66a054cfa7b79ed2093fcc2f97598fd1197631';
+// 🛡️ AU-1/AU-2 修复：支持多公钥轮换
+const ED25519_PUBLIC_KEYS = {
+    'v1': 'a21b4c875ab246b58adc225ddf66a054cfa7b79ed2093fcc2f97598fd1197631'
+};
+
+// 🛡️ AU-1 修复：规范化 JSON 函数 (对键排序，防止解析歧义)
+function canonicalJSON(obj) {
+    if (Array.isArray(obj)) return '[' + obj.map(canonicalJSON).join(',') + ']';
+    if (obj && typeof obj === 'object') {
+        return '{' + Object.keys(obj).sort().map(k => JSON.stringify(k) + ':' + canonicalJSON(obj[k])).join(',') + '}';
+    }
+    return JSON.stringify(obj);
+}
 const CACHE_KEY = 'dewsecure_intel_cache';
 const BROKEN_SITES_KEY = 'dewsecure_broken_sites'; // AD-8 缓存键
 
