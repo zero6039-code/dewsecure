@@ -13,6 +13,7 @@ const buildOptions = {
     target: 'firefox115',
     sourcemap: watch,
     minify: !watch,
+    nodePaths: [path.join('..', 'chrome', 'node_modules')] // 🛡️ 借用 Chrome 的依赖
 };
 
 function syncFromChrome() {
@@ -210,3 +211,12 @@ function copyStatic() {
 }
 
 build().catch(console.error);
+
+// 复制 zxing wasm
+const wasmSrc = path.join('..', 'chrome', 'node_modules', 'zxing-wasm', 'dist', 'reader', 'zxing_reader.wasm');
+const wasmDest = path.join('dist', 'zxing_reader.wasm');
+if (fs.existsSync(wasmSrc)) {
+    fs.mkdirSync('dist', { recursive: true });
+    fs.copyFileSync(wasmSrc, wasmDest);
+    console.log('✅ Firefox zxing_reader.wasm 已拷贝到 dist');
+}

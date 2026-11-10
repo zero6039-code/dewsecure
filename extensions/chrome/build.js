@@ -121,3 +121,12 @@ build().catch((e) => {
     console.error(e);
     process.exit(1);
 });
+
+// 复制 zxing wasm
+const wasmSrc = path.join('node_modules', 'zxing-wasm', 'dist', 'reader', 'zxing_reader.wasm');
+const wasmDest = path.join('dist', 'zxing_reader.wasm');
+if (fs.existsSync(wasmSrc)) {
+    fs.mkdirSync('dist', { recursive: true });
+    fs.copyFileSync(wasmSrc, wasmDest);
+    console.log('✅ Chrome zxing_reader.wasm 已拷贝到 dist');
+}
