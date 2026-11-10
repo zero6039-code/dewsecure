@@ -213,7 +213,13 @@ export function initAuthUI() {
     // 🚀 Google OAuth 登录逻辑 (强制 Native Implicit Flow)
     // ==========================================
     const googleBtn = document.getElementById('googleLoginBtn');
+    // 🛡️ 优雅降级：如果当前环境不支持 identity (如 Whale 浏览器)，则隐藏 Google 登录按钮
     if (googleBtn) {
+        if (!chrome.identity) {
+            googleBtn.style.display = 'none';
+            const divider = document.querySelector('.auth-divider');
+            if (divider) divider.style.display = 'none';
+        } else {
         googleBtn.onclick = () => {
             const supabaseUrl = 'https://uvbaioqqjqseapcancvi.supabase.co';
             const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InV2YmFpb3FxanFzZWFwY2FuY3ZpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTI0OTIyODAsImV4cCI6MjEwODA2ODI4MH0.jhEaDHBvp702biC7oqM1oV5YO7rzhvmXFH5pTRF17kQ';
@@ -301,5 +307,6 @@ export function initAuthUI() {
                 }
             });
         };
+        }
     }
 }

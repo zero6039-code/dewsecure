@@ -55,9 +55,9 @@ function copyStatic() {
     fs.mkdirSync('dist', { recursive: true });
     fs.writeFileSync('dist/manifest.json', JSON.stringify(chromeManifest, null, 2));
 
-    if (fs.existsSync('popup')) fs.cpSync('popup', 'dist/popup', { recursive: true, force: true });
-    if (fs.existsSync('icons')) fs.cpSync('icons', 'dist/icons', { recursive: true, force: true });
-    if (fs.existsSync('rules')) fs.cpSync('rules', 'dist/rules', { recursive: true, force: true });
+    if (fs.existsSync('popup')) fs.cpSync('popup', 'dist/popup', { recursive: true, force: true, filter: src => !src.includes('.bak') });
+    if (fs.existsSync('icons')) fs.cpSync('icons', 'dist/icons', { recursive: true, force: true, filter: src => !src.includes('.bak') });
+    if (fs.existsSync('rules')) fs.cpSync('rules', 'dist/rules', { recursive: true, force: true, filter: src => !src.includes('.bak') });
     if (fs.existsSync('warning.html')) fs.copyFileSync('warning.html', 'dist/warning.html');
     if (fs.existsSync('warning.js'))   fs.copyFileSync('warning.js',   'dist/warning.js');
     
@@ -69,7 +69,7 @@ function copyStatic() {
             if (file === 'background.js' || file === 'content.js' || file === 'inject.js' || file === 'offscreen.js') continue;
             
             if (fs.statSync(srcPath).isDirectory()) {
-                fs.cpSync(srcPath, destPath, { recursive: true, force: true });
+                fs.cpSync(srcPath, destPath, { recursive: true, force: true, filter: src => !src.includes('.bak') });
             } else {
                 fs.copyFileSync(srcPath, destPath);
             }
