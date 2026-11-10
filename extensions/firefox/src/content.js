@@ -298,11 +298,23 @@
                 };
                 if (toPage) toPage.postMessage({ type: 'DEWSECURE_SETTINGS', settings: safeSettings });
 
-                // 🛡️ 终极修复：利用 settings 带回来的语言代码拉取字典，彻底告别 storage 越权
-                  // 🛡️ 终极修复：直接使用后台打包好的字典，不再跨域 fetch
-                  if (settings.i18n_dict) {
-                      if (toPage) toPage.postMessage({ type: 'DEWSECURE_I18N', dict: settings.i18n_dict });
-                      window.postMessage({ type: 'DEWSECURE_I18N', dict: settings.i18n_dict }, '*');
+                // 🛡️ 终极修复：直接读取本地最新的 preferred_lang 并 fetch，保证与侧边栏绝对同步
+                  try {
+                      let lang = (await chrome.storage.local.get('preferred_lang')).preferred_lang || 'en';
+                      if (lang === 'zh_CN' || lang === 'zh-cn') lang = 'zh';
+                      if (lang === 'en_US' || lang === 'en-us') lang = 'en';
+                      const res = await fetch(chrome.runtime.getURL(`popup/locales/${lang}.json`));
+                      if (res.ok) {
+                          const dict = await res.json();
+                          if (toPage) toPage.postMessage({ type: 'DEWSECURE_I18N', dict: dict });
+                          window.postMessage({ type: 'DEWSECURE_I18N', dict: dict }, '*');
+                      }
+                  } catch (e) {
+                      // 兜底：如果本地 fetch 失败，再尝试用后台的
+                      if (settings.i18n_dict) {
+                          if (toPage) toPage.postMessage({ type: 'DEWSECURE_I18N', dict: settings.i18n_dict });
+                          window.postMessage({ type: 'DEWSECURE_I18N', dict: settings.i18n_dict }, '*');
+                      }
                   }
 
                 // 🚀 启动页面级钓鱼检测（动态监听）
@@ -368,15 +380,26 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
         sendResponse({ ok: true });
     }
     
-    // 🛡️ 修复：收到语言切换信号，立即向后台拉取新字典并下发
+    // 🛡️ 修复：收到语言切换信号，直接本地 fetch 最新字典并下发
     if (msg.type === 'I18N_CHANGED') {
-        chrome.runtime.sendMessage({ type: 'GET_SETTINGS' }, (settings) => {
-            if (chrome.runtime.lastError || !settings || !settings.i18n_dict) return;
-            if (toPage) toPage.postMessage({ type: 'DEWSECURE_I18N', dict: settings.i18n_dict });
-            window.postMessage({ type: 'DEWSECURE_I18N', dict: settings.i18n_dict }, '*');
-            console.log('🛡️ [DewSecure] 网页端警告栏语言已实时更新');
-        });
-        sendResponse({ ok: true });
+        (async () => {
+            try {
+                let lang = (await chrome.storage.local.get('preferred_lang')).preferred_lang || 'en';
+                if (lang === 'zh_CN' || lang === 'zh-cn') lang = 'zh';
+                if (lang === 'en_US' || lang === 'en-us') lang = 'en';
+                const res = await fetch(chrome.runtime.getURL(`popup/locales/${lang}.json`));
+                if (res.ok) {
+                    const dict = await res.json();
+                    if (toPage) toPage.postMessage({ type: 'DEWSECURE_I18N', dict: dict });
+                    window.postMessage({ type: 'DEWSECURE_I18N', dict: dict }, '*');
+                    console.log('🛡️ [DewSecure] 网页端警告栏语言已实时更新');
+                }
+            } catch (e) {
+                console.warn('⚠️ [DewSecure] 语言切换失败', e);
+            }
+            sendResponse({ ok: true });
+        })();
+        return true; // 保持异步通道
     }
 });
 

@@ -14,29 +14,65 @@
         function showClipboardWarning() {
             const bannerId = 'dewsecure-clipboard-warning';
             if (document.getElementById(bannerId)) return;
-            const banner = document.createElement('div');
-            banner.id = bannerId;
-            banner.style.cssText = `
-                position: fixed; top: 0; left: 0; right: 0; z-index: 2147483647;
-                background: #ef4444; color: white; padding: 12px 20px;
-                font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-                font-size: 14px; display: flex; justify-content: space-between; align-items: center;
-                box-shadow: 0 4px 6px rgba(0,0,0,0.1);
-            `;
+
             const t = getI18nText();
-            banner.innerHTML = `
-                <div style="display: flex; align-items: center; gap: 12px;">
-                    <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink: 0;"><path d="M12 2.69l5.66 5.66a8 8 0 1 1-11.31 0z"></path></svg>
-                    <div>
-                        <strong>${t.title}</strong>
-                        <div style="font-size: 12px; opacity: 0.8; margin-top: 4px;">${t.desc}</div>
-                    </div>
-                </div>
-                <button id="dewsecure-clipboard-ignore" style="background: transparent; border: 1px solid white; color: white; padding: 4px 12px; border-radius: 4px; cursor: pointer;">${t.btn}</button>
-            `;
-            document.body.appendChild(banner);
-            document.getElementById('dewsecure-clipboard-ignore').addEventListener('click', () => banner.remove());
-            setTimeout(() => { if (banner.parentNode) banner.remove(); }, 10000);
+            const host = document.createElement('aside');
+            host.id = bannerId;
+            host.style.cssText = 'display: block !important; position: fixed !important; top: 0 !important; left: 0 !important; right: 0 !important; z-index: 2147483647 !important;';
+            const shadow = host.attachShadow({ mode: 'closed' });
+
+            const banner = document.createElement('div');
+            banner.style.cssText = `background: #ef4444; color: white; padding: 12px 20px; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; font-size: 14px; display: flex; justify-content: space-between; align-items: center; box-shadow: 0 4px 6px rgba(0,0,0,0.1);`;
+
+            const leftDiv = document.createElement('div');
+            leftDiv.style.cssText = 'display: flex; align-items: center; gap: 12px;';
+
+            // 安全创建 SVG 图标
+            const svgNS = 'http://www.w3.org/2000/svg';
+            const svg = document.createElementNS(svgNS, 'svg');
+            svg.setAttribute('width', '28');
+            svg.setAttribute('height', '28');
+            svg.setAttribute('viewBox', '0 0 24 24');
+            svg.setAttribute('fill', 'none');
+            svg.setAttribute('stroke', 'currentColor');
+            svg.setAttribute('stroke-width', '2');
+            svg.setAttribute('stroke-linecap', 'round');
+            svg.setAttribute('stroke-linejoin', 'round');
+            svg.style.cssText = 'flex-shrink: 0;';
+            const path = document.createElementNS(svgNS, 'path');
+            path.setAttribute('d', 'M12 2.69l5.66 5.66a8 8 0 1 1-11.31 0z');
+            svg.appendChild(path);
+
+            const textDiv = document.createElement('div');
+            const titleStrong = document.createElement('strong');
+            titleStrong.textContent = t.title;
+            const descDiv = document.createElement('div');
+            descDiv.style.cssText = 'font-size: 12px; opacity: 0.8; margin-top: 4px;';
+            descDiv.textContent = t.desc;
+            textDiv.appendChild(titleStrong);
+            textDiv.appendChild(descDiv);
+
+            leftDiv.appendChild(svg);
+            leftDiv.appendChild(textDiv);
+
+            const btn = document.createElement('button');
+            btn.id = 'dewsecure-clipboard-ignore';
+            btn.style.cssText = 'background: transparent; border: 1px solid white; color: white; padding: 4px 12px; border-radius: 4px; cursor: pointer;';
+            btn.textContent = t.btn;
+
+            banner.appendChild(leftDiv);
+            banner.appendChild(btn);
+            shadow.appendChild(banner);
+
+            const mountTarget = document.documentElement;
+            if (mountTarget) mountTarget.appendChild(host);
+
+            // 绑定点击事件
+            const ignoreBtn = shadow.getElementById('dewsecure-clipboard-ignore');
+            if (ignoreBtn) ignoreBtn.addEventListener('click', () => host.remove());
+
+            // 自动移除
+            setTimeout(() => { if (host.parentNode) host.remove(); }, 10000);
         }
 
         // A4 修复：只看"隐藏执行"特征组合，不再因 powershell 一词误拦开发文档
