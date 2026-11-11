@@ -12,12 +12,16 @@ import android.os.Build
 import android.os.ParcelFileDescriptor
 import android.util.Log
 import com.dewsecure.android.policy.EngineBridge
+import com.dewsecure.android.policy.AuthManager
 import com.dewsecure.android.ui.MainActivity
 import java.io.FileInputStream
 import java.io.FileOutputStream
 import java.net.DatagramSocket
 import java.util.Locale
 import java.util.concurrent.Executors
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 
 class DewVpnService : VpnService() {
 
@@ -60,6 +64,15 @@ class DewVpnService : VpnService() {
         TcpDnsRelay.setUpstreamDns(upstreamDns)
 
         EngineBridge.init(aiEnabled = false)
+        
+        // 从本地存储恢复开关状态并同步给 Rust 引擎
+        val appPrefs = getSharedPreferences("app_settings", MODE_PRIVATE)
+        EngineBridge.setEnableDnr(appPrefs.getBoolean("pref_dnr", true))
+        EngineBridge.setEnableTracker(appPrefs.getBoolean("pref_tracker", true))
+        EngineBridge.setEnableSocial(appPrefs.getBoolean("pref_social", true))
+        EngineBridge.setEnableThreatIntel(appPrefs.getBoolean("pref_intel", true))
+        EngineBridge.setEnableAiPhishing(appPrefs.getBoolean("pref_ai_phishing", true))
+        EngineBridge.setEnableAiZeroDay(appPrefs.getBoolean("pref_ai_zero_day", true))
         
         // 恢复历史统计数据
         val statsPrefs = getSharedPreferences("stats_cache", MODE_PRIVATE)
@@ -146,6 +159,24 @@ class DewVpnService : VpnService() {
             
             // 每次拦截后，立刻存盘，防止杀后台丢失数据
             saveStatsToDisk()
+
+            // 🌟 真实联动：如果开启了匿名情报分享，则自动上报
+            val appPrefs = getSharedPreferences("app_settings", MODE_PRIVATE)
+            if (appPrefs.getBoolean("pref_share_threat_intel", true)) {
+                CoroutineScope(Dispatchers.IO).launch {
+                    val lastReportKey = "last_report_$domain"
+                    val lastReportTime = appPrefs.getLong(lastReportKey, 0L)
+                    val now = System.currentTimeMillis()
+                    // 同一个域名 24 小时内只上报一次，防止风暴
+                    if (now - lastReportTime > 24 * 60 * 60 * 1000) {
+                        val result = AuthManager.submitReport(applicationContext, "auto_threat_intel", domain)
+                        if (result.isSuccess) {
+                            appPrefs.edit().putLong(lastReportKey, now).apply()
+                            Log.d(TAG, "📡 匿名情报已上报: $domain")
+                        }
+                    }
+                }
+            }
         } else {
             Log.d(TAG, "✅ 放行: $domain (原因: ${result.reason})")
             DnsForwarder.forward(packet, length, socket, outStream, upstreamDns)

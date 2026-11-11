@@ -120,7 +120,7 @@
                 android:orientation="vertical" android:visibility="gone">
                 <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Share Threat Intel (Anonymous)" android:textColor="@color/text_primary" android:textStyle="bold" android:textSize="16sp" android:layout_marginBottom="8dp"/>
                 <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Allow sending desensitized suspicious domains to the cloud to improve blocking. Default off." android:textColor="@color/text_secondary" android:textSize="12sp" android:layout_marginBottom="16dp"/>
-                <com.google.android.material.switchmaterial.SwitchMaterial
+                <androidx.appcompat.widget.SwitchCompat
                     android:id="@+id/switch_share_threat" android:layout_width="wrap_content" android:layout_height="wrap_content" />
             </LinearLayout>
         </FrameLayout>

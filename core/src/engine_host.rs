@@ -2,6 +2,7 @@ use crate::{EngineConfig, EngineError};
 use serde::Deserialize;
 use std::collections::HashSet;
 use std::sync::{Arc, Mutex};
+use std::sync::atomic::{AtomicBool, Ordering};
 use crate::model::adblock::AdblockModel;
 use crate::stats::StatsEngine;
 
@@ -48,7 +49,15 @@ pub struct HostEngine {
     mining: HashSet<String>,
     user_allow: Arc<Mutex<HashSet<String>>>,
     adblock_model: Arc<Mutex<Option<AdblockModel>>>,
-    stats_engine: Arc<StatsEngine>, // 新增统计数据引擎
+    stats_engine: Arc<StatsEngine>,
+    
+    // 6 大功能开关
+    enable_dnr: Arc<AtomicBool>,
+    enable_tracker: Arc<AtomicBool>,
+    enable_social: Arc<AtomicBool>,
+    enable_threat_intel: Arc<AtomicBool>,
+    enable_ai_phishing: Arc<AtomicBool>,
+    enable_ai_zero_day: Arc<AtomicBool>,
 }
 
 const HARD_DOMAINS_JSON: &str = include_str!("../../shared/adblock/hard-domains.json");
@@ -87,6 +96,14 @@ impl HostEngine {
             user_allow: Arc::new(Mutex::new(HashSet::new())),
             adblock_model: Arc::new(Mutex::new(None)),
             stats_engine: Arc::new(StatsEngine::new()),
+            
+            // 默认全开
+            enable_dnr: Arc::new(AtomicBool::new(true)),
+            enable_tracker: Arc::new(AtomicBool::new(true)),
+            enable_social: Arc::new(AtomicBool::new(true)),
+            enable_threat_intel: Arc::new(AtomicBool::new(true)),
+            enable_ai_phishing: Arc::new(AtomicBool::new(true)),
+            enable_ai_zero_day: Arc::new(AtomicBool::new(true)),
         })
     }
 
@@ -101,40 +118,57 @@ impl HostEngine {
             return BlockResult { decision: BlockDecision::Allow, reason: "user_allow".into(), confidence: 1.0 };
         }
 
-        // 🛡️ C-6 修复：拦截规则优先于 safe 列表，防止 ads.google.com 被 google.com 整域放行
-        if matches_domain_or_subdomain(&self.block_ad, &host) {
+        // 1. DNR Rule Blocking
+        if self.enable_dnr.load(Ordering::Relaxed) && matches_domain_or_subdomain(&self.block_ad, &host) {
             self.stats_engine.record_block(&host, "hard_block_ad");
             return BlockResult { decision: BlockDecision::BlockAd, reason: "hard_block_ad".into(), confidence: 1.0 };
         }
 
-        if matches_domain_or_subdomain(&self.block_tracker, &host) {
-            self.stats_engine.record_block(&host, "hard_block_tracker");
-            return BlockResult { decision: BlockDecision::BlockTracker, reason: "hard_block_tracker".into(), confidence: 1.0 };
+        // 2. Trackers & 3. Social Trackers
+        if self.enable_tracker.load(Ordering::Relaxed) && matches_domain_or_subdomain(&self.block_tracker, &host) {
+            let is_social = host.contains("facebook") || host.contains("twitter") || host.contains("tiktok") 
+                || host.contains("instagram") || host.contains("linkedin") || host.contains("snapchat");
+            
+            if !is_social || self.enable_social.load(Ordering::Relaxed) {
+                self.stats_engine.record_block(&host, "hard_block_tracker");
+                return BlockResult { decision: BlockDecision::BlockTracker, reason: "hard_block_tracker".into(), confidence: 1.0 };
+            }
         }
 
-        if matches_domain_or_subdomain(&self.mining, &host) {
+        // 4. Threat Intel (绑定目前的 mining 集合)
+        if self.enable_threat_intel.load(Ordering::Relaxed) && matches_domain_or_subdomain(&self.mining, &host) {
             self.stats_engine.record_block(&host, "hard_mining");
             return BlockResult { decision: BlockDecision::BlockMining, reason: "hard_mining".into(), confidence: 1.0 };
         }
 
-        // 拦截检查完毕，再判断是否为已知安全域
         if matches_domain_or_subdomain(&self.safe, &host) {
             return BlockResult { decision: BlockDecision::Allow, reason: "hard_safe".into(), confidence: 1.0 };
         }
 
+        // AI 预测部分
         {
             let model_guard = self.adblock_model.lock().unwrap_or_else(|e| e.into_inner());
             if let Some(model) = model_guard.as_ref() {
                 let features = crate::classifier::features_adblock::extract_sparse_features(&host);
                 let (decision, confidence) = model.predict(&features);
+                
                 if confidence >= AI_CONFIDENCE_THRESHOLD && decision != BlockDecision::Allow {
-                    let reason = match decision {
-                        BlockDecision::BlockAd => "ai_ad",
-                        BlockDecision::BlockTracker => "ai_tracker",
-                        _ => "ai_other",
+                    // 5. AI Phishing & 6. AI Zero-day 开关控制
+                    let is_ai_enabled = match decision {
+                        BlockDecision::BlockAd => self.enable_ai_zero_day.load(Ordering::Relaxed),
+                        BlockDecision::BlockTracker => self.enable_ai_phishing.load(Ordering::Relaxed),
+                        _ => true,
                     };
-                    self.stats_engine.record_block(&host, reason);
-                    return BlockResult { decision, reason: reason.to_string(), confidence };
+                    
+                    if is_ai_enabled {
+                        let reason = match decision {
+                            BlockDecision::BlockAd => "ai_ad",
+                            BlockDecision::BlockTracker => "ai_tracker",
+                            _ => "ai_other",
+                        };
+                        self.stats_engine.record_block(&host, reason);
+                        return BlockResult { decision, reason: reason.to_string(), confidence };
+                    }
                 }
             }
         }
@@ -174,7 +208,6 @@ impl HostEngine {
         v
     }
 
-    /// 暴露给 Kotlin 的获取统计数据接口
     pub fn set_initial_stats(&self, total: i64, today: i64) {
         self.stats_engine.set_initial_stats(total as u64, today as u64);
     }
@@ -182,31 +215,34 @@ impl HostEngine {
     pub fn get_stats(&self) -> String {
         self.stats_engine.get_stats_json()
     }
+
+    // --- 6 大开关的 Setter/Getter ---
+    pub fn set_enable_dnr(&self, enabled: bool) { self.enable_dnr.store(enabled, Ordering::Relaxed); }
+    pub fn is_enable_dnr(&self) -> bool { self.enable_dnr.load(Ordering::Relaxed) }
+    
+    pub fn set_enable_tracker(&self, enabled: bool) { self.enable_tracker.store(enabled, Ordering::Relaxed); }
+    pub fn is_enable_tracker(&self) -> bool { self.enable_tracker.load(Ordering::Relaxed) }
+    
+    pub fn set_enable_social(&self, enabled: bool) { self.enable_social.store(enabled, Ordering::Relaxed); }
+    pub fn is_enable_social(&self) -> bool { self.enable_social.load(Ordering::Relaxed) }
+    
+    pub fn set_enable_threat_intel(&self, enabled: bool) { self.enable_threat_intel.store(enabled, Ordering::Relaxed); }
+    pub fn is_enable_threat_intel(&self) -> bool { self.enable_threat_intel.load(Ordering::Relaxed) }
+    
+    pub fn set_enable_ai_phishing(&self, enabled: bool) { self.enable_ai_phishing.store(enabled, Ordering::Relaxed); }
+    pub fn is_enable_ai_phishing(&self) -> bool { self.enable_ai_phishing.load(Ordering::Relaxed) }
+    
+    pub fn set_enable_ai_zero_day(&self, enabled: bool) { self.enable_ai_zero_day.store(enabled, Ordering::Relaxed); }
+    pub fn is_enable_ai_zero_day(&self) -> bool { self.enable_ai_zero_day.load(Ordering::Relaxed) }
 }
 
-/// 🛡️ C-1 修复：强制要求通过签名校验后才允许加载模型
-/// 注意：此方法不在 UDL 导出范围内，proc-macro 下保持为非导出（Kotlin 侧 API 面不变）
 impl HostEngine {
     pub fn load_signed_adblock_model(
-        &self,
-        version: &str,
-        sha256_hex: &str,
-        sig_b64: &str,
-        body: &str,
-        model_type: &str,
-        channel: &str,
-        valid_until: u64,
-        local_version: Option<&str>,
+        &self, version: &str, sha256_hex: &str, sig_b64: &str, body: &str, model_type: &str, channel: &str, valid_until: u64, local_version: Option<&str>,
     ) -> Result<(), EngineError> {
-        // 防 OOM
-        if body.len() > 4 * 1024 * 1024 {
-            return Err(EngineError::ModelLoadFailed("Model size exceeds 4MB limit".into()));
-        }
-
-        // 强制验签
+        if body.len() > 4 * 1024 * 1024 { return Err(EngineError::ModelLoadFailed("Model size exceeds 4MB limit".into())); }
         crate::model::bundle::verify(version, sha256_hex, sig_b64, body.as_bytes(), model_type, channel, valid_until, local_version)
             .map_err(|e| EngineError::ModelLoadFailed(format!("Signature verification failed: {:?}", e)))?;
-
         let model = AdblockModel::load_from_json(body).map_err(EngineError::ModelLoadFailed)?;
         let mut guard = self.adblock_model.lock().unwrap_or_else(|e| e.into_inner());
         *guard = Some(model);
@@ -215,21 +251,15 @@ impl HostEngine {
 }
 
 fn matches_domain_or_subdomain(set: &HashSet<String>, host: &str) -> bool {
-    if set.contains(host) {
-        return true;
-    }
+    if set.contains(host) { return true; }
     let mut start = 0;
     while let Some(pos) = host[start..].find('.') {
         let next = start + pos + 1;
-        if set.contains(&host[next..]) {
-            return true;
-        }
+        if set.contains(&host[next..]) { return true; }
         start = next;
     }
     false
 }
-
-
 
 #[cfg(test)]
 #[path = "engine_host_test.rs"]

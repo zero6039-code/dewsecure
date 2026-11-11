@@ -229,4 +229,63 @@ object AuthManager {
             Result.failure(e)
         }
     }
+
+    // 解析 JWT 获取 userId
+    fun getUserIdFromToken(token: String): String? {
+        return try {
+            val parts = token.split(".")
+            if (parts.size < 2) return null
+            val payload = String(android.util.Base64.decode(parts[1], android.util.Base64.URL_SAFE or android.util.Base64.NO_PADDING or android.util.Base64.NO_WRAP))
+            JSONObject(payload).optString("sub")
+        } catch (e: Exception) { null }
+    }
+
+    // 拉取用户 Profile 权限并保存到本地（带详细日志排查）
+    suspend fun fetchUserProfile(context: Context): Result<String> = withContext(Dispatchers.IO) {
+        try {
+            val prefs = context.getSharedPreferences("user_session", Context.MODE_PRIVATE)
+            val token = prefs.getString("access_token", null) ?: return@withContext Result.failure(Exception("No token"))
+            val userId = getUserIdFromToken(token) ?: return@withContext Result.failure(Exception("Invalid JWT"))
+
+            Log.d(TAG, "fetchUserProfile: userId=$userId")
+
+            val url = URL("$SUPABASE_URL/rest/v1/profiles?id=eq.$userId&select=tier,family_owner_id")
+            val conn = url.openConnection() as HttpURLConnection
+            conn.requestMethod = "GET"
+            conn.setRequestProperty("apikey", SUPABASE_KEY)
+            conn.setRequestProperty("Authorization", "Bearer $token")
+
+            if (conn.responseCode in 200..299) {
+                val resText = BufferedReader(InputStreamReader(conn.inputStream)).readText()
+                Log.d(TAG, "fetchUserProfile response: $resText")
+                
+                val jsonArray = JSONArray(resText)
+                if (jsonArray.length() > 0) {
+                    val p = jsonArray.getJSONObject(0)
+                    var tier = p.optString("tier", "free")
+                    val familyOwnerId = p.optString("family_owner_id", "")
+                    
+                    // 如果有 family_owner_id，说明是家庭组成员，直接给 family 权限
+                    if (familyOwnerId.isNotEmpty() && familyOwnerId != "null") {
+                        tier = "family"
+                    }
+                    
+                    Log.i(TAG, "fetchUserProfile: 最终解析 Tier = $tier")
+                    prefs.edit().putString("tier", tier).apply()
+                    Result.success(tier)
+                } else {
+                    Log.w(TAG, "fetchUserProfile: 结果为空，默认 free")
+                    prefs.edit().putString("tier", "free").apply()
+                    Result.success("free")
+                }
+            } else {
+                val err = conn.errorStream?.let { BufferedReader(InputStreamReader(it)).readText() }
+                Log.e(TAG, "fetchUserProfile failed: code=${conn.responseCode}, err=$err")
+                Result.failure(Exception("HTTP ${conn.responseCode}"))
+            }
+        } catch (e: Exception) { 
+            Log.e(TAG, "fetchUserProfile exception", e)
+            Result.failure(e) 
+        }
+    }
 }
