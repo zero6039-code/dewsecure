@@ -32,7 +32,6 @@ class DewVpnService : VpnService() {
         private const val CHANNEL_ID = "dewsecure_vpn"
         private const val NOTIFICATION_ID = 1001
         
-        // 用于同步真实运行状态给 UI
         @Volatile var isRunningState = false
     }
 
@@ -61,7 +60,14 @@ class DewVpnService : VpnService() {
         TcpDnsRelay.setUpstreamDns(upstreamDns)
 
         EngineBridge.init(aiEnabled = false)
-        Log.i(TAG, "🔥 VPN 服务已成功启动，底层引擎初始化完毕")
+        
+        // 恢复历史统计数据
+        val statsPrefs = getSharedPreferences("stats_cache", MODE_PRIVATE)
+        val savedTotal = statsPrefs.getLong("total", 0)
+        val savedToday = statsPrefs.getLong("today", 0)
+        EngineBridge.setInitialStats(savedTotal, savedToday)
+        
+        Log.i(TAG, "🔥 VPN 服务已成功启动，底层引擎初始化完毕，已恢复历史数据")
         isRunningState = true
 
         isRunning = true
@@ -137,10 +143,23 @@ class DewVpnService : VpnService() {
         if (result.decision != com.dewsecure.core.BlockDecision.ALLOW) {
             Log.i(TAG, "🛑 拦截: $domain (${result.reason})")
             outStream.write(DnsPacketCodec.buildNxDomainResponse(packet, length))
+            
+            // 每次拦截后，立刻存盘，防止杀后台丢失数据
+            saveStatsToDisk()
         } else {
             Log.d(TAG, "✅ 放行: $domain (原因: ${result.reason})")
             DnsForwarder.forward(packet, length, socket, outStream, upstreamDns)
         }
+    }
+
+    private fun saveStatsToDisk() {
+        try {
+            val json = org.json.JSONObject(EngineBridge.getStatsJson())
+            getSharedPreferences("stats_cache", MODE_PRIVATE).edit()
+                .putLong("total", json.optLong("total_blocked", 0))
+                .putLong("today", json.optLong("today_blocked", 0))
+                .apply()
+        } catch (e: Exception) {}
     }
 
     private fun stopVpn() {

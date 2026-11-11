@@ -742,6 +742,10 @@ internal interface UniffiForeignFutureCompleteVoid : com.sun.jna.Callback {
 
 
 
+
+
+
+
 // A JNA Library to expose the extern-C FFI definitions.
 // This is an implementation detail which will be called internally by the public API.
 
@@ -777,6 +781,8 @@ internal interface UniffiLib : Library {
     ): RustBuffer.ByValue
     fun uniffi_dewsecure_core_fn_method_dewengine_get_stats(`ptr`: Pointer,uniffi_out_err: UniffiRustCallStatus, 
     ): RustBuffer.ByValue
+    fun uniffi_dewsecure_core_fn_method_dewengine_set_initial_stats(`ptr`: Pointer,`total`: Long,`today`: Long,uniffi_out_err: UniffiRustCallStatus, 
+    ): Unit
     fun uniffi_dewsecure_core_fn_clone_hostengine(`ptr`: Pointer,uniffi_out_err: UniffiRustCallStatus, 
     ): Pointer
     fun uniffi_dewsecure_core_fn_free_hostengine(`ptr`: Pointer,uniffi_out_err: UniffiRustCallStatus, 
@@ -788,6 +794,8 @@ internal interface UniffiLib : Library {
     fun uniffi_dewsecure_core_fn_method_hostengine_get_user_allow_list(`ptr`: Pointer,uniffi_out_err: UniffiRustCallStatus, 
     ): RustBuffer.ByValue
     fun uniffi_dewsecure_core_fn_method_hostengine_load_user_whitelist(`ptr`: Pointer,`domains`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
+    ): Unit
+    fun uniffi_dewsecure_core_fn_method_hostengine_set_initial_stats(`ptr`: Pointer,`total`: Long,`today`: Long,uniffi_out_err: UniffiRustCallStatus, 
     ): Unit
     fun uniffi_dewsecure_core_fn_method_hostengine_should_block(`ptr`: Pointer,`domain`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
     ): RustBuffer.ByValue
@@ -917,11 +925,15 @@ internal interface UniffiLib : Library {
     ): Short
     fun uniffi_dewsecure_core_checksum_method_dewengine_get_stats(
     ): Short
+    fun uniffi_dewsecure_core_checksum_method_dewengine_set_initial_stats(
+    ): Short
     fun uniffi_dewsecure_core_checksum_method_hostengine_get_stats(
     ): Short
     fun uniffi_dewsecure_core_checksum_method_hostengine_get_user_allow_list(
     ): Short
     fun uniffi_dewsecure_core_checksum_method_hostengine_load_user_whitelist(
+    ): Short
+    fun uniffi_dewsecure_core_checksum_method_hostengine_set_initial_stats(
     ): Short
     fun uniffi_dewsecure_core_checksum_method_hostengine_should_block(
     ): Short
@@ -965,6 +977,9 @@ private fun uniffiCheckApiChecksums(lib: UniffiLib) {
     if (lib.uniffi_dewsecure_core_checksum_method_dewengine_get_stats() != 55824.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
+    if (lib.uniffi_dewsecure_core_checksum_method_dewengine_set_initial_stats() != 52464.toShort()) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
     if (lib.uniffi_dewsecure_core_checksum_method_hostengine_get_stats() != 7941.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
@@ -972,6 +987,9 @@ private fun uniffiCheckApiChecksums(lib: UniffiLib) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if (lib.uniffi_dewsecure_core_checksum_method_hostengine_load_user_whitelist() != 13523.toShort()) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
+    if (lib.uniffi_dewsecure_core_checksum_method_hostengine_set_initial_stats() != 16092.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if (lib.uniffi_dewsecure_core_checksum_method_hostengine_should_block() != 3599.toShort()) {
@@ -1035,6 +1053,29 @@ inline fun <T : Disposable?, R> T.use(block: (T) -> R) =
  * @suppress
  * */
 object NoPointer
+
+/**
+ * @suppress
+ */
+public object FfiConverterLong: FfiConverter<Long, Long> {
+    override fun lift(value: Long): Long {
+        return value
+    }
+
+    override fun read(buf: ByteBuffer): Long {
+        return buf.getLong()
+    }
+
+    override fun lower(value: Long): Long {
+        return value
+    }
+
+    override fun allocationSize(value: Long) = 8UL
+
+    override fun write(value: Long, buf: ByteBuffer) {
+        buf.putLong(value)
+    }
+}
 
 /**
  * @suppress
@@ -1313,6 +1354,8 @@ public interface DewEngineInterface {
     
     fun `getStats`(): kotlin.String
     
+    fun `setInitialStats`(`total`: kotlin.Long, `today`: kotlin.Long)
+    
     companion object
 }
 
@@ -1463,6 +1506,17 @@ open class DewEngine: Disposable, AutoCloseable, DewEngineInterface {
     }
     
 
+    override fun `setInitialStats`(`total`: kotlin.Long, `today`: kotlin.Long)
+        = 
+    callWithPointer {
+    uniffiRustCall() { _status ->
+    UniffiLib.INSTANCE.uniffi_dewsecure_core_fn_method_dewengine_set_initial_stats(
+        it, FfiConverterLong.lower(`total`),FfiConverterLong.lower(`today`),_status)
+}
+    }
+    
+    
+
     
 
     
@@ -1606,6 +1660,8 @@ public interface HostEngineInterface {
     
     fun `loadUserWhitelist`(`domains`: List<kotlin.String>)
     
+    fun `setInitialStats`(`total`: kotlin.Long, `today`: kotlin.Long)
+    
     fun `shouldBlock`(`domain`: kotlin.String): BlockResult
     
     fun `userAllow`(`domain`: kotlin.String)
@@ -1733,6 +1789,17 @@ open class HostEngine: Disposable, AutoCloseable, HostEngineInterface {
     uniffiRustCall() { _status ->
     UniffiLib.INSTANCE.uniffi_dewsecure_core_fn_method_hostengine_load_user_whitelist(
         it, FfiConverterSequenceString.lower(`domains`),_status)
+}
+    }
+    
+    
+
+    override fun `setInitialStats`(`total`: kotlin.Long, `today`: kotlin.Long)
+        = 
+    callWithPointer {
+    uniffiRustCall() { _status ->
+    UniffiLib.INSTANCE.uniffi_dewsecure_core_fn_method_hostengine_set_initial_stats(
+        it, FfiConverterLong.lower(`total`),FfiConverterLong.lower(`today`),_status)
 }
     }
     
@@ -1886,7 +1953,8 @@ data class FilterRule (
     var `pattern`: kotlin.String, 
     var `isException`: kotlin.Boolean, 
     var `resourceTypes`: List<kotlin.String>, 
-    var `domains`: List<kotlin.String>
+    var `domains`: List<kotlin.String>, 
+    var `thirdParty`: kotlin.Boolean?
 ) {
     
     companion object
@@ -1902,6 +1970,7 @@ public object FfiConverterTypeFilterRule: FfiConverterRustBuffer<FilterRule> {
             FfiConverterBoolean.read(buf),
             FfiConverterSequenceString.read(buf),
             FfiConverterSequenceString.read(buf),
+            FfiConverterOptionalBoolean.read(buf),
         )
     }
 
@@ -1909,7 +1978,8 @@ public object FfiConverterTypeFilterRule: FfiConverterRustBuffer<FilterRule> {
             FfiConverterString.allocationSize(value.`pattern`) +
             FfiConverterBoolean.allocationSize(value.`isException`) +
             FfiConverterSequenceString.allocationSize(value.`resourceTypes`) +
-            FfiConverterSequenceString.allocationSize(value.`domains`)
+            FfiConverterSequenceString.allocationSize(value.`domains`) +
+            FfiConverterOptionalBoolean.allocationSize(value.`thirdParty`)
     )
 
     override fun write(value: FilterRule, buf: ByteBuffer) {
@@ -1917,6 +1987,7 @@ public object FfiConverterTypeFilterRule: FfiConverterRustBuffer<FilterRule> {
             FfiConverterBoolean.write(value.`isException`, buf)
             FfiConverterSequenceString.write(value.`resourceTypes`, buf)
             FfiConverterSequenceString.write(value.`domains`, buf)
+            FfiConverterOptionalBoolean.write(value.`thirdParty`, buf)
     }
 }
 
@@ -2069,6 +2140,38 @@ public object FfiConverterTypeEngineError : FfiConverterRustBuffer<EngineExcepti
         }.let { /* this makes the `when` an expression, which ensures it is exhaustive */ }
     }
 
+}
+
+
+
+
+/**
+ * @suppress
+ */
+public object FfiConverterOptionalBoolean: FfiConverterRustBuffer<kotlin.Boolean?> {
+    override fun read(buf: ByteBuffer): kotlin.Boolean? {
+        if (buf.get().toInt() == 0) {
+            return null
+        }
+        return FfiConverterBoolean.read(buf)
+    }
+
+    override fun allocationSize(value: kotlin.Boolean?): ULong {
+        if (value == null) {
+            return 1UL
+        } else {
+            return 1UL + FfiConverterBoolean.allocationSize(value)
+        }
+    }
+
+    override fun write(value: kotlin.Boolean?, buf: ByteBuffer) {
+        if (value == null) {
+            buf.put(0)
+        } else {
+            buf.put(1)
+            FfiConverterBoolean.write(value, buf)
+        }
+    }
 }
 
 

@@ -102,3 +102,10 @@ mod tests {
         println!("✅ PoC 成功：Rust 发生 panic 时已被 catch_unwind 安全捕获，不会导致 App 闪退");
     }
 }
+
+impl StatsEngine {
+    pub fn set_initial_stats(&self, total: u64, today: u64) {
+        self.total_blocked.store(total, Ordering::Relaxed);
+        self.today_blocked.store(today, Ordering::Relaxed);
+    }
+}

@@ -31,6 +31,16 @@ object EngineBridge {
         }
     }
 
+    // 🌟 新增：初始化历史统计数据
+    fun setInitialStats(total: Long, today: Long) {
+        try {
+            engine?.setInitialStats(total, today)
+            Log.i(TAG, "设置初始统计数据: total=$total, today=$today")
+        } catch (e: Throwable) {
+            Log.e(TAG, "setInitialStats err", e)
+        }
+    }
+
     fun shouldBlock(domain: String): BlockResult {
         val e = engine ?: return fallbackAllow()
         return try {
