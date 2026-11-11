@@ -11,8 +11,8 @@ android {
         applicationId = "com.dewsecure.android"
         minSdk = 28
         targetSdk = 35
-        versionCode = 128
-        versionName = "1.2.8"
+        versionCode = 129
+        versionName = "1.2.9"
 
         ndk {
             abiFilters += listOf("arm64-v8a", "armeabi-v7a", "x86_64")
@@ -45,4 +45,7 @@ dependencies {
     implementation("com.google.android.material:material:1.12.0")
     implementation("androidx.recyclerview:recyclerview:1.3.2")
     implementation("net.java.dev.jna:jna:5.13.0@aar")
+    implementation("io.github.jan-tennert.supabase:gotrue-kt:2.6.0")
+    implementation("io.github.jan-tennert.supabase:postgrest-kt:2.6.0")
+    implementation("io.ktor:ktor-client-okhttp:2.3.12")
 }
