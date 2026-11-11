@@ -1,11 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
 <RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:background="@drawable/bg_aurora"
     android:padding="20dp">
 
-    <!-- 顶部返回栏 -->
+    <!-- 顶部栏 -->
     <LinearLayout
         android:id="@+id/header"
         android:layout_width="match_parent"
@@ -20,14 +21,15 @@
             android:layout_height="32dp"
             android:src="@android:drawable/ic_menu_revert"
             app:tint="@color/text_primary"
-            xmlns:app="http://schemas.android.com/apk/res-auto"/>
-        <!-- 如果没有 ic_menu_revert，用系统图标代替，或者手写一个矢量图 -->
+            android:background="?attr/selectableItemBackgroundBorderless"/>
 
+        <!-- 动态标题 -->
         <TextView
+            android:id="@+id/tv_title"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_marginStart="16dp"
-            android:text="拦截记录"
+            android:text="总拦截记录"
             android:textColor="@color/text_primary"
             android:textSize="20sp"
             android:textStyle="bold"/>
@@ -42,6 +44,7 @@
         android:background="@drawable/bg_glass_card"
         android:padding="10dp"/>
 
+    <!-- 空状态提示 -->
     <TextView
         android:id="@+id/tv_empty"
         android:layout_width="match_parent"
@@ -50,7 +53,6 @@
         android:gravity="center"
         android:text="暂无拦截记录\n去刷几个广告网页试试吧"
         android:textColor="@color/text_secondary"
-        android:textSize="16sp"
+        android:textSize="14sp"
         android:visibility="gone"/>
-
 </RelativeLayout>

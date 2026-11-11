@@ -1,0 +1,212 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@drawable/bg_aurora"
+    android:fillViewport="true">
+
+    <RelativeLayout
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:padding="24dp">
+
+        <ImageView
+            android:id="@+id/btn_close"
+            android:layout_width="32dp"
+            android:layout_height="32dp"
+            android:layout_alignParentEnd="true"
+            android:src="@android:drawable/ic_menu_close_clear_cancel"
+            app:tint="@color/text_secondary"
+            android:background="?attr/selectableItemBackgroundBorderless"/>
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_centerInParent="true"
+            android:orientation="vertical"
+            android:gravity="center_horizontal">
+
+            <ImageView
+                android:layout_width="64dp"
+                android:layout_height="64dp"
+                android:src="@drawable/dewsecure_icon"
+                android:layout_marginBottom="24dp"/>
+
+            <!-- 邮箱输入步骤 -->
+            <LinearLayout
+                android:id="@+id/step_email"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:gravity="center_horizontal">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Login / Register"
+                    android:textColor="@color/text_primary"
+                    android:textSize="24sp"
+                    android:textStyle="bold"
+                    android:layout_marginBottom="8dp"/>
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Account auto-created on first use"
+                    android:textColor="@color/text_secondary"
+                    android:textSize="14sp"
+                    android:layout_marginBottom="32dp"/>
+
+                <EditText
+                    android:id="@+id/et_email"
+                    android:layout_width="match_parent"
+                    android:layout_height="56dp"
+                    android:background="@drawable/bg_glass_card"
+                    android:hint="your@email.com"
+                    android:inputType="textEmailAddress"
+                    android:paddingHorizontal="20dp"
+                    android:textColor="@color/text_primary"
+                    android:textColorHint="@color/text_secondary"
+                    android:textSize="15sp"
+                    android:layout_marginBottom="16dp"/>
+
+                <TextView
+                    android:id="@+id/tv_email_error"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:textColor="#f85149"
+                    android:textSize="12sp"
+                    android:layout_marginBottom="16dp"
+                    android:visibility="gone"/>
+
+                <Button
+                    android:id="@+id/btn_send_otp"
+                    android:layout_width="match_parent"
+                    android:layout_height="56dp"
+                    android:text="Send OTP"
+                    android:textColor="@color/text_primary"
+                    android:textStyle="bold"
+                    android:backgroundTint="@color/glass_bg"
+                    android:layout_marginBottom="24dp"/>
+
+                <!-- OR 分割线 -->
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:gravity="center_vertical"
+                    android:orientation="horizontal"
+                    android:layout_marginBottom="24dp">
+                    <View android:layout_width="0dp" android:layout_height="1dp" android:layout_weight="1" android:background="@color/glass_stroke"/>
+                    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="or" android:textColor="@color/text_secondary" android:layout_marginHorizontal="16dp" android:textSize="12sp"/>
+                    <View android:layout_width="0dp" android:layout_height="1dp" android:layout_weight="1" android:background="@color/glass_stroke"/>
+                </LinearLayout>
+
+                <!-- 极简 G 按钮 (图2风格) -->
+                <TextView
+                    android:id="@+id/btn_google_login"
+                    android:layout_width="match_parent"
+                    android:layout_height="56dp"
+                    android:text="G"
+                    android:textColor="@color/text_primary"
+                    android:textSize="26sp"
+                    android:textStyle="bold"
+                    android:gravity="center"
+                    android:background="@drawable/bg_glass_card"
+                    android:clickable="true"
+                    android:focusable="true"
+                    android:foreground="?attr/selectableItemBackground"/>
+            </LinearLayout>
+
+            <!-- OTP 输入步骤 -->
+            <LinearLayout
+                android:id="@+id/step_otp"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:gravity="center_horizontal"
+                android:visibility="gone">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Enter OTP"
+                    android:textColor="@color/text_primary"
+                    android:textSize="24sp"
+                    android:textStyle="bold"
+                    android:layout_marginBottom="8dp"/>
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Verification code sent to"
+                    android:textColor="@color/text_secondary"
+                    android:textSize="14sp"
+                    android:layout_marginBottom="4dp"/>
+                    
+                <TextView
+                    android:id="@+id/tv_sent_email"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="example@mail.com"
+                    android:textColor="@color/accent_blue"
+                    android:textSize="14sp"
+                    android:textStyle="bold"
+                    android:layout_marginBottom="32dp"/>
+
+                <EditText
+                    android:id="@+id/et_otp"
+                    android:layout_width="match_parent"
+                    android:layout_height="56dp"
+                    android:background="@drawable/bg_glass_card"
+                    android:hint="8-digit code"
+                    android:inputType="number"
+                    android:maxLength="8"
+                    android:gravity="center"
+                    android:letterSpacing="0.2"
+                    android:textColor="@color/text_primary"
+                    android:textColorHint="@color/text_secondary"
+                    android:textSize="20sp"
+                    android:layout_marginBottom="16dp"/>
+
+                <TextView
+                    android:id="@+id/tv_otp_error"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:textColor="#f85149"
+                    android:textSize="12sp"
+                    android:layout_marginBottom="16dp"
+                    android:visibility="gone"/>
+
+                <Button
+                    android:id="@+id/btn_verify_otp"
+                    android:layout_width="match_parent"
+                    android:layout_height="56dp"
+                    android:text="Verify"
+                    android:textColor="@color/text_primary"
+                    android:textStyle="bold"
+                    android:backgroundTint="@color/glass_bg"
+                    android:layout_marginBottom="16dp"/>
+
+                <TextView
+                    android:id="@+id/btn_resend_otp"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Resend code"
+                    android:textColor="@color/accent_blue"
+                    android:textSize="14sp"
+                    android:padding="8dp"/>
+
+                <TextView
+                    android:id="@+id/btn_back_email"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Back to email"
+                    android:textColor="@color/text_secondary"
+                    android:textSize="14sp"
+                    android:padding="8dp"
+                    android:layout_marginTop="8dp"/>
+            </LinearLayout>
+        </LinearLayout>
+    </RelativeLayout>
+</ScrollView>

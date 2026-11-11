@@ -26,9 +26,28 @@
             </intent-filter>
         </activity>
 
-        <!-- 新增：拦截日志页面 -->
+        <!-- 拦截日志页面 -->
         <activity android:name=".ui.LogActivity" android:exported="false" />
+        
+        <!-- 流量详情页面 -->
         <activity android:name=".ui.TrafficActivity" android:exported="false" />
+        
+        <!-- 登录页面：必须配置 exported="true" 和 Deep Link -->
+        <activity
+            android:name=".ui.LoginActivity"
+            android:exported="true"
+            android:launchMode="singleTop">
+            <!-- 这里就是接收浏览器回调的专属协议 -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="com.dewsecure.android" android:host="login-callback" />
+            </intent-filter>
+        </activity>
+        
+        <!-- 控制台页面 -->
+        <activity android:name=".ui.AccountActivity" android:exported="false" />
 
         <!-- 注册我们的 VPN 服务 -->
         <service
