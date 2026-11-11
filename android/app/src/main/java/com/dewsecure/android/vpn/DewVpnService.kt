@@ -74,11 +74,12 @@ class DewVpnService : VpnService() {
         EngineBridge.setEnableAiPhishing(appPrefs.getBoolean("pref_ai_phishing", true))
         EngineBridge.setEnableAiZeroDay(appPrefs.getBoolean("pref_ai_zero_day", true))
         
-        // 恢复历史统计数据
+        // 恢复历史统计数据及日志
         val statsPrefs = getSharedPreferences("stats_cache", MODE_PRIVATE)
         val savedTotal = statsPrefs.getLong("total", 0)
         val savedToday = statsPrefs.getLong("today", 0)
-        EngineBridge.setInitialStats(savedTotal, savedToday)
+        val savedLogs = statsPrefs.getString("logs_json", "[]") ?: "[]"
+        EngineBridge.setInitialStats(savedTotal, savedToday, savedLogs)
         
         Log.i(TAG, "🔥 VPN 服务已成功启动，底层引擎初始化完毕，已恢复历史数据")
         isRunningState = true
@@ -103,7 +104,7 @@ class DewVpnService : VpnService() {
 
     private fun runVpnLoop() {
         try {
-            vpnInterface = Builder()
+            val builder = Builder()
                 .addAddress("10.0.0.2", 24)
                 .addAddress("fd00::2", 120)
                 .addDnsServer("10.0.0.1")
@@ -112,7 +113,27 @@ class DewVpnService : VpnService() {
                 .addRoute("fd00::1", 128)
                 .setMtu(1500)
                 .setBlocking(true)
-                .establish()
+
+            // 🌟 核心：读取分应用路由配置，踢出勾选直连的 App
+            val appPrefs = getSharedPreferences("app_settings", MODE_PRIVATE)
+            val allKeys = appPrefs.all
+            var bypassCount = 0
+            for ((key, value) in allKeys) {
+                if (key.startsWith("routing_") && value == true) {
+                    val pkg = key.removePrefix("routing_")
+                    try {
+                        builder.addDisallowedApplication(pkg)
+                        bypassCount++
+                    } catch (e: Exception) {
+                        Log.e(TAG, "无法绕过应用: $pkg", e)
+                    }
+                }
+            }
+            if (bypassCount > 0) {
+                Log.i(TAG, "🛡️ 成功配置 $bypassCount 个应用绕过 VPN 直连")
+            }
+
+            vpnInterface = builder.establish()
 
             val fd = vpnInterface?.fileDescriptor ?: return
             val inStream = FileInputStream(fd)
@@ -186,9 +207,11 @@ class DewVpnService : VpnService() {
     private fun saveStatsToDisk() {
         try {
             val json = org.json.JSONObject(EngineBridge.getStatsJson())
+            val logsArray = json.optJSONArray("logs")
             getSharedPreferences("stats_cache", MODE_PRIVATE).edit()
                 .putLong("total", json.optLong("total_blocked", 0))
                 .putLong("today", json.optLong("today_blocked", 0))
+                .putString("logs_json", logsArray?.toString() ?: "[]")
                 .apply()
         } catch (e: Exception) {}
     }

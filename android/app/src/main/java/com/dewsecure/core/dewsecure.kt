@@ -770,6 +770,8 @@ internal interface UniffiForeignFutureCompleteVoid : com.sun.jna.Callback {
 
 
 
+
+
 // A JNA Library to expose the extern-C FFI definitions.
 // This is an implementation detail which will be called internally by the public API.
 
@@ -844,6 +846,8 @@ internal interface UniffiLib : Library {
     fun uniffi_dewsecure_core_fn_method_hostengine_set_enable_tracker(`ptr`: Pointer,`enabled`: Byte,uniffi_out_err: UniffiRustCallStatus, 
     ): Unit
     fun uniffi_dewsecure_core_fn_method_hostengine_set_initial_stats(`ptr`: Pointer,`total`: Long,`today`: Long,uniffi_out_err: UniffiRustCallStatus, 
+    ): Unit
+    fun uniffi_dewsecure_core_fn_method_hostengine_set_initial_stats_with_logs(`ptr`: Pointer,`total`: Long,`today`: Long,`logsJson`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
     ): Unit
     fun uniffi_dewsecure_core_fn_method_hostengine_should_block(`ptr`: Pointer,`domain`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
     ): RustBuffer.ByValue
@@ -1007,6 +1011,8 @@ internal interface UniffiLib : Library {
     ): Short
     fun uniffi_dewsecure_core_checksum_method_hostengine_set_initial_stats(
     ): Short
+    fun uniffi_dewsecure_core_checksum_method_hostengine_set_initial_stats_with_logs(
+    ): Short
     fun uniffi_dewsecure_core_checksum_method_hostengine_should_block(
     ): Short
     fun uniffi_dewsecure_core_checksum_method_hostengine_user_allow(
@@ -1098,6 +1104,9 @@ private fun uniffiCheckApiChecksums(lib: UniffiLib) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if (lib.uniffi_dewsecure_core_checksum_method_hostengine_set_initial_stats() != 34260.toShort()) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
+    if (lib.uniffi_dewsecure_core_checksum_method_hostengine_set_initial_stats_with_logs() != 20033.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if (lib.uniffi_dewsecure_core_checksum_method_hostengine_should_block() != 36394.toShort()) {
@@ -1806,6 +1815,11 @@ public interface HostEngineInterface {
     
     fun `setInitialStats`(`total`: kotlin.Long, `today`: kotlin.Long)
     
+    /**
+     * 启动时同时恢复数字与历史日志列表
+     */
+    fun `setInitialStatsWithLogs`(`total`: kotlin.Long, `today`: kotlin.Long, `logsJson`: kotlin.String)
+    
     fun `shouldBlock`(`domain`: kotlin.String): BlockResult
     
     fun `userAllow`(`domain`: kotlin.String)
@@ -2082,6 +2096,20 @@ open class HostEngine: Disposable, AutoCloseable, HostEngineInterface {
     uniffiRustCall() { _status ->
     UniffiLib.INSTANCE.uniffi_dewsecure_core_fn_method_hostengine_set_initial_stats(
         it, FfiConverterLong.lower(`total`),FfiConverterLong.lower(`today`),_status)
+}
+    }
+    
+    
+
+    
+    /**
+     * 启动时同时恢复数字与历史日志列表
+     */override fun `setInitialStatsWithLogs`(`total`: kotlin.Long, `today`: kotlin.Long, `logsJson`: kotlin.String)
+        = 
+    callWithPointer {
+    uniffiRustCall() { _status ->
+    UniffiLib.INSTANCE.uniffi_dewsecure_core_fn_method_hostengine_set_initial_stats_with_logs(
+        it, FfiConverterLong.lower(`total`),FfiConverterLong.lower(`today`),FfiConverterString.lower(`logsJson`),_status)
 }
     }
     

@@ -212,6 +212,19 @@ impl HostEngine {
         self.stats_engine.set_initial_stats(total as u64, today as u64);
     }
 
+    /// 启动时同时恢复数字与历史日志列表
+    pub fn set_initial_stats_with_logs(&self, total: i64, today: i64, logs_json: String) {
+        self.stats_engine.set_initial_stats(total as u64, today as u64);
+        if let Ok(items) = serde_json::from_str::<Vec<crate::stats::LogItem>>(&logs_json) {
+            if let Ok(mut logs) = self.stats_engine.logs.lock() {
+                logs.clear();
+                for item in items {
+                    logs.push_back(item);
+                }
+            }
+        }
+    }
+
     pub fn get_stats(&self) -> String {
         self.stats_engine.get_stats_json()
     }

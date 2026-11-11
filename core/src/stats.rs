@@ -4,7 +4,7 @@ use std::collections::VecDeque;
 use std::time::{SystemTime, UNIX_EPOCH};
 use serde::Serialize;
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, serde::Deserialize)]
 pub struct LogItem {
     pub domain: String,
     pub block_type: String,
@@ -22,7 +22,7 @@ pub struct StatsEngine {
     total_blocked: AtomicU64,
     today_blocked: AtomicU64,
     last_date: Mutex<String>,
-    logs: Mutex<VecDeque<LogItem>>,
+    pub(crate) logs: Mutex<VecDeque<LogItem>>,
 }
 
 impl StatsEngine {
@@ -107,5 +107,12 @@ impl StatsEngine {
     pub fn set_initial_stats(&self, total: u64, today: u64) {
         self.total_blocked.store(total, Ordering::Relaxed);
         self.today_blocked.store(today, Ordering::Relaxed);
+        
+        // 修复：初始化时记录当天的日期，防止首次拦截时触发跨天误清零
+        let secs = SystemTime::now().duration_since(UNIX_EPOCH).unwrap_or_default().as_secs();
+        let days = secs / 86400;
+        let current_date = format!("{}", days);
+        let mut last_date = self.last_date.lock().unwrap_or_else(|e| e.into_inner());
+        *last_date = current_date;
     }
 }
