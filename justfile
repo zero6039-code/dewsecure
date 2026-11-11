@@ -41,8 +41,6 @@ build-opera:
 build-all-extensions: build-chrome
     cd extensions/firefox && node build.js
     cd extensions/opera && node build.js
-    node scripts/build-whale.js
-    node scripts/build-opera.js
 
 # 开发模式（Chrome）
 dev-chrome:

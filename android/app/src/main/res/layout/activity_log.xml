@@ -27,7 +27,7 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_marginStart="16dp"
-            android:text="拦截记录 (前20条)"
+            android:text="拦截记录"
             android:textColor="@color/text_primary"
             android:textSize="20sp"
             android:textStyle="bold"/>

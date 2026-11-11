@@ -71,120 +71,126 @@
             <div class="feedback-hint" id="feedbackHint" data-i18n="feedback_hint">您的反馈将匿名上传，帮助 AI 持续进化</div>
         </div>
 
-        <div class="features-card glass">
-            <div class="features-header" data-i18n="feat_header">保护功能</div>
-            
-            <div class="feature-row">
-                <div class="feature-text">
-                    <div class="feature-name" data-i18n="feat_dnr">DNR 规则拦截</div>
-                    <div class="feature-desc" data-i18n="feat_dnr_desc">包含已知恶意域名、广告与追踪器（基础免费）</div>
-                </div>
-                <label class="ios-switch mini">
-                    <input type="checkbox" id="dnrToggle" checked>
-                    <span class="switch-track"><span class="switch-thumb"><svg class="icon-check" viewBox="0 0 24 24" fill="none"><path d="M5 13l4 4L19 7" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"/></svg><span class="icon-ring"></span></span></span>
-                </label>
-            </div>
+        
+          <div class="features-card glass">
+              <div class="features-header" data-i18n="feat_header">PROTECTION FEATURES</div>
 
-            <div class="feature-row">
-                <div class="feature-text">
-                    <div class="feature-name" data-i18n="feat_clickjack">防点击劫持 (防弹窗)</div>
-                    <div class="feature-desc" data-i18n="feat_clickjack_desc">阻断恶意网站透明遮罩与点击重定向</div>
-                </div>
-                <label class="ios-switch mini">
-                    <input type="checkbox" id="antiHijackToggle" checked>
-                    <span class="switch-track"><span class="switch-thumb"><svg class="icon-check" viewBox="0 0 24 24" fill="none"><path d="M5 13l4 4L19 7" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"/></svg><span class="icon-ring"></span></span></span>
-                </label>
-            </div>
+              <!-- ================= 免费功能 ================= -->
+              <div class="feature-row">
+                  <div class="feature-text">
+                      <div class="feature-name" data-i18n="feat_dnr">DNR Rule Blocking</div>
+                      <div class="feature-desc" data-i18n="feat_dnr_desc">Blocks known malicious domains, ads & trackers</div>
+                  </div>
+                  <label class="ios-switch mini">
+                      <input type="checkbox" id="dnrToggle" checked>
+                      <span class="switch-track"><span class="switch-thumb"><svg class="icon-check" viewBox="0 0 24 24" fill="none"><path d="M5 13l4 4L19 7" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"/></svg><span class="icon-ring"></span></span></span>
+                  </label>
+              </div>
 
-            <div class="feature-row" data-requires="premium">
-                <div class="feature-text">
-                    <div class="feature-name"><span data-i18n="feat_phishing">钓鱼网站 AI 检测</span> <span class="pro-badge">PRO</span></div>
-                    <div class="feature-desc" data-i18n="feat_phishing_desc">智能识别恶意与钓鱼网页</div>
-                </div>
-                <label class="ios-switch mini">
-                    <input type="checkbox" id="phishingToggle" checked>
-                    <span class="switch-track"><span class="switch-thumb"><svg class="icon-check" viewBox="0 0 24 24" fill="none"><path d="M5 13l4 4L19 7" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"/></svg><span class="icon-ring"></span></span></span>
-                </label>
-            </div>
+              <div class="feature-row">
+                  <div class="feature-text">
+                      <div class="feature-name" data-i18n="feat_clickjack">Anti-Clickjacking</div>
+                      <div class="feature-desc" data-i18n="feat_clickjack_desc">Prevents malicious transparent overlays</div>
+                  </div>
+                  <label class="ios-switch mini">
+                      <input type="checkbox" id="antiHijackToggle" checked>
+                      <span class="switch-track"><span class="switch-thumb"><svg class="icon-check" viewBox="0 0 24 24" fill="none"><path d="M5 13l4 4L19 7" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"/></svg><span class="icon-ring"></span></span></span>
+                  </label>
+              </div>
 
-            <div class="feature-row" data-requires="premium">
-                <div class="feature-text">
-                    <div class="feature-name"><span data-i18n="feat_intel">云端威胁情报拦截</span> <span class="pro-badge">PRO</span></div>
-                    <div class="feature-desc" data-i18n="feat_intel_desc">动态拉取最新黑名单，精准封杀刚爆发的钓鱼域名</div>
-                </div>
-                <label class="ios-switch mini">
-                    <input type="checkbox" id="intelToggle" checked>
-                    <span class="switch-track"><span class="switch-thumb"><svg class="icon-check" viewBox="0 0 24 24" fill="none"><path d="M5 13l4 4L19 7" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"/></svg><span class="icon-ring"></span></span></span>
-                </label>
-            </div>
+              <div class="feature-row">
+                  <div class="feature-text">
+                      <div class="feature-name" data-i18n="feat_tracker">Block Trackers</div>
+                      <div class="feature-desc" data-i18n="feat_tracker_desc">Intercepts tracking scripts and pixels</div>
+                  </div>
+                  <label class="ios-switch mini">
+                      <input type="checkbox" id="trackerToggle" checked>
+                      <span class="switch-track"><span class="switch-thumb"><svg class="icon-check" viewBox="0 0 24 24" fill="none"><path d="M5 13l4 4L19 7" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"/></svg><span class="icon-ring"></span></span></span>
+                  </label>
+              </div>
 
-            <div class="feature-row" data-requires="premium">
-                <div class="feature-text">
-                    <div class="feature-name"><span data-i18n="feat_ai">AI 智能实时检测</span> <span class="pro-badge">PRO</span></div>
-                    <div class="feature-desc" data-i18n="feat_ai_desc">识别规则库未收录的广告与威胁</div>
-                </div>
-                <label class="ios-switch mini">
-                    <input type="checkbox" id="aiFourToggle" checked>
+              <div class="feature-row">
+                  <div class="feature-text">
+                      <div class="feature-name" data-i18n="feat_antiblock">Anti-Adblock Protection</div>
+                      <div class="feature-desc" data-i18n="feat_antiblock_desc">Prevents sites from detecting the blocker</div>
+                  </div>
+                  <label class="ios-switch mini">
+                      <input type="checkbox" id="antiBypassToggle" checked>
+                      <span class="switch-track"><span class="switch-thumb"><svg class="icon-check" viewBox="0 0 24 24" fill="none"><path d="M5 13l4 4L19 7" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"/></svg><span class="icon-ring"></span></span></span>
+                  </label>
+              </div>
 
-                    <span class="switch-track"><span class="switch-thumb"><svg class="icon-check" viewBox="0 0 24 24" fill="none"><path d="M5 13l4 4L19 7" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"/></svg><span class="icon-ring"></span></span></span>
-                </label>
-            </div>
+              <div class="feature-row">
+                  <div class="feature-text">
+                      <div class="feature-name" data-i18n="feat_cookie">Hide Cookie Banners</div>
+                      <div class="feature-desc" data-i18n="feat_cookie_desc">Hides cookie consent banners</div>
+                  </div>
+                  <label class="ios-switch mini">
+                      <input type="checkbox" id="cookieToggle" checked>
+                      <span class="switch-track"><span class="switch-thumb"><svg class="icon-check" viewBox="0 0 24 24" fill="none"><path d="M5 13l4 4L19 7" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"/></svg><span class="icon-ring"></span></span></span>
+                  </label>
+              </div>
 
-            <div class="feature-row">
-                <div class="feature-text">
-                    <div class="feature-name" data-i18n="feat_tracker">阻止追踪器</div>
-                    <div class="feature-desc" data-i18n="feat_tracker_desc">拦截跟踪脚本和像素</div>
-                </div>
-                <label class="ios-switch mini">
-                    <input type="checkbox" id="trackerToggle" checked>
-                    <span class="switch-track"><span class="switch-thumb"><svg class="icon-check" viewBox="0 0 24 24" fill="none"><path d="M5 13l4 4L19 7" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"/></svg><span class="icon-ring"></span></span></span>
-                </label>
-            </div>
+              <div class="feature-row">
+                  <div class="feature-text">
+                      <div class="feature-name" data-i18n="feat_placeholder">Hide Ad Placeholders</div>
+                      <div class="feature-desc" data-i18n="feat_placeholder_desc">Removes blank spaces left by ads</div>
+                  </div>
+                  <label class="ios-switch mini">
+                      <input type="checkbox" id="placeholderToggle" checked>
+                      <span class="switch-track"><span class="switch-thumb"><svg class="icon-check" viewBox="0 0 24 24" fill="none"><path d="M5 13l4 4L19 7" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"/></svg><span class="icon-ring"></span></span></span>
+                  </label>
+              </div>
 
-            <div class="feature-row">
-                <div class="feature-text">
-                    <div class="feature-name" data-i18n="feat_antiblock">反反拦截保护</div>
-                    <div class="feature-desc" data-i18n="feat_antiblock_desc">防止网站检测拦截器</div>
-                </div>
-                <label class="ios-switch mini">
-                    <input type="checkbox" id="antiBypassToggle" checked>
-                    <span class="switch-track"><span class="switch-thumb"><svg class="icon-check" viewBox="0 0 24 24" fill="none"><path d="M5 13l4 4L19 7" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"/></svg><span class="icon-ring"></span></span></span>
-                </label>
-            </div>
+              <div class="feature-row">
+                  <div class="feature-text">
+                      <div class="feature-name" data-i18n="feat_social">Block Social Trackers</div>
+                      <div class="feature-desc" data-i18n="feat_social_desc">Blocks social media tracking buttons</div>
+                  </div>
+                  <label class="ios-switch mini">
+                      <input type="checkbox" id="socialToggle" checked>
+                      <span class="switch-track"><span class="switch-thumb"><svg class="icon-check" viewBox="0 0 24 24" fill="none"><path d="M5 13l4 4L19 7" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"/></svg><span class="icon-ring"></span></span></span>
+                  </label>
+              </div>
 
-            <div class="feature-row">
-                <div class="feature-text">
-                    <div class="feature-name" data-i18n="feat_cookie">隐藏 Cookie 弹窗</div>
-                    <div class="feature-desc" data-i18n="feat_cookie_desc">隐藏 Cookie 同意横幅</div>
-                </div>
-                <label class="ios-switch mini">
-                    <input type="checkbox" id="cookieToggle" checked>
-                    <span class="switch-track"><span class="switch-thumb"><svg class="icon-check" viewBox="0 0 24 24" fill="none"><path d="M5 13l4 4L19 7" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"/></svg><span class="icon-ring"></span></span></span>
-                </label>
-            </div>
+              <!-- ================= 无字分割线 ================= -->
+              <div style="margin: 20px 16px 10px 16px; height: 1px; background: rgba(0,0,0,0.06);"></div>
 
-            <div class="feature-row">
-                <div class="feature-text">
-                    <div class="feature-name" data-i18n="feat_placeholder">隐藏广告占位符</div>
-                    <div class="feature-desc" data-i18n="feat_placeholder_desc">移除广告留下的空白</div>
-                </div>
-                <label class="ios-switch mini">
-                    <input type="checkbox" id="placeholderToggle" checked>
-                    <span class="switch-track"><span class="switch-thumb"><svg class="icon-check" viewBox="0 0 24 24" fill="none"><path d="M5 13l4 4L19 7" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"/></svg><span class="icon-ring"></span></span></span>
-                </label>
-            </div>
+              <!-- ================= PRO 功能 ================= -->
+              <div class="feature-row" data-requires="premium">
+                  <div class="feature-text">
+                      <div class="feature-name"><span data-i18n="feat_phishing">AI Phishing Detection</span> <span class="pro-badge">PRO</span></div>
+                      <div class="feature-desc" data-i18n="feat_phishing_desc">Identifies malicious and phishing pages</div>
+                  </div>
+                  <label class="ios-switch mini">
+                      <input type="checkbox" id="phishingToggle" checked>
+                      <span class="switch-track"><span class="switch-thumb"><svg class="icon-check" viewBox="0 0 24 24" fill="none"><path d="M5 13l4 4L19 7" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"/></svg><span class="icon-ring"></span></span></span>
+                  </label>
+              </div>
 
-            <div class="feature-row" data-requires="premium">
-                <div class="feature-text">
-                    <div class="feature-name"><span data-i18n="feat_social">拦截社交追踪</span> <span class="pro-badge">PRO</span></div>
-                    <div class="feature-desc" data-i18n="feat_social_desc">阻止社交媒体追踪按钮</div>
-                </div>
-                <label class="ios-switch mini">
-                    <input type="checkbox" id="socialToggle" checked>
-                    <span class="switch-track"><span class="switch-thumb"><svg class="icon-check" viewBox="0 0 24 24" fill="none"><path d="M5 13l4 4L19 7" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"/></svg><span class="icon-ring"></span></span></span>
-                </label>
-            </div>
-        </div>
+              <div class="feature-row" data-requires="premium">
+                  <div class="feature-text">
+                      <div class="feature-name"><span data-i18n="feat_intel">Real-time Threat Intel</span> <span class="pro-badge">PRO</span></div>
+                      <div class="feature-desc" data-i18n="feat_intel_desc">Dynamically blocks newly emerged phishing domains (PRO)</div>
+                  </div>
+                  <label class="ios-switch mini">
+                      <input type="checkbox" id="intelToggle" checked>
+                      <span class="switch-track"><span class="switch-thumb"><svg class="icon-check" viewBox="0 0 24 24" fill="none"><path d="M5 13l4 4L19 7" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"/></svg><span class="icon-ring"></span></span></span>
+                  </label>
+              </div>
+
+              <div class="feature-row" data-requires="premium">
+                  <div class="feature-text">
+                      <div class="feature-name"><span data-i18n="feat_ai">AI Smart Real-time Detection</span> <span class="pro-badge">PRO</span></div>
+                      <div class="feature-desc" data-i18n="feat_ai_desc">Identifies uncaptured ads and threats</div>
+                  </div>
+                  <label class="ios-switch mini">
+                      <input type="checkbox" id="aiFourToggle" checked>
+                      <span class="switch-track"><span class="switch-thumb"><svg class="icon-check" viewBox="0 0 24 24" fill="none"><path d="M5 13l4 4L19 7" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"/></svg><span class="icon-ring"></span></span></span>
+                  </label>
+              </div>
+          </div>
+</div>
 
         <footer class="footer">
             <span id="appVersion"></span>

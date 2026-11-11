@@ -5,24 +5,23 @@ import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.widget.LinearLayout
+import android.widget.TextView
 import androidx.fragment.app.Fragment
 import com.dewsecure.android.R
 import com.google.android.material.switchmaterial.SwitchMaterial
-import android.widget.TextView
 
 class ProtectionFragment : Fragment() {
 
     private val features = listOf(
+        // 免费版功能 (Free)
         Feature("DNR Rule Blocking", "Blocks known malicious domains, ads & trackers", false, true),
-        Feature("Anti-Clickjacking", "Prevents malicious transparent overlays", false, false),
-        Feature("AI Phishing Detection", "Identifies malicious and phishing pages", true, false),
-        Feature("Real-time Threat Intel", "Dynamically blocks newly emerged phishing domains", true, true),
-        Feature("AI Smart Real-time Detection", "Identifies uncaptured ads and threats", true, false),
         Feature("Block Trackers", "Intercepts tracking scripts and pixels", false, true),
-        Feature("Anti-Adblock Protection", "Prevents sites from detecting the blocker", false, false),
-        Feature("Hide Cookie Banners", "Hides cookie consent banners", false, false),
-        Feature("Hide Ad Placeholders", "Removes blank spaces left by ads", false, false),
-        Feature("Block Social Trackers", "Blocks social media tracking buttons", true, true)
+        Feature("Block Social Trackers", "Blocks social media tracking buttons", false, true), // 改为免费
+        
+        // 高级版功能 (Pro)
+        Feature("Real-time Threat Intel", "Dynamically blocks newly emerged phishing domains", true, true),
+        Feature("AI Phishing Detection", "Identifies malicious and phishing domains (Pro)", true, true),
+        Feature("AI Smart Real-time Detection", "AI dynamic blocking for zero-day ads (Pro)", true, true)
     )
 
     data class Feature(val title: String, val desc: String, val isPro: Boolean, val isSupported: Boolean)
@@ -51,7 +50,6 @@ class ProtectionFragment : Fragment() {
                 switch.isEnabled = false
                 switch.isChecked = false
                 itemView.alpha = 0.5f
-                itemView.findViewById<TextView>(R.id.tv_desc).text = "${feature.desc} (Unsupported)"
             }
 
             container.addView(itemView)

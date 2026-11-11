@@ -4,7 +4,7 @@
     android:layout_height="wrap_content"
     android:orientation="horizontal"
     android:gravity="center_vertical"
-    android:paddingVertical="12dp"
+    android:paddingVertical="14dp"
     android:paddingHorizontal="16dp">
 
     <LinearLayout
@@ -28,16 +28,16 @@
             android:layout_marginTop="4dp"/>
     </LinearLayout>
 
-    <!-- 替换为拦截次数徽章 -->
+    <!-- 去掉了 'x' 前缀，只显示次数 -->
     <TextView
         android:id="@+id/tv_count"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:text="x 1"
+        android:text="1"
         android:textColor="@color/accent_blue"
         android:textSize="14sp"
         android:textStyle="bold"
         android:background="@drawable/bg_glass_card"
-        android:paddingHorizontal="8dp"
+        android:paddingHorizontal="10dp"
         android:paddingVertical="4dp"/>
 </LinearLayout>

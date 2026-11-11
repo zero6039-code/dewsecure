@@ -28,6 +28,7 @@
 
         <!-- 新增：拦截日志页面 -->
         <activity android:name=".ui.LogActivity" android:exported="false" />
+        <activity android:name=".ui.TrafficActivity" android:exported="false" />
 
         <!-- 注册我们的 VPN 服务 -->
         <service
