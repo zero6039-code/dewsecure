@@ -17,10 +17,13 @@ import android.widget.EditText
 import android.widget.TextView
 import android.widget.Toast
 import androidx.fragment.app.Fragment
+import androidx.lifecycle.lifecycleScope
 import com.dewsecure.android.R
+import com.dewsecure.android.policy.AuthManager
 import com.dewsecure.android.policy.EngineBridge
 import com.dewsecure.android.ui.view.HoneycombButton
 import com.dewsecure.android.vpn.DewVpnService
+import kotlinx.coroutines.launch
 import org.json.JSONObject
 
 class HomeFragment : Fragment() {
@@ -80,7 +83,6 @@ class HomeFragment : Fragment() {
             startActivity(intent)
         }
 
-        // 点击登录/控制台：已登录直接跳转 AccountActivity，未登录跳转 LoginActivity
         btnLogin.setOnClickListener {
             val userPrefs = requireContext().getSharedPreferences("user_session", Context.MODE_PRIVATE)
             val email = userPrefs.getString("email", null)
@@ -107,10 +109,12 @@ class HomeFragment : Fragment() {
             startActivity(Intent(requireContext(), TrafficActivity::class.java))
         }
 
+        // 误报反馈
         view.findViewById<View>(R.id.btn_false_block).setOnClickListener {
             showReportDialog("误报反馈", "请填写被误拦截导致无法访问的网站域名。\n(提交后需人工审核)", "false_positive")
         }
 
+        // 漏报反馈
         view.findViewById<View>(R.id.btn_missed_ad).setOnClickListener {
             showReportDialog("漏报反馈", "请填写仍有广告未被拦截的网站域名。", "false_negative")
         }
@@ -133,11 +137,22 @@ class HomeFragment : Fragment() {
         tvHint.text = hint
 
         btnCancel.setOnClickListener { dialog.dismiss() }
+        
+        // 核心：这里的真实网络请求
         btnSubmit.setOnClickListener {
             val domain = etDomain.text.toString().trim().lowercase()
             if (domain.isNotEmpty()) {
-                Toast.makeText(requireContext(), "反馈已提交审核！", Toast.LENGTH_LONG).show()
                 dialog.dismiss()
+                Toast.makeText(requireContext(), "正在提交...", Toast.LENGTH_SHORT).show()
+                
+                lifecycleScope.launch {
+                    val result = AuthManager.submitReport(requireContext(), reportType, domain)
+                    if (result.isSuccess) {
+                        Toast.makeText(requireContext(), "反馈已提交，感谢您的帮助！", Toast.LENGTH_LONG).show()
+                    } else {
+                        Toast.makeText(requireContext(), "提交失败，请检查网络", Toast.LENGTH_LONG).show()
+                    }
+                }
             } else {
                 Toast.makeText(requireContext(), "域名不能为空", Toast.LENGTH_SHORT).show()
             }
@@ -154,7 +169,6 @@ class HomeFragment : Fragment() {
             updateUiState(false)
         }
 
-        // 检查登录状态刷新按钮文字
         val userPrefs = requireContext().getSharedPreferences("user_session", Context.MODE_PRIVATE)
         if (userPrefs.getString("email", null) != null) {
             btnLogin.text = "控制台"
