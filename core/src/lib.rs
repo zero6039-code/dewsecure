@@ -3,7 +3,7 @@
 //! DewSecure 核心引擎
 //! 提供跨平台的广告拦截和内容优化能力。通过 UniFFI 导出为 Kotlin 和 Swift 绑定。
 
-uniffi::include_scaffolding!("dewsecure");
+uniffi::setup_scaffolding!("dewsecure");
 
 pub mod anti_bypass;
 pub mod classifier;
@@ -20,7 +20,7 @@ use std::sync::Mutex;
 use thiserror::Error;
 use stats::StatsEngine;
 
-#[derive(Debug, Error)]
+#[derive(Debug, Error, uniffi::Error)]
 pub enum EngineError {
     #[error("无效规则: {0}")]
     InvalidRule(String),
@@ -30,7 +30,7 @@ pub enum EngineError {
     InitializationFailed(String),
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, uniffi::Enum)]
 pub enum Classification {
     Ad,
     Tracker,
@@ -38,21 +38,21 @@ pub enum Classification {
     Unknown,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, uniffi::Enum)]
 pub enum Decision {
     Allow,
     Block,
     Rewrite,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, uniffi::Record)]
 pub struct EngineConfig {
     pub rule_data: String,
     pub model_path: String,
     pub ai_enabled: bool,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, uniffi::Record)]
 pub struct FilterRule {
     pub pattern: String,
     pub is_exception: bool,
@@ -62,6 +62,7 @@ pub struct FilterRule {
 }
 
 /// DewSecure 引擎 (主要供旧接口兼容或纯规则测试)
+#[derive(uniffi::Object)]
 pub struct DewEngine {
     rule_matcher: Arc<Mutex<rule_matcher::RuleMatcher>>,
     classifier: Option<Arc<Mutex<classifier::Classifier>>>,
@@ -69,7 +70,9 @@ pub struct DewEngine {
     stats_engine: Arc<StatsEngine>,
 }
 
+#[uniffi::export]
 impl DewEngine {
+    #[uniffi::constructor]
     pub fn new(config: EngineConfig) -> Result<Self, EngineError> {
         tracing::info!("初始化 DewSecure 引擎");
 
@@ -122,7 +125,7 @@ impl DewEngine {
                 let parts: Vec<&str> = url.split('/').collect();
                 format!("https://{}", parts[0])
             };
-            
+
             let features = classifier::extract_features(&clean_url);
             let result = classifier.predict(&features);
 

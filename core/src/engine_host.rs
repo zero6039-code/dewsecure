@@ -5,7 +5,7 @@ use std::sync::{Arc, Mutex};
 use crate::model::adblock::AdblockModel;
 use crate::stats::StatsEngine;
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, uniffi::Enum)]
 pub enum BlockDecision {
     Allow,
     BlockAd,
@@ -13,7 +13,7 @@ pub enum BlockDecision {
     BlockMining,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, uniffi::Record)]
 pub struct BlockResult {
     pub decision: BlockDecision,
     pub reason: String,
@@ -39,6 +39,7 @@ struct DomainRulesFile {
     tracker: Vec<String>,
 }
 
+#[derive(uniffi::Object)]
 pub struct HostEngine {
     _config: EngineConfig,
     safe: HashSet<String>,
@@ -58,7 +59,9 @@ fn normalize_domain(s: &str) -> String {
     s.trim().trim_end_matches('.').to_lowercase()
 }
 
+#[uniffi::export]
 impl HostEngine {
+    #[uniffi::constructor]
     pub fn new(config: EngineConfig) -> Result<Self, EngineError> {
         tracing::info!("初始化 HostEngine（包含统计模块）");
         let parsed: HardDomainsFile = serde_json::from_str(HARD_DOMAINS_JSON)
@@ -171,7 +174,19 @@ impl HostEngine {
         v
     }
 
-    /// 🛡️ C-1 修复：强制要求通过签名校验后才允许加载模型
+    /// 暴露给 Kotlin 的获取统计数据接口
+    pub fn set_initial_stats(&self, total: i64, today: i64) {
+        self.stats_engine.set_initial_stats(total as u64, today as u64);
+    }
+
+    pub fn get_stats(&self) -> String {
+        self.stats_engine.get_stats_json()
+    }
+}
+
+/// 🛡️ C-1 修复：强制要求通过签名校验后才允许加载模型
+/// 注意：此方法不在 UDL 导出范围内，proc-macro 下保持为非导出（Kotlin 侧 API 面不变）
+impl HostEngine {
     pub fn load_signed_adblock_model(
         &self,
         version: &str,
@@ -197,15 +212,6 @@ impl HostEngine {
         *guard = Some(model);
         Ok(())
     }
-
-    /// 暴露给 Kotlin 的获取统计数据接口
-    pub fn set_initial_stats(&self, total: i64, today: i64) {
-        self.stats_engine.set_initial_stats(total as u64, today as u64);
-    }
-
-    pub fn get_stats(&self) -> String {
-        self.stats_engine.get_stats_json()
-    }
 }
 
 fn matches_domain_or_subdomain(set: &HashSet<String>, host: &str) -> bool {
@@ -222,7 +228,7 @@ fn matches_domain_or_subdomain(set: &HashSet<String>, host: &str) -> bool {
     }
     false
 }
-    
+
 
 
 #[cfg(test)]

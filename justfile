@@ -56,19 +56,24 @@ build-android:
 build-android-debug:
     @if [ -d "android" ]; then @if [ -d "android" ]; then cd android && ./gradlew assembleDebug; else echo "⚠️ 未找到 android 目录，跳过构建"; fi; else echo "⚠️ 未找到 android 目录，跳过构建"; fi
 
-# 生成 Kotlin 绑定
-gen-kotlin:
+# 构建带 UniFFI 元数据的 core（供绑定生成使用）
+# 注意：必须用 --profile uniffi；release 的 strip=true 会剥离元数据 section，导致 uniffi-bindgen --library 静默失败
+build-uniffi:
+    cd core && cargo build --profile uniffi
+
+# 生成 Kotlin 绑定（依赖 build-uniffi；产物落到 com/dewsecure/core/）
+gen-kotlin: build-uniffi
     cd core && cargo run --bin uniffi-bindgen generate \
-        --library target/release/libdewsecure_core.so \
+        --library ../target/uniffi/libdewsecure_core.so \
         --language kotlin \
-        --out-dir ../android/app/src/main/java/com/dewsecure/rust
+        --out-dir ../android/app/src/main/java
 
 # ============ iOS ============
 
 # 生成 Swift 绑定
 gen-swift:
     cd core && cargo run --bin uniffi-bindgen generate \
-        --library target/release/libdewsecure_core.a \
+        --library ../target/release/libdewsecure_core.a \
         --language swift \
         --out-dir ../ios/DewSecure/Bindings
 

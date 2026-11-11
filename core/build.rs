@@ -1,5 +1,2 @@
-fn main() {
-    // 告诉 Cargo：只要 udl 改了，就必须重新跑 build.rs
-    println!("cargo:rerun-if-changed=src/dewsecure.udl");
-    uniffi::generate_scaffolding("src/dewsecure.udl").unwrap();
-}
+// UniFFI 已迁移至 proc-macro（uniffi::setup_scaffolding!），不再需要 UDL scaffolding 生成
+fn main() {}
