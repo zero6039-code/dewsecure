@@ -21,9 +21,6 @@ sha2 = "0.10"
 base64 = "0.22"
 aho-corasick = "1.1"
 
-[build-dependencies]
-uniffi = { version = "0.28", features = ["build"] }
-
 [dev-dependencies]
 proptest = "1.4"
 pretty_assertions = "1.4"

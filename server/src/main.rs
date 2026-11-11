@@ -102,6 +102,7 @@ async fn model_version(State(state): State<AppState>) -> impl IntoResponse {
 #[derive(Debug, Deserialize)]
 struct LicenseRequest {
     email: String,
+    license_key: String,
 }
 
 #[derive(Debug, Serialize)]
@@ -116,7 +117,7 @@ async fn verify_license(
     Json(req): Json<LicenseRequest>,
 ) -> impl IntoResponse {
     let licenses = state.licenses.read().await;
-    match licenses.verify(&req.email) {
+    match licenses.verify(&req.email, &req.license_key) {
         Some(license) => Json(LicenseResponse {
             valid: true,
             download_token: Some(uuid::Uuid::new_v4().to_string()),

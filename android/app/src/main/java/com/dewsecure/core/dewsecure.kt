@@ -962,49 +962,49 @@ private fun uniffiCheckContractApiVersion(lib: UniffiLib) {
 
 @Suppress("UNUSED_PARAMETER")
 private fun uniffiCheckApiChecksums(lib: UniffiLib) {
-    if (lib.uniffi_dewsecure_core_checksum_method_dewengine_add_custom_rule() != 31625.toShort()) {
+    if (lib.uniffi_dewsecure_core_checksum_method_dewengine_add_custom_rule() != 496.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
-    if (lib.uniffi_dewsecure_core_checksum_method_dewengine_classify() != 37644.toShort()) {
+    if (lib.uniffi_dewsecure_core_checksum_method_dewengine_classify() != 33210.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
-    if (lib.uniffi_dewsecure_core_checksum_method_dewengine_decide() != 62180.toShort()) {
+    if (lib.uniffi_dewsecure_core_checksum_method_dewengine_decide() != 20114.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
-    if (lib.uniffi_dewsecure_core_checksum_method_dewengine_get_rules() != 8636.toShort()) {
+    if (lib.uniffi_dewsecure_core_checksum_method_dewengine_get_rules() != 59218.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
-    if (lib.uniffi_dewsecure_core_checksum_method_dewengine_get_stats() != 55824.toShort()) {
+    if (lib.uniffi_dewsecure_core_checksum_method_dewengine_get_stats() != 38771.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
-    if (lib.uniffi_dewsecure_core_checksum_method_dewengine_set_initial_stats() != 52464.toShort()) {
+    if (lib.uniffi_dewsecure_core_checksum_method_dewengine_set_initial_stats() != 26468.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
-    if (lib.uniffi_dewsecure_core_checksum_method_hostengine_get_stats() != 7941.toShort()) {
+    if (lib.uniffi_dewsecure_core_checksum_method_hostengine_get_stats() != 52947.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
-    if (lib.uniffi_dewsecure_core_checksum_method_hostengine_get_user_allow_list() != 34129.toShort()) {
+    if (lib.uniffi_dewsecure_core_checksum_method_hostengine_get_user_allow_list() != 4136.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
-    if (lib.uniffi_dewsecure_core_checksum_method_hostengine_load_user_whitelist() != 13523.toShort()) {
+    if (lib.uniffi_dewsecure_core_checksum_method_hostengine_load_user_whitelist() != 7304.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
-    if (lib.uniffi_dewsecure_core_checksum_method_hostengine_set_initial_stats() != 16092.toShort()) {
+    if (lib.uniffi_dewsecure_core_checksum_method_hostengine_set_initial_stats() != 46391.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
-    if (lib.uniffi_dewsecure_core_checksum_method_hostengine_should_block() != 3599.toShort()) {
+    if (lib.uniffi_dewsecure_core_checksum_method_hostengine_should_block() != 36394.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
-    if (lib.uniffi_dewsecure_core_checksum_method_hostengine_user_allow() != 61585.toShort()) {
+    if (lib.uniffi_dewsecure_core_checksum_method_hostengine_user_allow() != 33069.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
-    if (lib.uniffi_dewsecure_core_checksum_method_hostengine_user_remove_allow() != 53629.toShort()) {
+    if (lib.uniffi_dewsecure_core_checksum_method_hostengine_user_remove_allow() != 48478.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
-    if (lib.uniffi_dewsecure_core_checksum_constructor_dewengine_new() != 8672.toShort()) {
+    if (lib.uniffi_dewsecure_core_checksum_constructor_dewengine_new() != 7659.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
-    if (lib.uniffi_dewsecure_core_checksum_constructor_hostengine_new() != 38468.toShort()) {
+    if (lib.uniffi_dewsecure_core_checksum_constructor_hostengine_new() != 31800.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
 }
@@ -1342,6 +1342,9 @@ private class JavaLangRefCleanable(
 ) : UniffiCleaner.Cleanable {
     override fun clean() = cleanable.clean()
 }
+/**
+ * DewSecure 引擎 (主要供旧接口兼容或纯规则测试)
+ */
 public interface DewEngineInterface {
     
     fun `addCustomRule`(`rule`: kotlin.String)
@@ -1354,11 +1357,17 @@ public interface DewEngineInterface {
     
     fun `getStats`(): kotlin.String
     
+    /**
+     * 修复：响应 UDL 中定义的 get_stats 方法
+     */
     fun `setInitialStats`(`total`: kotlin.Long, `today`: kotlin.Long)
     
     companion object
 }
 
+/**
+ * DewSecure 引擎 (主要供旧接口兼容或纯规则测试)
+ */
 open class DewEngine: Disposable, AutoCloseable, DewEngineInterface {
 
     constructor(pointer: Pointer) {
@@ -1506,7 +1515,10 @@ open class DewEngine: Disposable, AutoCloseable, DewEngineInterface {
     }
     
 
-    override fun `setInitialStats`(`total`: kotlin.Long, `today`: kotlin.Long)
+    
+    /**
+     * 修复：响应 UDL 中定义的 get_stats 方法
+     */override fun `setInitialStats`(`total`: kotlin.Long, `today`: kotlin.Long)
         = 
     callWithPointer {
     uniffiRustCall() { _status ->
@@ -1660,6 +1672,9 @@ public interface HostEngineInterface {
     
     fun `loadUserWhitelist`(`domains`: List<kotlin.String>)
     
+    /**
+     * 暴露给 Kotlin 的获取统计数据接口
+     */
     fun `setInitialStats`(`total`: kotlin.Long, `today`: kotlin.Long)
     
     fun `shouldBlock`(`domain`: kotlin.String): BlockResult
@@ -1794,7 +1809,10 @@ open class HostEngine: Disposable, AutoCloseable, HostEngineInterface {
     
     
 
-    override fun `setInitialStats`(`total`: kotlin.Long, `today`: kotlin.Long)
+    
+    /**
+     * 暴露给 Kotlin 的获取统计数据接口
+     */override fun `setInitialStats`(`total`: kotlin.Long, `today`: kotlin.Long)
         = 
     callWithPointer {
     uniffiRustCall() { _status ->
@@ -2090,18 +2108,38 @@ public object FfiConverterTypeDecision: FfiConverterRustBuffer<Decision> {
 
 
 
-sealed class EngineException(message: String): kotlin.Exception(message) {
+sealed class EngineException: kotlin.Exception() {
+    
+    class InvalidRule(
         
-        class InvalidRule(message: String) : EngineException(message)
+        val v1: kotlin.String
+        ) : EngineException() {
+        override val message
+            get() = "v1=${ v1 }"
+    }
+    
+    class ModelLoadFailed(
         
-        class ModelLoadFailed(message: String) : EngineException(message)
+        val v1: kotlin.String
+        ) : EngineException() {
+        override val message
+            get() = "v1=${ v1 }"
+    }
+    
+    class InitializationFailed(
         
-        class InitializationFailed(message: String) : EngineException(message)
-        
+        val v1: kotlin.String
+        ) : EngineException() {
+        override val message
+            get() = "v1=${ v1 }"
+    }
+    
 
     companion object ErrorHandler : UniffiRustCallStatusErrorHandler<EngineException> {
         override fun lift(error_buf: RustBuffer.ByValue): EngineException = FfiConverterTypeEngineError.lift(error_buf)
     }
+
+    
 }
 
 /**
@@ -2110,31 +2148,56 @@ sealed class EngineException(message: String): kotlin.Exception(message) {
 public object FfiConverterTypeEngineError : FfiConverterRustBuffer<EngineException> {
     override fun read(buf: ByteBuffer): EngineException {
         
-            return when(buf.getInt()) {
-            1 -> EngineException.InvalidRule(FfiConverterString.read(buf))
-            2 -> EngineException.ModelLoadFailed(FfiConverterString.read(buf))
-            3 -> EngineException.InitializationFailed(FfiConverterString.read(buf))
+
+        return when(buf.getInt()) {
+            1 -> EngineException.InvalidRule(
+                FfiConverterString.read(buf),
+                )
+            2 -> EngineException.ModelLoadFailed(
+                FfiConverterString.read(buf),
+                )
+            3 -> EngineException.InitializationFailed(
+                FfiConverterString.read(buf),
+                )
             else -> throw RuntimeException("invalid error enum value, something is very wrong!!")
         }
-        
     }
 
     override fun allocationSize(value: EngineException): ULong {
-        return 4UL
+        return when(value) {
+            is EngineException.InvalidRule -> (
+                // Add the size for the Int that specifies the variant plus the size needed for all fields
+                4UL
+                + FfiConverterString.allocationSize(value.v1)
+            )
+            is EngineException.ModelLoadFailed -> (
+                // Add the size for the Int that specifies the variant plus the size needed for all fields
+                4UL
+                + FfiConverterString.allocationSize(value.v1)
+            )
+            is EngineException.InitializationFailed -> (
+                // Add the size for the Int that specifies the variant plus the size needed for all fields
+                4UL
+                + FfiConverterString.allocationSize(value.v1)
+            )
+        }
     }
 
     override fun write(value: EngineException, buf: ByteBuffer) {
         when(value) {
             is EngineException.InvalidRule -> {
                 buf.putInt(1)
+                FfiConverterString.write(value.v1, buf)
                 Unit
             }
             is EngineException.ModelLoadFailed -> {
                 buf.putInt(2)
+                FfiConverterString.write(value.v1, buf)
                 Unit
             }
             is EngineException.InitializationFailed -> {
                 buf.putInt(3)
+                FfiConverterString.write(value.v1, buf)
                 Unit
             }
         }.let { /* this makes the `when` an expression, which ensures it is exhaustive */ }
