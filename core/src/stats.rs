@@ -70,7 +70,7 @@ impl StatsEngine {
     /// 直接输出 JSON 字符串给 Kotlin 侧，绕过复杂的 UniFFI 类型定义
     pub fn get_stats_json(&self) -> String {
         let logs_vec = if let Ok(logs) = self.logs.lock() {
-            logs.iter().rev().take(20).cloned().collect() // 只返回最近 50 条给 UI 显示
+            logs.iter().rev().take(1000).cloned().collect() // 返回全部日志给 UI 聚合
         } else {
             vec![]
         };

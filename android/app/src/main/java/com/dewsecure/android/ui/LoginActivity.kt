@@ -43,11 +43,11 @@ class LoginActivity : AppCompatActivity() {
 
         initViews()
         setupListeners()
-        
+
         // 处理如果 App 被杀死后，由浏览器直接冷启动的情况
         handleDeepLink(intent)
     }
-    
+
     override fun onNewIntent(intent: Intent?) {
         super.onNewIntent(intent)
         // 处理 App 在后台时，浏览器唤起的回调
@@ -58,30 +58,35 @@ class LoginActivity : AppCompatActivity() {
         val data: Uri = intent?.data ?: return
         if (data.scheme == DEEP_LINK_SCHEME && data.host == DEEP_LINK_HOST) {
             Log.i(TAG, "收到登录回调: $data")
-            // Supabase 的 Implicit Flow 会将 Token 放在 URL 的 fragment (#) 中
             val fragment = data.fragment ?: return
             val params = fragment.split("&").associate {
                 val parts = it.split("=")
                 if (parts.size == 2) parts[0] to parts[1] else "" to ""
             }
-            
+
             val accessToken = params["access_token"]
             val refreshToken = params["refresh_token"]
 
             if (!accessToken.isNullOrEmpty()) {
-                // 保存 Token
-                val prefs = getSharedPreferences("user_session", Context.MODE_PRIVATE)
-                prefs.edit()
-                    .putString("access_token", accessToken)
-                    .putString("refresh_token", refreshToken)
-                    .putString("email", "Google 登录用户") // 后续可以通过 access_token 请求真实邮箱
-                    .apply()
+                // 异步获取真实的 Google 用户邮箱
+                lifecycleScope.launch {
+                    val userResult = AuthManager.getUserInfo(accessToken)
+                    var realEmail = "未知用户"
+                    if (userResult.isSuccess) {
+                        realEmail = userResult.getOrNull()?.optString("email") ?: "未知用户"
+                    }
 
-                Toast.makeText(this, "Google 登录成功！", Toast.LENGTH_SHORT).show()
-                
-                // 跳转到控制台页面
-                startActivity(Intent(this, AccountActivity::class.java))
-                finish()
+                    val prefs = getSharedPreferences("user_session", Context.MODE_PRIVATE)
+                    prefs.edit()
+                        .putString("access_token", accessToken)
+                        .putString("refresh_token", refreshToken) // 保存 refresh_token 用于自动续期
+                        .putString("email", realEmail)
+                        .apply()
+
+                    Toast.makeText(this@LoginActivity, "Google 登录成功！", Toast.LENGTH_SHORT).show()
+                    startActivity(Intent(this@LoginActivity, AccountActivity::class.java))
+                    finish()
+                }
             } else {
                 Log.e(TAG, "回调中未找到 access_token")
                 Toast.makeText(this, "登录失败：缺少 Token", Toast.LENGTH_LONG).show()
@@ -91,7 +96,7 @@ class LoginActivity : AppCompatActivity() {
 
     private fun initViews() {
         findViewById<ImageView>(R.id.btn_close).setOnClickListener { finish() }
-        
+
         stepEmail = findViewById(R.id.step_email)
         stepOtp = findViewById(R.id.step_otp)
         etEmail = findViewById(R.id.et_email)
@@ -130,7 +135,6 @@ class LoginActivity : AppCompatActivity() {
         // Google 登录跳转
         findViewById<View>(R.id.btn_google_login).setOnClickListener {
             val supabaseUrl = "https://uvbaioqqjqseapcancvi.supabase.co"
-            // 修复：强制指向我们刚刚配置的 Deep Link，并加上 response_type=token 防止返回 code
             val redirectUrl = "$DEEP_LINK_SCHEME://$DEEP_LINK_HOST"
             val authUrl = "$supabaseUrl/auth/v1/authorize?provider=google&redirect_to=$redirectUrl&response_type=token"
 
@@ -180,12 +184,19 @@ class LoginActivity : AppCompatActivity() {
         tvOtpError.visibility = View.GONE
 
         lifecycleScope.launch {
+            // 现在 verifyOTP 返回的是 Pair<access_token, refresh_token>
             val result = AuthManager.verifyOTP(currentEmail, otp)
             if (result.isSuccess) {
+                val (accessToken, refreshToken) = result.getOrNull()!!
+                
                 Toast.makeText(this@LoginActivity, "登录成功！", Toast.LENGTH_SHORT).show()
 
                 val prefs = getSharedPreferences("user_session", Context.MODE_PRIVATE)
-                prefs.edit().putString("access_token", result.getOrNull()).putString("email", currentEmail).apply()
+                prefs.edit()
+                    .putString("access_token", accessToken)
+                    .putString("refresh_token", refreshToken) // 保存 refresh_token
+                    .putString("email", currentEmail)
+                    .apply()
 
                 startActivity(Intent(this@LoginActivity, AccountActivity::class.java))
                 finish()

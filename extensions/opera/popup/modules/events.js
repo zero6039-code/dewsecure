@@ -48,6 +48,109 @@ function showGlassToast(message) {
 }
 
 export function bindMiscEvents() {
+
+    // ==========================================
+    // 🛡️ 白名单渲染与交互逻辑
+    // ==========================================
+    const renderWhitelist = async () => {
+        const { dewsecure_settings: s } = await chrome.storage.local.get('dewsecure_settings');
+        const list = s?.whitelist || [];
+        const container = document.getElementById('whitelistList');
+        if (!container) return;
+
+        if (list.length === 0) {
+            container.innerHTML = `<div data-i18n="settings_wl_empty" style="text-align:center;color:#9ca3af;font-size:12px;padding: 20px 0;">暂无白名单</div>`;
+            if (window.applyI18n) window.applyI18n(); // 如果有全局翻译
+            return;
+        }
+
+        container.innerHTML = list.map(domain => `
+            <div class="whitelist-item" style="display: flex; justify-content: space-between; align-items: center; padding: 8px 12px; background: rgba(255,255,255,0.6); border-radius: 8px; border: 1px solid rgba(0,0,0,0.05); margin-bottom: 8px;">
+                <span style="font-size: 13px; color: #1c1c1e; font-weight: 500;">${window.escapeHTML ? window.escapeHTML(domain) : domain}</span>
+                <button class="btn-remove-wl" data-domain="${domain}" style="background: transparent; border: none; color: #F0603E; cursor: pointer; font-size: 14px; font-weight: bold; padding: 4px;">✕</button>
+            </div>
+        `).join('');
+
+        // 绑定删除按钮
+        container.querySelectorAll('.btn-remove-wl').forEach(btn => {
+            btn.addEventListener('click', async (e) => {
+                const domain = e.target.getAttribute('data-domain');
+                if (!domain) return;
+                
+                // 发送给后台移除
+                chrome.runtime.sendMessage({ type: 'REMOVE_WHITELIST', domain }, () => {
+                    renderWhitelist(); // 重新渲染
+                });
+            });
+        });
+    };
+
+    // 首次进入设置页时渲染
+    renderWhitelist();
+
+    // 监听添加按钮
+    document.getElementById('addWhitelistBtn')?.addEventListener('click', async () => {
+        const input = document.getElementById('whitelistInput');
+        const domain = input.value.trim().toLowerCase();
+        if (!domain) return;
+
+        // 发送给后台添加
+        chrome.runtime.sendMessage({ type: 'ADD_WHITELIST', domain }, (res) => {
+            if (res && res.ok) {
+                input.value = '';
+                renderWhitelist(); // 重新渲染
+            } else {
+                alert('添加失败，请检查域名格式');
+            }
+        });
+    });
+
+    // 监听回车键添加
+    document.getElementById('whitelistInput')?.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            document.getElementById('addWhitelistBtn')?.click();
+        }
+    });
+
+
+    // Setting 独立页面跳转
+    document.getElementById('settingsLink')?.addEventListener('click', (e) => {
+        e.preventDefault();
+        switchView('settingsView');
+    });
+    document.getElementById('backFromSettings')?.addEventListener('click', () => {
+        switchView('mainView');
+    });
+
+    // 侧边栏图标切换
+    document.querySelectorAll('.settings-tab').forEach(tab => {
+        tab.addEventListener('click', () => {
+            document.querySelectorAll('.settings-tab').forEach(el => el.classList.remove('active'));
+            tab.classList.add('active');
+            
+            document.querySelectorAll('.settings-pane').forEach(el => el.classList.remove('active'));
+            const target = document.getElementById(tab.dataset.target);
+            if (target) target.classList.add('active');
+        });
+    });
+
+
+
+
+
+    // 独立设置页面交互
+    document.getElementById('settingsLink')?.addEventListener('click', (e) => {
+        e.preventDefault();
+        switchView('settingsView');
+    });
+    document.getElementById('backFromSettings')?.addEventListener('click', () => {
+        switchView('mainView');
+    });
+
+
+
+
     // 语言切换
     document.querySelectorAll('.lang-option').forEach(btn => {
         btn.addEventListener('click', () => {
@@ -66,25 +169,7 @@ export function bindMiscEvents() {
         }
     });
 
-    // Setting 弹窗
-    document.getElementById('settingsLink')?.addEventListener('click', (e) => {
-        e.preventDefault();
-        document.getElementById('settingsModal')?.classList.remove('hidden');
-    });
-    document.getElementById('settingsClose')?.addEventListener('click', () => {
-        document.getElementById('settingsModal')?.classList.add('hidden');
-    });
-    document.getElementById('settingsModal')?.addEventListener('click', (e) => {
-        if (e.target.id === 'settingsModal') e.target.classList.add('hidden');
-    });
 
-    document.querySelectorAll('.settings-tab').forEach(tab => {
-        tab.addEventListener('click', () => {
-            document.querySelectorAll('.settings-tab, .settings-pane').forEach(el => el.classList.remove('active'));
-            tab.classList.add('active');
-            document.getElementById(tab.dataset.target)?.classList.add('active');
-        });
-    });
 
     // 设置开关绑定逻辑
     const toggleIdMap = {

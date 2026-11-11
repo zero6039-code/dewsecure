@@ -20,11 +20,11 @@ object EngineBridge {
             val config = EngineConfig(ruleData, modelPath, aiEnabled)
             engine = HostEngine(config)
             Log.i(TAG, "HostEngine 初始化成功")
-            
+
             // 自检：强行测一下底层是不是坏的
             val testRes = engine?.shouldBlock("doubleclick.net")
             Log.i(TAG, "🧪 引擎自检 - doubleclick.net 结果: ${testRes?.decision} / ${testRes?.reason}")
-            
+
         } catch (e: Throwable) {
             Log.e(TAG, "HostEngine 初始化失败 (可能缺少 .so 库)，降级为全放行", e)
             engine = null
@@ -51,6 +51,24 @@ object EngineBridge {
 
     fun userRemoveAllow(domain: String) {
         try { engine?.userRemoveAllow(domain) } catch (e: Throwable) { Log.e(TAG, "userRemoveAllow err", e) }
+    }
+
+    fun loadUserWhitelist(domains: List<String>) {
+        try {
+            engine?.loadUserWhitelist(domains)
+            Log.i(TAG, "加载用户白名单 ${domains.size} 条")
+        } catch (e: Throwable) {
+            Log.e(TAG, "loadUserWhitelist err", e)
+        }
+    }
+
+    fun getUserAllowList(): List<String> {
+        return try {
+            engine?.getUserAllowList() ?: emptyList()
+        } catch (e: Throwable) {
+            Log.e(TAG, "getUserAllowList err", e)
+            emptyList()
+        }
     }
 
     fun getStatsJson(): String {

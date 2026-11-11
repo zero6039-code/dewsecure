@@ -4,11 +4,16 @@ import android.app.Activity
 import android.content.Intent
 import android.net.VpnService
 import android.os.Bundle
+import android.util.Log
 import androidx.appcompat.app.AppCompatActivity
 import androidx.fragment.app.Fragment
+import androidx.lifecycle.lifecycleScope
 import com.dewsecure.android.R
+import com.dewsecure.android.policy.AuthManager
+import com.dewsecure.android.policy.EngineBridge
 import com.dewsecure.android.vpn.DewVpnService
 import com.google.android.material.bottomnavigation.BottomNavigationView
+import kotlinx.coroutines.launch
 
 class MainActivity : AppCompatActivity() {
 
@@ -37,6 +42,20 @@ class MainActivity : AppCompatActivity() {
 
         if (savedInstanceState == null) {
             loadFragment(homeFragment)
+        }
+
+        // 自动同步云端白名单
+        val userPrefs = getSharedPreferences("user_session", MODE_PRIVATE)
+        val accessToken = userPrefs.getString("access_token", null)
+        if (accessToken != null) {
+            lifecycleScope.launch {
+                val result = AuthManager.fetchCloudWhitelist(accessToken)
+                if (result.isSuccess) {
+                    val domains = result.getOrNull() ?: emptyList()
+                    EngineBridge.loadUserWhitelist(domains)
+                    Log.i("MainActivity", "云端白名单同步成功，共计 ${domains.size} 条")
+                }
+            }
         }
     }
 
