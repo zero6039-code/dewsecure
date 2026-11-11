@@ -48,6 +48,44 @@ function showGlassToast(message) {
 }
 
 export function bindMiscEvents() {
+
+    // Setting 独立页面跳转
+    document.getElementById('settingsLink')?.addEventListener('click', (e) => {
+        e.preventDefault();
+        switchView('settingsView');
+    });
+    document.getElementById('backFromSettings')?.addEventListener('click', () => {
+        switchView('mainView');
+    });
+
+    // 侧边栏图标切换
+    document.querySelectorAll('.settings-tab').forEach(tab => {
+        tab.addEventListener('click', () => {
+            document.querySelectorAll('.settings-tab').forEach(el => el.classList.remove('active'));
+            tab.classList.add('active');
+            
+            document.querySelectorAll('.settings-pane').forEach(el => el.classList.remove('active'));
+            const target = document.getElementById(tab.dataset.target);
+            if (target) target.classList.add('active');
+        });
+    });
+
+
+
+
+
+    // 独立设置页面交互
+    document.getElementById('settingsLink')?.addEventListener('click', (e) => {
+        e.preventDefault();
+        switchView('settingsView');
+    });
+    document.getElementById('backFromSettings')?.addEventListener('click', () => {
+        switchView('mainView');
+    });
+
+
+
+
     // 语言切换
     document.querySelectorAll('.lang-option').forEach(btn => {
         btn.addEventListener('click', () => {
@@ -66,25 +104,7 @@ export function bindMiscEvents() {
         }
     });
 
-    // Setting 弹窗
-    document.getElementById('settingsLink')?.addEventListener('click', (e) => {
-        e.preventDefault();
-        document.getElementById('settingsModal')?.classList.remove('hidden');
-    });
-    document.getElementById('settingsClose')?.addEventListener('click', () => {
-        document.getElementById('settingsModal')?.classList.add('hidden');
-    });
-    document.getElementById('settingsModal')?.addEventListener('click', (e) => {
-        if (e.target.id === 'settingsModal') e.target.classList.add('hidden');
-    });
 
-    document.querySelectorAll('.settings-tab').forEach(tab => {
-        tab.addEventListener('click', () => {
-            document.querySelectorAll('.settings-tab, .settings-pane').forEach(el => el.classList.remove('active'));
-            tab.classList.add('active');
-            document.getElementById(tab.dataset.target)?.classList.add('active');
-        });
-    });
 
     // 设置开关绑定逻辑
     const toggleIdMap = {

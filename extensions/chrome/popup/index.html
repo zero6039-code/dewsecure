@@ -190,9 +190,8 @@
                   </label>
               </div>
           </div>
-</div>
 
-        <footer class="footer">
+          <footer class="footer">
             <span id="appVersion"></span>
             <a href="#" id="settingsLink" data-i18n="footer_settings">设置</a>
         </footer>
@@ -298,58 +297,9 @@
         </div>
     </div>
 
-    <div class="modal-overlay hidden" id="settingsModal">
-        <div class="modal-card glass settings-card">
-            <button class="modal-close" id="settingsClose" aria-label="关闭">✕</button>
-            <h2 class="auth-title" style="margin-bottom: 16px;" data-i18n="settings_title">设置</h2>
-            <div class="settings-container">
-                <div class="settings-sidebar">
-                    <button class="settings-tab active" data-target="tabLang" data-i18n="settings_lang">🌐 语言</button>
-                    <button class="settings-tab" data-target="tabWhitelist" data-i18n="settings_whitelist">🛡️ 白名单</button>
-                    <button class="settings-tab" data-target="tabPrivacy" data-i18n="settings_privacy">🔒 隐私</button>
-                </div>
-                <div class="settings-content">
-                    
-<div class="settings-pane active" id="tabLang">
-    <div class="lang-options">
-
-        <button class="lang-option active" data-lang="en"><span class="lang-name">English</span><span class="lang-check">✓</span></button>
-        <button class="lang-option" data-lang="zh"><span class="lang-name">简体中文</span><span class="lang-check">✓</span></button>
-        <button class="lang-option" data-lang="ja"><span class="lang-name">日本語</span><span class="lang-check">✓</span></button>
-        <button class="lang-option" data-lang="ko"><span class="lang-name">한국어</span><span class="lang-check">✓</span></button>
-        <button class="lang-option" data-lang="ms"><span class="lang-name">Bahasa Melayu</span><span class="lang-check">✓</span></button>
-        <button class="lang-option" data-lang="es"><span class="lang-name">Español</span><span class="lang-check">✓</span></button>
-        <button class="lang-option" data-lang="pt"><span class="lang-name">Português</span><span class="lang-check">✓</span></button>
-        <button class="lang-option" data-lang="de"><span class="lang-name">Deutsch</span><span class="lang-check">✓</span></button>
-        <button class="lang-option" data-lang="fr"><span class="lang-name">Français</span><span class="lang-check">✓</span></button>
-    </div>
-</div>
-
-                    </div>
-                    <div class="settings-pane" id="tabPrivacy">
-                        <div class="feature-row" style="padding: 10px 0;">
-                            <div class="feature-text">
-                                <div class="feature-name" data-i18n="feat_share_intel">参与威胁情报共享 (匿名)</div>
-                                <div class="feature-desc" data-i18n="feat_share_intel_desc">允许将脱敏后的可疑域名发送到云端，帮助改进拦截模型。默认关闭。</div>
-                            </div>
-                            <label class="ios-switch mini">
-                                <input type="checkbox" id="shareThreatCandidatesToggle">
-                                <span class="switch-track"><span class="switch-thumb"><svg class="icon-check" viewBox="0 0 24 24" fill="none"><path d="M5 13l4 4L19 7" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"/></svg><span class="icon-ring"></span></span></span>
-                            </label>
-                        </div>
-                    </div>
-                    <div class="settings-pane" id="tabWhitelist">
-                        <div class="whitelist-header" data-i18n="settings_wl_list">白名单列表</div>
-                        <p class="settings-hint" style="text-align:left; margin-bottom: 8px;" data-i18n="settings_wl_desc">在此列表中的域名将 <strong>停止所有保护</strong>。</p>
-                        <div id="wlLoginNotice" class="hidden" style="background: rgba(240, 96, 62, 0.1); color: #c4421f; padding: 8px; border-radius: 8px; font-size: 11px; margin-bottom: 8px;" data-i18n="settings_wl_login">请先登录账号以使用白名单功能。</div>
-                        <div class="whitelist-add-row" id="wlAddRow">
-                            <input type="text" id="whitelistInput" placeholder="example.com" class="auth-input" style="padding: 8px 12px; font-size: 12px;">
-                            <button class="auth-primary-btn" id="addWhitelistBtn" style="width: auto; padding: 0 12px; border-radius: 8px;" data-i18n="settings_wl_add">添加</button>
-                        </div>
-                        <div class="whitelist-list" id="whitelistList"><div data-i18n="settings_wl_empty" style="text-align:center;color:#9ca3af;font-size:12px;">暂无白名单</div></div>
-                    </div>
-                </div>
-            </div>
+    
+    <!-- 🚀 设置独立页面 -->
+    
         </div>
     </div>
 
@@ -396,6 +346,92 @@
         </button>
     </div>
 </div>
+
+
+    <!-- 🚀 设置独立页面 (全新重构版) -->
+    
+
+
+    <!-- 🚀 设置独立页面 (最终完美版) -->
+    <div class="app hidden" id="settingsView">
+        <div class="sub-view-nav glass" style="display: flex; align-items: center; justify-content: center; position: relative;">
+            <button id="backFromSettings" style="position: absolute; left: 12px; width: 32px; height: 32px; padding: 0; display: flex; align-items: center; justify-content: center; background: transparent; border: none; cursor: pointer; color: #1c1c1e;">
+                <svg viewBox="0 0 24 24" width="24" height="24" stroke="currentColor" stroke-width="2.5" fill="none" stroke-linecap="round" stroke-linejoin="round">
+                    <polyline points="15 18 9 12 15 6"></polyline>
+                </svg>
+            </button>
+            <div class="sub-view-title" data-i18n="settings_title">设置</div>
+        </div>
+
+        <div class="glass" style="padding: 12px; flex: 1; display: flex; gap: 12px; height: calc(100vh - 120px);">
+            <!-- 左侧导航 (纯图标) -->
+            <div class="settings-sidebar" style="display: flex; flex-direction: column; gap: 10px; width: 48px; flex-shrink: 0;">
+                <button class="settings-tab active" data-target="tabLang" style="font-size: 22px; padding: 10px 0; border-radius: 10px; background: rgba(255,255,255,0.8); border: 1px solid rgba(0,0,0,0.05); cursor: pointer;">🌐</button>
+                <button class="settings-tab" data-target="tabWhitelist" style="font-size: 22px; padding: 10px 0; border-radius: 10px; background: rgba(255,255,255,0.3); border: 1px solid rgba(0,0,0,0.05); cursor: pointer;">🛡️</button>
+                <button class="settings-tab" data-target="tabPrivacy" style="font-size: 22px; padding: 10px 0; border-radius: 10px; background: rgba(255,255,255,0.3); border: 1px solid rgba(0,0,0,0.05); cursor: pointer;">🔒</button>
+            </div>
+
+            <!-- 右侧内容区 (无背景，与左侧完美融合在同一大卡片内) -->
+            <div class="settings-content" style="flex: 1; overflow-y: auto; padding: 4px;">
+                
+                <!-- 语言选项卡 (3x3) -->
+                <div class="settings-pane active" id="tabLang">
+                    <div class="lang-options" style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px;">
+                        <button class="lang-option active" data-lang="en">English</button>
+                        <button class="lang-option" data-lang="zh">简体中文</button>
+                        <button class="lang-option" data-lang="ja">日本語</button>
+                        <button class="lang-option" data-lang="ko">한국어</button>
+                        <button class="lang-option" data-lang="ms">Melayu</button>
+                        <button class="lang-option" data-lang="es">Español</button>
+                        <button class="lang-option" data-lang="pt">Português</button>
+                        <button class="lang-option" data-lang="de">Deutsch</button>
+                        <button class="lang-option" data-lang="fr">Français</button>
+                    </div>
+                </div>
+
+                <!-- 白名单选项卡 -->
+                <div class="settings-pane" id="tabWhitelist">
+                    <div class="whitelist-header" data-i18n="settings_wl_list" style="font-weight: bold; margin-bottom: 8px; color: #1c1c1e; font-size: 13px;">白名单列表</div>
+                    <p class="settings-hint" style="text-align:left; margin-bottom: 8px; font-size: 11px; color: #6b7280;" data-i18n="settings_wl_desc">在此列表中的域名将 <strong>停止所有保护</strong>。</p>
+                    <div id="wlLoginNotice" class="hidden" style="background: rgba(240, 96, 62, 0.1); color: #c4421f; padding: 8px; border-radius: 8px; font-size: 11px; margin-bottom: 8px;" data-i18n="settings_wl_login">请先登录账号以使用白名单功能。</div>
+                    <div class="whitelist-add-row" id="wlAddRow" style="display: flex; gap: 8px; margin-bottom: 12px;">
+                        <input type="text" id="whitelistInput" placeholder="example.com" class="auth-input" style="padding: 8px 12px; font-size: 12px; flex: 1; border-radius: 8px; border: 1px solid #ddd; background: #fff;">
+                        <button class="auth-primary-btn" id="addWhitelistBtn" style="width: auto; padding: 0 12px; border-radius: 8px;" data-i18n="settings_wl_add">添加</button>
+                    </div>
+                    <div class="whitelist-list" id="whitelistList" style="display: flex; flex-direction: column; gap: 8px;">
+                        <div data-i18n="settings_wl_empty" style="text-align:center;color:#9ca3af;font-size:12px;padding: 20px 0;">暂无白名单</div>
+                    </div>
+                </div>
+
+                <!-- 隐私选项卡 (开关在文字下方) -->
+                <div class="settings-pane" id="tabPrivacy">
+                    <div style="padding: 10px 0; display: flex; flex-direction: column; gap: 12px;">
+                        <div class="feature-text">
+                            <div class="feature-name" data-i18n="feat_share_intel" style="font-weight: bold; font-size: 13px; color: #1c1c1e; margin-bottom: 4px;">参与威胁情报共享 (匿名)</div>
+                            <div class="feature-desc" data-i18n="feat_share_intel_desc" style="font-size: 11px; color: #6b7280; line-height: 1.4;">允许将脱敏后的可疑域名发送到云端，帮助改进拦截模型。默认关闭。</div>
+                        </div>
+                        <div>
+                            <label class="ios-switch mini">
+                                <input type="checkbox" id="shareThreatCandidatesToggle">
+                                <span class="switch-track"><span class="switch-thumb"><svg class="icon-check" viewBox="0 0 24 24" fill="none"><path d="M5 13l4 4L19 7" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"/></svg><span class="icon-ring"></span></span></span>
+                            </label>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+        
+        <style>
+            .lang-option { padding: 10px; font-size: 12px; text-align: center; border-radius: 8px; border: 1px solid #ddd; background: rgba(255,255,255,0.8); cursor: pointer; transition: all 0.2s; color: #333; }
+            .lang-option:hover { background: #fff; }
+            .lang-option.active { border-color: #10b981; background: #ecfdf5; color: #065f46; font-weight: bold; box-shadow: 0 2px 6px rgba(16,185,129,0.2); }
+            .settings-tab.active { background: rgba(255,255,255,0.95) !important; box-shadow: 0 2px 8px rgba(0,0,0,0.08); border-color: #10b981 !important; }
+            /* 修复 CSS 冲突，确保没有 active 的 pane 被正确隐藏 */
+            .settings-pane { display: none; }
+            .settings-pane.active { display: block; }
+        </style>
+    </div>
 
 </body>
 </html>

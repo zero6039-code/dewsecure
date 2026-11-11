@@ -72,6 +72,7 @@ export function switchView(viewId) {
     document.getElementById('mainView').classList.add('hidden');
     document.getElementById('logsView').classList.add('hidden');
     document.getElementById('statsView').classList.add('hidden');
+    document.getElementById('settingsView')?.classList.add('hidden');
     const target = document.getElementById(viewId);
     if (target) target.classList.remove('hidden');
 }
