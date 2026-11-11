@@ -31,6 +31,7 @@ interface DewEngine {
 
     sequence<FilterRule> get_rules();
 
+    void set_initial_stats(i64 total, i64 today);
     string get_stats();
 };
 
@@ -73,5 +74,6 @@ interface HostEngine {
     void load_user_whitelist(sequence<string> domains);
     sequence<string> get_user_allow_list();
 
+    void set_initial_stats(i64 total, i64 today);
     string get_stats();
 };

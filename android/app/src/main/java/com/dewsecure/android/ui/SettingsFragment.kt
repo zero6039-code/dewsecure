@@ -4,14 +4,12 @@ import android.content.Context
 import android.content.Intent
 import android.graphics.Color
 import android.os.Bundle
+import android.view.Gravity
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
-import android.widget.Button
-import android.widget.EditText
-import android.widget.LinearLayout
-import android.widget.TextView
-import android.widget.Toast
+import android.widget.*
+import androidx.core.content.ContextCompat
 import androidx.fragment.app.Fragment
 import androidx.lifecycle.lifecycleScope
 import com.dewsecure.android.R
@@ -22,10 +20,25 @@ import org.json.JSONArray
 
 class SettingsFragment : Fragment() {
 
+    private lateinit var tabLang: LinearLayout
+    private lateinit var tabWhitelist: LinearLayout
+    private lateinit var tabPrivacy: LinearLayout
+    
+    private lateinit var paneLang: View
+    private lateinit var paneWhitelist: View
+    private lateinit var panePrivacy: View
+
     private lateinit var etDomain: EditText
     private lateinit var btnAdd: Button
     private lateinit var containerWhitelist: LinearLayout
     private lateinit var tvEmpty: TextView
+
+    // 语言配置
+    private val languages = listOf(
+        "English" to "en", "简体中文" to "zh", "日本語" to "ja",
+        "한국어" to "ko", "Melayu" to "ms", "Español" to "es",
+        "Português" to "pt", "Deutsch" to "de", "Français" to "fr"
+    )
 
     override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?): View? {
         return inflater.inflate(R.layout.fragment_settings, container, false)
@@ -34,11 +47,131 @@ class SettingsFragment : Fragment() {
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
 
+        initViews(view)
+        setupTabs()
+        setupLanguageGrid()
+        setupWhitelistLogic()
+
+        // 默认选中白名单页
+        switchTab("whitelist")
+    }
+
+    private fun initViews(view: View) {
+        tabLang = view.findViewById(R.id.tab_lang)
+        tabWhitelist = view.findViewById(R.id.tab_whitelist)
+        tabPrivacy = view.findViewById(R.id.tab_privacy)
+
+        paneLang = view.findViewById(R.id.pane_lang)
+        paneWhitelist = view.findViewById(R.id.pane_whitelist)
+        panePrivacy = view.findViewById(R.id.pane_privacy)
+
         etDomain = view.findViewById(R.id.et_whitelist_domain)
         btnAdd = view.findViewById(R.id.btn_add_whitelist)
         containerWhitelist = view.findViewById(R.id.container_whitelist)
         tvEmpty = view.findViewById(R.id.tv_whitelist_empty)
+    }
 
+    private fun setupTabs() {
+        tabLang.setOnClickListener { switchTab("lang") }
+        tabWhitelist.setOnClickListener { switchTab("whitelist") }
+        tabPrivacy.setOnClickListener { switchTab("privacy") }
+    }
+
+    private fun switchTab(tab: String) {
+        // 重置所有状态
+        tabLang.setBackgroundResource(R.drawable.bg_glass_tab_inactive)
+        tabWhitelist.setBackgroundResource(R.drawable.bg_glass_tab_inactive)
+        tabPrivacy.setBackgroundResource(R.drawable.bg_glass_tab_inactive)
+        paneLang.visibility = View.GONE
+        paneWhitelist.visibility = View.GONE
+        panePrivacy.visibility = View.GONE
+
+        // 激活对应状态
+        when (tab) {
+            "lang" -> {
+                tabLang.setBackgroundResource(R.drawable.bg_glass_tab_active)
+                paneLang.visibility = View.VISIBLE
+            }
+            "whitelist" -> {
+                tabWhitelist.setBackgroundResource(R.drawable.bg_glass_tab_active)
+                paneWhitelist.visibility = View.VISIBLE
+                loadWhitelistData()
+            }
+            "privacy" -> {
+                tabPrivacy.setBackgroundResource(R.drawable.bg_glass_tab_active)
+                panePrivacy.visibility = View.VISIBLE
+            }
+        }
+    }
+
+    private fun setupLanguageGrid() {
+        val grid = view?.findViewById<GridLayout>(R.id.grid_language) ?: return
+        
+        // 读取当前缓存的语言
+        val prefs = requireContext().getSharedPreferences("app_settings", Context.MODE_PRIVATE)
+        val currentLang = prefs.getString("language", "en") ?: "en"
+
+        for ((name, code) in languages) {
+            val btn = TextView(requireContext())
+            btn.text = name
+            btn.gravity = Gravity.CENTER
+            btn.textSize = 13f
+            btn.setPadding(16, 16, 16, 16)
+            
+            // 设置布局参数，3列等宽
+            val params = GridLayout.LayoutParams()
+            params.width = 0
+            params.height = GridLayout.LayoutParams.WRAP_CONTENT
+            params.columnSpec = GridLayout.spec(GridLayout.UNDEFINED, 1f)
+            params.setMargins(8, 8, 8, 8)
+            btn.layoutParams = params
+
+            // 状态更新
+            fun updateState(isSelected: Boolean) {
+                if (isSelected) {
+                    btn.setBackgroundResource(R.drawable.bg_glass_tab_active)
+                    btn.setTextColor(ContextCompat.getColor(requireContext(), R.color.green_on))
+                    btn.setTypeface(null, android.graphics.Typeface.BOLD)
+                } else {
+                    btn.setBackgroundResource(R.drawable.bg_glass_card)
+                    btn.setTextColor(ContextCompat.getColor(requireContext(), R.color.text_primary))
+                    btn.setTypeface(null, android.graphics.Typeface.NORMAL)
+                }
+            }
+
+            // 初始化状态
+            updateState(code == currentLang)
+
+            // 点击事件
+            btn.setOnClickListener {
+                // 更新所有按钮状态
+                for (i in 0 until grid.childCount) {
+                    val child = grid.getChildAt(i) as TextView
+                    val childLang = languages[i].second
+                    if (childLang == code) {
+                        child.setBackgroundResource(R.drawable.bg_glass_tab_active)
+                        child.setTextColor(ContextCompat.getColor(requireContext(), R.color.green_on))
+                        child.setTypeface(null, android.graphics.Typeface.BOLD)
+                    } else {
+                        child.setBackgroundResource(R.drawable.bg_glass_card)
+                        child.setTextColor(ContextCompat.getColor(requireContext(), R.color.text_primary))
+                        child.setTypeface(null, android.graphics.Typeface.NORMAL)
+                    }
+                }
+                
+                // 保存语言设置（实际切换语言需要更新 App 的 Locale，这里只做展示和持久化）
+                prefs.edit().putString("language", code).apply()
+                Toast.makeText(requireContext(), "Language switched to $name", Toast.LENGTH_SHORT).show()
+            }
+
+            grid.addView(btn)
+        }
+    }
+
+    // ==========================================
+    // 白名单同步逻辑
+    // ==========================================
+    private fun setupWhitelistLogic() {
         val userPrefs = requireContext().getSharedPreferences("user_session", Context.MODE_PRIVATE)
         val token = userPrefs.getString("access_token", null)
 
@@ -53,10 +186,10 @@ class SettingsFragment : Fragment() {
             }
         } else {
             etDomain.isEnabled = true
-            etDomain.hint = "例如: example.com"
+            etDomain.hint = "example.com"
             btnAdd.isEnabled = true
-            btnAdd.text = "添加"
-            btnAdd.backgroundTintList = android.content.res.ColorStateList.valueOf(requireContext().getColor(R.color.green_on))
+            btnAdd.text = "Add"
+            btnAdd.backgroundTintList = android.content.res.ColorStateList.valueOf(ContextCompat.getColor(requireContext(), R.color.green_on))
             btnAdd.setOnClickListener {
                 val domain = etDomain.text.toString().trim().lowercase()
                 if (domain.isNotEmpty()) {
@@ -64,22 +197,12 @@ class SettingsFragment : Fragment() {
                 }
             }
         }
-
-        loadWhitelist(token)
     }
 
-    // 🌟 核心新增：每次切回这个设置页面，或者在 Tab 之间切换回来时，强制刷新云端数据
-    override fun onResume() {
-        super.onResume()
+    private fun loadWhitelistData() {
         val userPrefs = requireContext().getSharedPreferences("user_session", Context.MODE_PRIVATE)
         val token = userPrefs.getString("access_token", null)
-        if (token != null) {
-            // 静默去云端拉取最新数据，防止插件端删除了白名单而手机端不知道
-            syncCloudWhitelistSilently(token)
-        }
-    }
-
-    private fun loadWhitelist(token: String?) {
+        
         val localList = getLocalWhitelist()
         EngineBridge.loadUserWhitelist(localList)
         updateUI(localList)
@@ -94,19 +217,6 @@ class SettingsFragment : Fragment() {
                     saveLocalWhitelist(mergedList)
                     updateUI(mergedList)
                 }
-            }
-        }
-    }
-
-    private fun syncCloudWhitelistSilently(token: String) {
-        lifecycleScope.launch {
-            val result = AuthManager.fetchCloudWhitelist(requireContext(), token)
-            if (result.isSuccess) {
-                val cloudList = result.getOrNull() ?: emptyList()
-                // 注意：在云端同步时，直接以云端数据为准，防止本地残留已经删除的数据
-                EngineBridge.loadUserWhitelist(cloudList)
-                saveLocalWhitelist(cloudList)
-                updateUI(cloudList)
             }
         }
     }
@@ -143,9 +253,9 @@ class SettingsFragment : Fragment() {
             lifecycleScope.launch {
                 val result = AuthManager.uploadWhitelistDomain(requireContext(), token, domain)
                 if (result.isSuccess) {
-                    Toast.makeText(requireContext(), "已同步到云端", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(requireContext(), "Synced to cloud", Toast.LENGTH_SHORT).show()
                 } else {
-                    Toast.makeText(requireContext(), "仅本地生效: ${result.exceptionOrNull()?.message}", Toast.LENGTH_LONG).show()
+                    Toast.makeText(requireContext(), "Local only: ${result.exceptionOrNull()?.message}", Toast.LENGTH_LONG).show()
                 }
             }
         }
@@ -165,8 +275,8 @@ class SettingsFragment : Fragment() {
             lifecycleScope.launch {
                 val result = AuthManager.deleteCloudWhitelistDomain(requireContext(), token, domain)
                 if (!result.isSuccess) {
-                    Toast.makeText(requireContext(), "云端删除失败，请检查网络或权限", Toast.LENGTH_LONG).show()
-                    loadWhitelist(token)
+                    Toast.makeText(requireContext(), "Cloud delete failed", Toast.LENGTH_LONG).show()
+                    loadWhitelistData()
                 }
             }
         }

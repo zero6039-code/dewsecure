@@ -162,6 +162,10 @@ impl DewEngine {
     }
 
     /// 修复：响应 UDL 中定义的 get_stats 方法
+    pub fn set_initial_stats(&self, total: i64, today: i64) {
+        self.stats_engine.set_initial_stats(total as u64, today as u64);
+    }
+
     pub fn get_stats(&self) -> String {
         self.stats_engine.get_stats_json()
     }

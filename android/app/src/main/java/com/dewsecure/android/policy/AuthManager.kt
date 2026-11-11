@@ -180,4 +180,53 @@ object AuthManager {
             }
         } catch (e: Exception) { Result.failure(e) }
     }
+
+    // 提交反馈报告
+    suspend fun submitReport(context: Context, type: String, domain: String): Result<Unit> = withContext(Dispatchers.IO) {
+        try {
+            val prefs = context.getSharedPreferences("user_session", Context.MODE_PRIVATE)
+            val accessToken = prefs.getString("access_token", null)
+            val authHeader = if (accessToken != null) "Bearer $accessToken" else "Bearer $SUPABASE_KEY"
+
+            val url = URL("$SUPABASE_URL/rest/v1/reports")
+            val conn = url.openConnection() as HttpURLConnection
+            conn.requestMethod = "POST"
+            conn.setRequestProperty("apikey", SUPABASE_KEY)
+            conn.setRequestProperty("Authorization", authHeader)
+            conn.setRequestProperty("Content-Type", "application/json")
+            // 修改点：让 Supabase 返回插入的数据
+            conn.setRequestProperty("Prefer", "return=representation")
+            conn.doOutput = true
+
+            val body = JSONObject().apply {
+                put("report_type", type)
+                put("domain", domain)
+                put("url", "https://$domain")
+                put("category", "android_app")
+                put("status", "pending")
+            }.toString()
+            
+            Log.d(TAG, "提交的报告数据: $body")
+
+            val os = OutputStreamWriter(conn.outputStream)
+            os.write(body)
+            os.flush()
+            os.close()
+
+            val responseCode = conn.responseCode
+            if (responseCode in 200..299) {
+                val responseText = BufferedReader(InputStreamReader(conn.inputStream)).readText()
+                Log.i(TAG, "上报成功! 返回数据: $responseText")
+                Result.success(Unit)
+            } else {
+                val errorStream = conn.errorStream
+                val errorResponse = BufferedReader(InputStreamReader(errorStream)).readText()
+                Log.e(TAG, "上报失败! 状态码: $responseCode, 错误信息: $errorResponse")
+                Result.failure(Exception("上报失败: $responseCode"))
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "上报异常", e)
+            Result.failure(e)
+        }
+    }
 }
