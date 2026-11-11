@@ -30,10 +30,10 @@ object EngineBridge {
         }
     }
 
-    fun setInitialStats(total: Long, today: Long) {
+    fun setInitialStats(total: Long, today: Long, logsJson: String = "[]") {
         try {
-            engine?.setInitialStats(total, today)
-            Log.i(TAG, "设置初始统计数据: total=$total, today=$today")
+            engine?.setInitialStatsWithLogs(total, today, logsJson)
+            Log.i(TAG, "设置初始统计数据及日志: total=$total, today=$today")
         } catch (e: Throwable) { Log.e(TAG, "setInitialStats err", e) }
     }
 

@@ -53,8 +53,8 @@ class TrafficActivity : AppCompatActivity() {
 
         // 格式化流量文本
         fun formatTraffic(count: Int): String {
-            val mb = count * 0.08
-            return if (mb < 1.0) String.format("%.0f KB", count * 80.0) else String.format("%.1f MB", mb)
+            val mb = count * 0.05
+            return if (mb < 1.0) String.format("%.0f KB", count * 50.0) else String.format("%.1f MB", mb)
         }
 
         tvTodayDetail.text = formatTraffic(todayCount)

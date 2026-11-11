@@ -33,8 +33,8 @@ class TrafficAdapter(
         val sdf = SimpleDateFormat("HH:mm:ss", Locale.getDefault())
         holder.time.text = "${sdf.format(Date(log.timestamp))} · ${log.blockType}"
         
-        // 如果合并了多次，按 80KB/次 累加显示
-        val savedKb = log.count * 80
+        // 如果合并了多次，按 50KB/次 累加显示
+        val savedKb = log.count * 50
         holder.saved.text = "- $savedKb KB"
     }
 

@@ -3,33 +3,23 @@
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:orientation="vertical"
-    android:padding="20dp">
+    android:paddingTop="16dp"
+    android:paddingHorizontal="16dp">
 
-    <TextView
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:text="Settings"
-        android:textSize="24sp"
-        android:textStyle="bold"
-        android:textColor="@color/text_primary"
-        android:layout_marginBottom="20dp" />
-
-    <!-- 大毛玻璃卡片容器 -->
+    <!-- 核心卡片容器 -->
     <LinearLayout
         android:layout_width="match_parent"
-        android:layout_height="wrap_content"
+        android:layout_height="match_parent"
         android:background="@drawable/bg_glass_card"
         android:orientation="horizontal"
-        android:paddingVertical="12dp"
-        android:paddingStart="12dp"
-        android:paddingEnd="16dp">
+        android:padding="16dp">
 
-        <!-- 左侧图标导航栏 -->
+        <!-- 左侧导航栏 -->
         <LinearLayout
-            android:layout_width="48dp"
-            android:layout_height="wrap_content"
+            android:layout_width="wrap_content"
+            android:layout_height="match_parent"
             android:orientation="vertical"
-            android:gravity="start">
+            android:gravity="center_horizontal">
 
             <LinearLayout
                 android:id="@+id/tab_lang"
@@ -37,6 +27,14 @@
                 android:gravity="center" android:background="@drawable/bg_glass_tab_active"
                 android:layout_marginBottom="12dp">
                 <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="🌐" android:textSize="20sp" />
+            </LinearLayout>
+
+            <LinearLayout
+                android:id="@+id/tab_routing"
+                android:layout_width="44dp" android:layout_height="44dp"
+                android:gravity="center" android:background="@drawable/bg_glass_tab_inactive"
+                android:layout_marginBottom="12dp">
+                <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="📱" android:textSize="20sp" />
             </LinearLayout>
 
             <LinearLayout
@@ -50,68 +48,88 @@
             <LinearLayout
                 android:id="@+id/tab_privacy"
                 android:layout_width="44dp" android:layout_height="44dp"
-                android:gravity="center" android:background="@drawable/bg_glass_tab_inactive">
+                android:gravity="center" android:background="@drawable/bg_glass_tab_inactive"
+                android:layout_marginBottom="12dp">
                 <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="🔒" android:textSize="20sp" />
             </LinearLayout>
         </LinearLayout>
 
-        <!-- 分割线 -->
+        <!-- 垂直分界线 (图1需求) -->
         <View
             android:layout_width="1dp"
             android:layout_height="match_parent"
-            android:background="@color/glass_stroke"
-            android:layout_marginStart="8dp"
+            android:background="#1AFFFFFF"
+            android:layout_marginStart="12dp"
             android:layout_marginEnd="16dp" />
 
-        <!-- 右侧内容区 -->
+        <!-- 右侧内容面板 (加顶部呼吸感 - 图4需求) -->
         <FrameLayout
             android:layout_width="0dp"
-            android:layout_height="wrap_content"
+            android:layout_height="match_parent"
             android:layout_weight="1"
-            android:minHeight="300dp">
+            android:paddingTop="24dp">
 
             <!-- 语言页面 -->
             <LinearLayout
                 android:id="@+id/pane_lang" android:layout_width="match_parent" android:layout_height="wrap_content"
                 android:orientation="vertical" android:visibility="visible">
                 <GridLayout
-                    android:id="@+id/grid_language" android:layout_width="match_parent" android:layout_height="wrap_content"
-                    android:columnCount="3" android:alignmentMode="alignMargins" android:useDefaultMargins="true"/>
+                    android:id="@+id/grid_language"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:columnCount="3" />
+                <!-- 语言下方分界线 (图1需求) -->
+                <View
+                    android:layout_width="match_parent"
+                    android:layout_height="1dp"
+                    android:background="#1AFFFFFF"
+                    android:layout_marginTop="24dp" />
             </LinearLayout>
 
-            <!-- 白名单页面 -->
+            <!-- 分应用路由页面 -->
+            <LinearLayout
+                android:id="@+id/pane_routing" android:layout_width="match_parent" android:layout_height="match_parent"
+                android:orientation="vertical" android:visibility="gone">
+                
+                <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="分应用路由设置\n(让部分APP 直连)" android:textColor="@color/text_primary" android:textStyle="bold" android:textSize="16sp" android:layout_marginBottom="12dp"/>
+                <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="开启开关的应用将不走 VPN，适合银行、办公类应用。" android:textColor="@color/text_secondary" android:textSize="12sp" android:layout_marginBottom="16dp"/>
+                
+                <EditText
+                    android:id="@+id/et_search_app"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:hint="搜索应用名称..."
+                    android:textColor="@color/text_primary"
+                    android:textColorHint="@color/text_secondary"
+                    android:backgroundTint="@color/text_secondary"
+                    android:layout_marginBottom="16dp"
+                    android:singleLine="true" />
+                    
+                <View android:layout_width="match_parent" android:layout_height="1dp" android:background="#1AFFFFFF" android:layout_marginBottom="8dp"/>
+
+                <androidx.recyclerview.widget.RecyclerView
+                    android:id="@+id/rv_apps"
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent" />
+            </LinearLayout>
+
+            <!-- 白名单页面 (格式重排 - 图3需求) -->
             <LinearLayout
                 android:id="@+id/pane_whitelist" android:layout_width="match_parent" android:layout_height="wrap_content"
                 android:orientation="vertical" android:visibility="gone">
                 
-                <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Whitelist" android:textColor="@color/text_primary" android:textStyle="bold" android:textSize="16sp" android:layout_marginBottom="4dp"/>
-                <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Domains here will stop all protection." android:textColor="@color/text_secondary" android:textSize="12sp" android:layout_marginBottom="16dp"/>
-
-                <LinearLayout
-                    android:layout_width="match_parent" android:layout_height="wrap_content"
-                    android:orientation="horizontal" android:gravity="center_vertical" android:layout_marginBottom="16dp">
-                    
-                    <EditText
-                        android:id="@+id/et_whitelist_domain" android:layout_width="0dp" android:layout_height="40dp"
-                        android:layout_weight="1" android:background="@drawable/bg_glass_card" android:hint="example.com"
-                        android:paddingHorizontal="12dp" android:textColor="@color/text_primary" android:textColorHint="@color/text_secondary"
-                        android:textSize="14sp" android:inputType="textUri" android:layout_marginEnd="8dp"/>
-
-                    <!-- 安全的普通 Button 配合圆角背景 -->
-                    <Button
-                        android:id="@+id/btn_add_whitelist" android:layout_width="wrap_content" android:layout_height="40dp"
-                        android:text="ADD" android:textColor="#000000" android:textStyle="bold" android:textSize="13sp"
-                        android:background="@drawable/bg_btn_green_rounded" android:minWidth="0dp" android:paddingHorizontal="16dp"
-                        android:stateListAnimator="@null"/>
+                <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Whitelist" android:textColor="@color/text_primary" android:textStyle="bold" android:textSize="18sp" android:layout_marginBottom="16dp"/>
+                
+                <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal" android:layout_marginBottom="16dp" android:gravity="center_vertical">
+                    <EditText android:id="@+id/et_whitelist_domain" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:hint="example.com" android:textColor="@color/text_primary" android:textColorHint="@color/text_secondary" android:inputType="textUri" android:backgroundTint="@color/text_secondary" android:layout_marginEnd="8dp"/>
+                    <!-- 缩小 ADD 按钮 -->
+                    <Button android:id="@+id/btn_add_whitelist" android:layout_width="wrap_content" android:layout_height="40dp" android:text="ADD" android:textSize="12sp" android:minWidth="0dp" android:paddingHorizontal="16dp" android:insetTop="0dp" android:insetBottom="0dp"/>
                 </LinearLayout>
+                
+                <View android:layout_width="match_parent" android:layout_height="1dp" android:background="#1AFFFFFF" android:layout_marginBottom="8dp"/>
 
-                <TextView
-                    android:id="@+id/tv_whitelist_empty" android:layout_width="match_parent" android:layout_height="wrap_content"
-                    android:text="No whitelist yet" android:textColor="@color/text_secondary" android:textSize="12sp"
-                    android:gravity="center" android:paddingVertical="12dp" android:visibility="gone"/>
-
-                <LinearLayout
-                    android:id="@+id/container_whitelist" android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical"/>
+                <TextView android:id="@+id/tv_whitelist_empty" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="暂无白名单" android:textColor="@color/text_secondary" android:gravity="center" android:layout_marginTop="20dp" android:visibility="gone"/>
+                <LinearLayout android:id="@+id/container_whitelist" android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical"/>
             </LinearLayout>
 
             <!-- 隐私页面 -->

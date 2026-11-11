@@ -2,6 +2,7 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
     <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.QUERY_ALL_PACKAGES" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <!-- Android 13+ 需要通知权限 -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
@@ -48,6 +49,7 @@
         
         <!-- 控制台页面 -->
         <activity android:name=".ui.AccountActivity" android:exported="false" />
+        <!-- 分应用路由页面 -->
 
         <!-- 注册我们的 VPN 服务 -->
         <service
