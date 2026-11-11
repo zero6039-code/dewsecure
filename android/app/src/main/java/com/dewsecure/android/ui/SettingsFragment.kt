@@ -48,7 +48,6 @@ class SettingsFragment : Fragment() {
             btnAdd.isEnabled = false
             btnAdd.text = "需登录"
             btnAdd.backgroundTintList = android.content.res.ColorStateList.valueOf(Color.GRAY)
-
             etDomain.setOnClickListener {
                 startActivity(Intent(requireContext(), LoginActivity::class.java))
             }
@@ -58,7 +57,6 @@ class SettingsFragment : Fragment() {
             btnAdd.isEnabled = true
             btnAdd.text = "添加"
             btnAdd.backgroundTintList = android.content.res.ColorStateList.valueOf(requireContext().getColor(R.color.green_on))
-
             btnAdd.setOnClickListener {
                 val domain = etDomain.text.toString().trim().lowercase()
                 if (domain.isNotEmpty()) {
@@ -68,6 +66,17 @@ class SettingsFragment : Fragment() {
         }
 
         loadWhitelist(token)
+    }
+
+    // 🌟 核心新增：每次切回这个设置页面，或者在 Tab 之间切换回来时，强制刷新云端数据
+    override fun onResume() {
+        super.onResume()
+        val userPrefs = requireContext().getSharedPreferences("user_session", Context.MODE_PRIVATE)
+        val token = userPrefs.getString("access_token", null)
+        if (token != null) {
+            // 静默去云端拉取最新数据，防止插件端删除了白名单而手机端不知道
+            syncCloudWhitelistSilently(token)
+        }
     }
 
     private fun loadWhitelist(token: String?) {
@@ -85,6 +94,19 @@ class SettingsFragment : Fragment() {
                     saveLocalWhitelist(mergedList)
                     updateUI(mergedList)
                 }
+            }
+        }
+    }
+
+    private fun syncCloudWhitelistSilently(token: String) {
+        lifecycleScope.launch {
+            val result = AuthManager.fetchCloudWhitelist(requireContext(), token)
+            if (result.isSuccess) {
+                val cloudList = result.getOrNull() ?: emptyList()
+                // 注意：在云端同步时，直接以云端数据为准，防止本地残留已经删除的数据
+                EngineBridge.loadUserWhitelist(cloudList)
+                saveLocalWhitelist(cloudList)
+                updateUI(cloudList)
             }
         }
     }
@@ -109,14 +131,13 @@ class SettingsFragment : Fragment() {
 
     private fun addWhitelist(domain: String, token: String?) {
         EngineBridge.userAllow(domain)
-
         val currentList = getLocalWhitelist().toMutableList()
         if (!currentList.contains(domain)) {
             currentList.add(domain)
             saveLocalWhitelist(currentList)
         }
-
         etDomain.text.clear()
+        updateUI(currentList)
 
         if (token != null) {
             lifecycleScope.launch {
@@ -126,10 +147,7 @@ class SettingsFragment : Fragment() {
                 } else {
                     Toast.makeText(requireContext(), "仅本地生效: ${result.exceptionOrNull()?.message}", Toast.LENGTH_LONG).show()
                 }
-                loadWhitelist(token)
             }
-        } else {
-            loadWhitelist(null)
         }
     }
 
@@ -138,22 +156,22 @@ class SettingsFragment : Fragment() {
         val token = userPrefs.getString("access_token", null)
 
         EngineBridge.userRemoveAllow(domain)
-
         val currentList = getLocalWhitelist().toMutableList()
         currentList.remove(domain)
         saveLocalWhitelist(currentList)
+        updateUI(currentList)
 
         if (token != null) {
             lifecycleScope.launch {
-                AuthManager.deleteCloudWhitelistDomain(requireContext(), token, domain)
-                loadWhitelist(token)
+                val result = AuthManager.deleteCloudWhitelistDomain(requireContext(), token, domain)
+                if (!result.isSuccess) {
+                    Toast.makeText(requireContext(), "云端删除失败，请检查网络或权限", Toast.LENGTH_LONG).show()
+                    loadWhitelist(token)
+                }
             }
-        } else {
-            loadWhitelist(null)
         }
     }
 
-    // ==== 本地缓存工具 ====
     private fun getLocalWhitelist(): List<String> {
         val prefs = requireContext().getSharedPreferences("local_whitelist", Context.MODE_PRIVATE)
         val jsonStr = prefs.getString("domains", "[]") ?: "[]"
