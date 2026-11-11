@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:fillViewport="true">
@@ -36,6 +37,7 @@
                     android:layout_marginBottom="32dp">
                     
                     <ImageView
+                        android:id="@+id/iv_logo"
                         android:layout_width="28dp"
                         android:layout_height="28dp"
                         android:src="@drawable/dewsecure_icon" />
@@ -81,12 +83,12 @@
                     android:textStyle="bold"
                     android:layout_marginBottom="32dp"/>
 
-                <!-- 数据卡片 -->
+                <!-- 数据卡片 (今日/总拦截) -->
                 <LinearLayout
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:orientation="horizontal"
-                    android:layout_marginBottom="32dp">
+                    android:layout_marginBottom="16dp">
                     
                     <LinearLayout
                         android:layout_width="0dp"
@@ -115,7 +117,71 @@
                     </LinearLayout>
                 </LinearLayout>
 
-                <!-- 替换为我们自定义的蜂巢动画按钮 -->
+                <!-- 流量统计：合并为一个框 -->
+                <LinearLayout
+                    android:id="@+id/card_traffic"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:background="@drawable/bg_glass_card"
+                    android:orientation="horizontal"
+                    android:paddingVertical="16dp"
+                    android:layout_marginBottom="32dp">
+
+                    <!-- 今日节省 -->
+                    <LinearLayout
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:gravity="center"
+                        android:orientation="vertical">
+                        <TextView 
+                            android:id="@+id/tv_traffic_today" 
+                            android:layout_width="match_parent" 
+                            android:layout_height="wrap_content" 
+                            android:text="0 KB" 
+                            android:textSize="24sp" 
+                            android:textStyle="bold" 
+                            android:textColor="@color/accent_blue"
+                            android:gravity="center"
+                            android:maxLines="1"
+                            app:autoSizeTextType="uniform"
+                            app:autoSizeMinTextSize="14sp"
+                            app:autoSizeMaxTextSize="24sp"/>
+                        <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="大约为您节省（今日）" android:textColor="@color/text_secondary" android:textSize="11sp" android:layout_marginTop="4dp"/>
+                    </LinearLayout>
+
+                    <!-- 竖线分割 -->
+                    <View
+                        android:layout_width="1dp"
+                        android:layout_height="match_parent"
+                        android:background="@color/glass_stroke"
+                        android:layout_marginVertical="8dp"/>
+
+                    <!-- 总节省 -->
+                    <LinearLayout
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:gravity="center"
+                        android:orientation="vertical">
+                        <TextView 
+                            android:id="@+id/tv_traffic_total" 
+                            android:layout_width="match_parent" 
+                            android:layout_height="wrap_content" 
+                            android:text="0 KB" 
+                            android:textSize="24sp" 
+                            android:textStyle="bold" 
+                            android:textColor="@color/accent_blue"
+                            android:gravity="center"
+                            android:maxLines="1"
+                            app:autoSizeTextType="uniform"
+                            app:autoSizeMinTextSize="14sp"
+                            app:autoSizeMaxTextSize="24sp"/>
+                        <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="大约为您节省（总计）" android:textColor="@color/text_secondary" android:textSize="11sp" android:layout_marginTop="4dp"/>
+                    </LinearLayout>
+                </LinearLayout>
+
+                <!-- 开关按钮 -->
                 <com.dewsecure.android.ui.view.HoneycombButton
                     android:id="@+id/btn_toggle_vpn"
                     android:layout_width="match_parent"
@@ -132,8 +198,8 @@
                     android:orientation="vertical">
                     <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="帮助我们改进" android:textColor="@color/text_secondary" android:textSize="12sp" android:layout_marginBottom="12dp"/>
                     <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal">
-                        <Button android:layout_width="0dp" android:layout_weight="1" android:layout_height="40dp" android:text="Missed Ad" android:backgroundTint="@color/glass_stroke" android:textColor="@color/text_primary" android:textSize="12sp" android:layout_marginEnd="8dp"/>
-                        <Button android:layout_width="0dp" android:layout_weight="1" android:layout_height="40dp" android:text="False Block" android:backgroundTint="@color/glass_stroke" android:textColor="@color/text_primary" android:textSize="12sp" android:layout_marginStart="8dp"/>
+                        <Button android:id="@+id/btn_missed_ad" android:layout_width="0dp" android:layout_weight="1" android:layout_height="40dp" android:text="Missed Ad" android:backgroundTint="@color/glass_stroke" android:textColor="@color/text_primary" android:textSize="12sp" android:layout_marginEnd="8dp"/>
+                        <Button android:id="@+id/btn_false_block" android:layout_width="0dp" android:layout_weight="1" android:layout_height="40dp" android:text="False Block" android:backgroundTint="@color/glass_stroke" android:textColor="@color/text_primary" android:textSize="12sp" android:layout_marginStart="8dp"/>
                     </LinearLayout>
                 </LinearLayout>
             </LinearLayout>

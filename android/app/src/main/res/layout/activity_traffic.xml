@@ -1,0 +1,122 @@
+<?xml version="1.0" encoding="utf-8"?>
+<RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@drawable/bg_aurora"
+    android:padding="20dp">
+
+    <!-- 顶部标题栏 -->
+    <LinearLayout
+        android:id="@+id/header"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:layout_marginBottom="20dp">
+
+        <ImageView
+            android:id="@+id/btn_back"
+            android:layout_width="32dp"
+            android:layout_height="32dp"
+            android:src="@android:drawable/ic_menu_revert"
+            android:background="?attr/selectableItemBackgroundBorderless"/>
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="16dp"
+            android:text="流量节省详情"
+            android:textColor="@color/text_primary"
+            android:textSize="20sp"
+            android:textStyle="bold"/>
+    </LinearLayout>
+
+    <!-- 合并后的流量卡片 -->
+    <LinearLayout
+        android:id="@+id/traffic_stats_layout"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_below="@id/header"
+        android:background="@drawable/bg_glass_card"
+        android:orientation="horizontal"
+        android:paddingVertical="20dp"
+        android:layout_marginBottom="20dp">
+
+        <!-- 今日节省 -->
+        <LinearLayout
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:gravity="center"
+            android:orientation="vertical">
+            <TextView 
+                android:id="@+id/tv_traffic_today_detail" 
+                android:layout_width="match_parent" 
+                android:layout_height="wrap_content" 
+                android:text="0 KB" 
+                android:textSize="24sp" 
+                android:textStyle="bold" 
+                android:textColor="@color/accent_blue"
+                android:gravity="center"
+                android:maxLines="1"
+                app:autoSizeTextType="uniform"
+                app:autoSizeMinTextSize="14sp"
+                app:autoSizeMaxTextSize="24sp"/>
+            <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="大约为您节省（今日）" android:textColor="@color/text_secondary" android:textSize="11sp" android:layout_marginTop="4dp"/>
+            <TextView android:id="@+id/tv_today_date" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="1/1/2026" android:textColor="@color/text_secondary" android:textSize="10sp" android:layout_marginTop="2dp"/>
+        </LinearLayout>
+
+        <!-- 竖线分割 -->
+        <View
+            android:layout_width="1dp"
+            android:layout_height="match_parent"
+            android:background="@color/glass_stroke"
+            android:layout_marginVertical="8dp"/>
+
+        <!-- 总节省 -->
+        <LinearLayout
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:gravity="center"
+            android:orientation="vertical">
+            <TextView 
+                android:id="@+id/tv_traffic_total_detail" 
+                android:layout_width="match_parent" 
+                android:layout_height="wrap_content" 
+                android:text="0 KB" 
+                android:textSize="24sp" 
+                android:textStyle="bold" 
+                android:textColor="@color/accent_blue"
+                android:gravity="center"
+                android:maxLines="1"
+                app:autoSizeTextType="uniform"
+                app:autoSizeMinTextSize="14sp"
+                app:autoSizeMaxTextSize="24sp"/>
+            <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="大约为您节省（总计）" android:textColor="@color/text_secondary" android:textSize="11sp" android:layout_marginTop="4dp"/>
+            <TextView android:id="@+id/tv_total_date" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="从 1/1/2026 到目前为止" android:textColor="@color/text_secondary" android:textSize="10sp" android:layout_marginTop="2dp"/>
+        </LinearLayout>
+    </LinearLayout>
+
+    <!-- 列表 -->
+    <androidx.recyclerview.widget.RecyclerView
+        android:id="@+id/recycler_traffic"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:layout_below="@id/traffic_stats_layout"
+        android:background="@drawable/bg_glass_card"
+        android:paddingHorizontal="16dp"
+        android:paddingVertical="8dp"/>
+
+    <TextView
+        android:id="@+id/tv_empty_traffic"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:layout_below="@id/traffic_stats_layout"
+        android:gravity="center"
+        android:text="今日暂无流量节省记录\n去刷几个广告网页试试吧"
+        android:textColor="@color/text_secondary"
+        android:textSize="14sp"
+        android:visibility="gone"/>
+</RelativeLayout>

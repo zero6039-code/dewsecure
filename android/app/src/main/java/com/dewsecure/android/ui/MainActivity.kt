@@ -18,6 +18,11 @@ class MainActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        val prefs = getSharedPreferences("app_settings", MODE_PRIVATE)
+        if (!prefs.contains("install_date")) {
+            val sdf = java.text.SimpleDateFormat("d/M/yyyy", java.util.Locale.getDefault())
+            prefs.edit().putString("install_date", sdf.format(java.util.Date())).apply()
+        }
         setContentView(R.layout.activity_main)
 
         val bottomNav = findViewById<BottomNavigationView>(R.id.bottom_navigation)

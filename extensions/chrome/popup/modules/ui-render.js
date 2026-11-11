@@ -168,7 +168,8 @@ export async function updateUserUI(user) {
     const allToggleMap = {
         'dnrToggle': 'dnrEnabled', 'antiHijackToggle': 'antiHijackEnabled',
         'trackerToggle': 'blockTrackers', 'antiBypassToggle': 'antiBypassEnabled',
-        'cookieToggle': 'hideCookieNotices', 'placeholderToggle': 'hideAdPlaceholders'
+        'cookieToggle': 'hideCookieNotices', 'placeholderToggle': 'hideAdPlaceholders',
+        'socialToggle': 'blockSocialTrackers'
     };
     const { dewsecure_settings: initSettings } = await chrome.storage.local.get('dewsecure_settings');
     const iSet = initSettings || {};
@@ -187,8 +188,7 @@ export async function updateUserUI(user) {
     const proSwitchConfig = {
         'phishingToggle': { key: 'phishingEnabled', default: true },
         'intelToggle': { key: 'intelEnabled', default: true },
-        'aiFourToggle': { key: 'aiFourEnabled', default: true },
-        'socialToggle': { key: 'blockSocialTrackers', default: true }
+        'aiFourToggle': { key: 'aiFourEnabled', default: true }
     };
 
     const { dewsecure_settings: settings } = await chrome.storage.local.get('dewsecure_settings');

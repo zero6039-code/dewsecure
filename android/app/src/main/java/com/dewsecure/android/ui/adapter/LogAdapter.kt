@@ -32,7 +32,8 @@ class LogAdapter(
 
         val sdf = SimpleDateFormat("HH:mm:ss", Locale.getDefault())
         holder.time.text = "${sdf.format(Date(log.timestamp))} · ${log.blockType}"
-        holder.count.text = "x ${log.count}"
+        // 直接显示次数，不再加 x
+        holder.count.text = log.count.toString()
     }
 
     override fun getItemCount() = logs.size
