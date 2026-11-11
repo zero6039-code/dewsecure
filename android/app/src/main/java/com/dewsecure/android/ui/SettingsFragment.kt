@@ -43,7 +43,6 @@ class SettingsFragment : Fragment() {
         val token = userPrefs.getString("access_token", null)
 
         if (token == null) {
-            // 未登录状态：完全禁用
             etDomain.isEnabled = false
             etDomain.hint = "请先登录账号以使用云端同步"
             btnAdd.isEnabled = false
@@ -68,25 +67,22 @@ class SettingsFragment : Fragment() {
             }
         }
 
-        // 加载本地 + 云端数据
         loadWhitelist(token)
     }
 
     private fun loadWhitelist(token: String?) {
-        // 1. 先加载本地缓存
         val localList = getLocalWhitelist()
         EngineBridge.loadUserWhitelist(localList)
         updateUI(localList)
 
-        // 2. 如果登录了，异步拉取云端并合并
         if (token != null) {
             lifecycleScope.launch {
-                val result = AuthManager.fetchCloudWhitelist(token)
+                val result = AuthManager.fetchCloudWhitelist(requireContext(), token)
                 if (result.isSuccess) {
                     val cloudList = result.getOrNull() ?: emptyList()
                     val mergedList = (localList + cloudList).distinct()
                     EngineBridge.loadUserWhitelist(mergedList)
-                    saveLocalWhitelist(mergedList) // 更新本地缓存
+                    saveLocalWhitelist(mergedList)
                     updateUI(mergedList)
                 }
             }
@@ -94,6 +90,7 @@ class SettingsFragment : Fragment() {
     }
 
     private fun updateUI(domains: List<String>) {
+        if (!isAdded) return
         containerWhitelist.removeAllViews()
         if (domains.isEmpty()) {
             tvEmpty.visibility = View.VISIBLE
@@ -111,10 +108,8 @@ class SettingsFragment : Fragment() {
     }
 
     private fun addWhitelist(domain: String, token: String?) {
-        // 1. 本地立即生效
         EngineBridge.userAllow(domain)
 
-        // 2. 写入本地缓存
         val currentList = getLocalWhitelist().toMutableList()
         if (!currentList.contains(domain)) {
             currentList.add(domain)
@@ -123,14 +118,13 @@ class SettingsFragment : Fragment() {
 
         etDomain.text.clear()
 
-        // 3. 如果登录了，同步到云端（传入 Context 以支持 Token 过期自动刷新）
         if (token != null) {
             lifecycleScope.launch {
                 val result = AuthManager.uploadWhitelistDomain(requireContext(), token, domain)
                 if (result.isSuccess) {
                     Toast.makeText(requireContext(), "已同步到云端", Toast.LENGTH_SHORT).show()
                 } else {
-                    Toast.makeText(requireContext(), "云端同步失败: ${result.exceptionOrNull()?.message}", Toast.LENGTH_LONG).show()
+                    Toast.makeText(requireContext(), "仅本地生效: ${result.exceptionOrNull()?.message}", Toast.LENGTH_LONG).show()
                 }
                 loadWhitelist(token)
             }
@@ -143,15 +137,12 @@ class SettingsFragment : Fragment() {
         val userPrefs = requireContext().getSharedPreferences("user_session", Context.MODE_PRIVATE)
         val token = userPrefs.getString("access_token", null)
 
-        // 1. 本地移除
         EngineBridge.userRemoveAllow(domain)
 
-        // 2. 从本地缓存移除
         val currentList = getLocalWhitelist().toMutableList()
         currentList.remove(domain)
         saveLocalWhitelist(currentList)
 
-        // 3. 云端同步
         if (token != null) {
             lifecycleScope.launch {
                 AuthManager.deleteCloudWhitelistDomain(requireContext(), token, domain)

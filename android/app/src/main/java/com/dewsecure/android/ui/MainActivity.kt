@@ -49,7 +49,7 @@ class MainActivity : AppCompatActivity() {
         val accessToken = userPrefs.getString("access_token", null)
         if (accessToken != null) {
             lifecycleScope.launch {
-                val result = AuthManager.fetchCloudWhitelist(accessToken)
+                val result = AuthManager.fetchCloudWhitelist(this@MainActivity, accessToken)
                 if (result.isSuccess) {
                     val domains = result.getOrNull() ?: emptyList()
                     EngineBridge.loadUserWhitelist(domains)

@@ -195,3 +195,4 @@ chrome.runtime.onMessage.addListener((msg) => {
         window.syncUserState();
     }
 });
+
