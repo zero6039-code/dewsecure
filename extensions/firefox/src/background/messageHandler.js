@@ -1,3 +1,8 @@
+const SB_URL = 'https://uvbaioqqjqseapcancvi.supabase.co';
+const SB_KEY = 'sb_publishable_xiiA-yt_jRKkzRdkYkoWJA_CVZjNjq8';
+
+
+
 import { syncRules, RANGE, getOrCreateRuleIdUnsafe, removeRuleIdMappingUnsafe, withLock } from './dnrOwner.js';
 import { getSettings, SETTINGS_KEY, STATS_KEY, LOG_KEY } from './settings.js';
 import { getInstallationId } from '../deviceManager.js';
@@ -344,13 +349,39 @@ export async function handleMessage(message, sender) {
         case 'GET_SETTINGS':
             let sGet = await getSettings();
             sGet = await cleanExpiredTempWhitelist(sGet);
-            
-            // 🛡️ 终极修复：后台有完全权限，直接读取 JSON 文件并打包返回
+
+            // 🚀 核心修复：如果已登录，先阻塞等待拉取云端白名单
+            const { dewsecure_user: user } = await chrome.storage.local.get('dewsecure_user');
+            if (user && user.token) {
+                try {
+                    const res = await fetch(`${SB_URL}/rest/v1/user_whitelists?select=domain`, {
+                        headers: { 'apikey': SB_KEY, 'Authorization': `Bearer ${user.token}` }
+                    });
+                    if (res.ok) {
+                        const data = await res.json();
+                        const cloudDomains = data.map(item => item.domain);
+                        // 合并本地与云端
+                        sGet.whitelist = [...new Set([...(sGet.whitelist || []), ...cloudDomains])];
+                        await chrome.storage.local.set({ [SETTINGS_KEY]: sGet });
+
+                        // 顺手把本地独有的推送到云端
+                        const localOnly = (sGet.whitelist || []).filter(d => !cloudDomains.includes(d));
+                        for (const d of localOnly) {
+                            fetch(`${SB_URL}/rest/v1/user_whitelists`, {
+                                method: 'POST',
+                                headers: { 'apikey': SB_KEY, 'Authorization': `Bearer ${user.token}`, 'Content-Type': 'application/json', 'Prefer': 'resolution=merge-duplicates' },
+                                body: JSON.stringify({ domain: d })
+                            }).catch(e => console.warn(e));
+                        }
+                    }
+                } catch(e) { console.warn('⚠️ 云端白名单同步失败', e); }
+            }
+
             const { preferred_lang } = await chrome.storage.local.get('preferred_lang');
             let lang = preferred_lang || 'en';
             if (lang === 'zh_CN' || lang === 'zh-CN') lang = 'zh';
             sGet.preferred_lang = lang;
-            
+
             try {
                 const res = await fetch(chrome.runtime.getURL(`popup/locales/${lang}.json`));
                 if (res.ok) sGet.i18n_dict = await res.json();
@@ -392,12 +423,49 @@ export async function handleMessage(message, sender) {
             if (!curSettings.whitelist.includes(message.domain)) {
                 curSettings.whitelist.push(message.domain);
                 await chrome.storage.local.set({ [SETTINGS_KEY]: curSettings });
+                
+                // 🚀 核心新增：同步到 Supabase
+                const { dewsecure_user: addUser } = await chrome.storage.local.get('dewsecure_user');
+                if (addUser && addUser.token) {
+                    try {
+                        await fetch(`${SB_URL}/rest/v1/user_whitelists`, {
+                            method: 'POST',
+                            headers: {
+                                'apikey': SB_KEY,
+                                'Authorization': `Bearer ${addUser.token}`,
+                                'Content-Type': 'application/json',
+                                'Prefer': 'resolution=merge-duplicates'
+                            },
+                            body: JSON.stringify({ domain: message.domain })
+                        });
+                        console.log('✅ 云端白名单同步成功:', message.domain);
+                    } catch(e) {
+                        console.warn('⚠️ 云端同步失败:', e);
+                    }
+                }
             }
             return { ok: true, whitelist: curSettings.whitelist };
         case 'REMOVE_WHITELIST':
             let remSettings = await getSettings();
             remSettings.whitelist = remSettings.whitelist.filter(d => d !== message.domain);
             await chrome.storage.local.set({ [SETTINGS_KEY]: remSettings });
+
+            // 🚀 核心新增：从 Supabase 删除
+            const { dewsecure_user: remUser } = await chrome.storage.local.get('dewsecure_user');
+            if (remUser && remUser.token) {
+                try {
+                    await fetch(`${SB_URL}/rest/v1/user_whitelists?domain=eq.${message.domain}`, {
+                        method: 'DELETE',
+                        headers: {
+                            'apikey': SB_KEY,
+                            'Authorization': `Bearer ${remUser.token}`
+                        }
+                    });
+                    console.log('✅ 云端白名单删除成功:', message.domain);
+                } catch(e) {
+                    console.warn('⚠️ 云端删除失败:', e);
+                }
+            }
             return { ok: true, whitelist: remSettings.whitelist };
         default:
             return { error: '未知消息类型' };

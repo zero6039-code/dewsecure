@@ -11,19 +11,18 @@ import java.io.InputStreamReader
 import java.io.OutputStreamWriter
 import java.net.HttpURLConnection
 import java.net.URL
-import java.net.URLEncoder
 
 object AuthManager {
     private const val TAG = "AuthManager"
     const val SUPABASE_URL = "https://uvbaioqqjqseapcancvi.supabase.co"
     const val SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InV2YmFpb3FxanFzZWFwY2FuY3ZpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTI0OTIyODAsImV4cCI6MjEwODA2ODI4MH0.jhEaDHBvp702biC7oqM1oV5YO7rzhvmXFH5pTRF17kQ"
 
-    // 刷新 Access Token
+    // 刷新 Token
     suspend fun refreshToken(context: Context): Result<String> = withContext(Dispatchers.IO) {
         try {
             val prefs = context.getSharedPreferences("user_session", Context.MODE_PRIVATE)
             val refreshToken = prefs.getString("refresh_token", null)
-                ?: return@withContext Result.failure(Exception("No refresh token found"))
+                ?: return@withContext Result.failure(Exception("无 refresh_token"))
 
             val url = URL("$SUPABASE_URL/auth/v1/token?grant_type=refresh_token")
             val conn = url.openConnection() as HttpURLConnection
@@ -32,41 +31,26 @@ object AuthManager {
             conn.setRequestProperty("Content-Type", "application/json")
             conn.doOutput = true
 
-            val body = JSONObject().apply {
-                put("refresh_token", refreshToken)
-            }.toString()
-
-            val os = OutputStreamWriter(conn.outputStream)
-            os.write(body)
-            os.flush()
-            os.close()
+            val body = JSONObject().apply { put("refresh_token", refreshToken) }.toString()
+            val os = OutputStreamWriter(conn.outputStream); os.write(body); os.flush(); os.close()
 
             if (conn.responseCode in 200..299) {
                 val reader = BufferedReader(InputStreamReader(conn.inputStream))
                 val json = JSONObject(reader.readText())
-                val newAccessToken = json.optString("access_token")
-                val newRefreshToken = json.optString("refresh_token")
+                val newAccess = json.optString("access_token")
+                val newRefresh = json.optString("refresh_token")
 
-                // 更新本地存储的 Token
-                prefs.edit()
-                    .putString("access_token", newAccessToken)
-                    .putString("refresh_token", newRefreshToken)
-                    .apply()
-
-                Result.success(newAccessToken)
+                prefs.edit().putString("access_token", newAccess).putString("refresh_token", newRefresh).apply()
+                Result.success(newAccess)
             } else {
-                val errorStream = conn.errorStream
-                val errorResponse = BufferedReader(InputStreamReader(errorStream)).readText()
-                Log.e(TAG, "Refresh Token Error: $errorResponse")
                 Result.failure(Exception("刷新 Token 失败"))
             }
         } catch (e: Exception) {
-            Log.e(TAG, "Refresh Token Exception", e)
             Result.failure(e)
         }
     }
 
-    // 获取用户信息 (保持不变)
+    // 获取用户信息
     suspend fun getUserInfo(accessToken: String): Result<JSONObject> = withContext(Dispatchers.IO) {
         try {
             val url = URL("$SUPABASE_URL/auth/v1/user")
@@ -76,17 +60,14 @@ object AuthManager {
             conn.setRequestProperty("Authorization", "Bearer $accessToken")
 
             if (conn.responseCode in 200..299) {
-                val reader = BufferedReader(InputStreamReader(conn.inputStream))
-                Result.success(JSONObject(reader.readText()))
+                Result.success(JSONObject(BufferedReader(InputStreamReader(conn.inputStream)).readText()))
             } else {
                 Result.failure(Exception("获取用户信息失败"))
             }
-        } catch (e: Exception) {
-            Result.failure(e)
-        }
+        } catch (e: Exception) { Result.failure(e) }
     }
 
-    // 发送 OTP (保持不变)
+    // 发送 OTP
     suspend fun sendOTP(email: String): Result<Unit> = withContext(Dispatchers.IO) {
         try {
             val url = URL("$SUPABASE_URL/auth/v1/otp")
@@ -99,14 +80,13 @@ object AuthManager {
             val os = OutputStreamWriter(conn.outputStream); os.write(body); os.flush(); os.close()
             if (conn.responseCode in 200..299) Result.success(Unit)
             else {
-                val errorStream = conn.errorStream
-                val msg = try { JSONObject(BufferedReader(InputStreamReader(errorStream)).readText()).optString("msg", "发送失败") } catch (e: Exception) { "发送失败" }
+                val msg = try { JSONObject(BufferedReader(InputStreamReader(conn.errorStream)).readText()).optString("msg", "发送失败") } catch (e: Exception) { "发送失败" }
                 Result.failure(Exception(msg))
             }
         } catch (e: Exception) { Result.failure(Exception("网络异常，请稍后重试")) }
     }
 
-    // 验证 OTP (保持不变)
+    // 验证 OTP
     suspend fun verifyOTP(email: String, token: String): Result<Pair<String, String>> = withContext(Dispatchers.IO) {
         try {
             val url = URL("$SUPABASE_URL/auth/v1/verify")
@@ -118,36 +98,41 @@ object AuthManager {
             val body = JSONObject().apply { put("type", "email"); put("email", email); put("token", token) }.toString()
             val os = OutputStreamWriter(conn.outputStream); os.write(body); os.flush(); os.close()
             if (conn.responseCode in 200..299) {
-                val reader = BufferedReader(InputStreamReader(conn.inputStream))
-                val json = JSONObject(reader.readText())
+                val json = JSONObject(BufferedReader(InputStreamReader(conn.inputStream)).readText())
                 Result.success(Pair(json.optString("access_token"), json.optString("refresh_token")))
             } else {
-                val errorStream = conn.errorStream
-                val msg = try { JSONObject(BufferedReader(InputStreamReader(errorStream)).readText()).optString("msg", "验证码错误或已过期") } catch (e: Exception) { "验证码错误或已过期" }
+                val msg = try { JSONObject(BufferedReader(InputStreamReader(conn.errorStream)).readText()).optString("msg", "验证码错误") } catch (e: Exception) { "验证码错误" }
                 Result.failure(Exception(msg))
             }
         } catch (e: Exception) { Result.failure(Exception("网络异常，请稍后重试")) }
     }
 
-    // 拉取云端白名单 (保持不变)
-    suspend fun fetchCloudWhitelist(accessToken: String): Result<List<String>> = withContext(Dispatchers.IO) {
+    // 拉取白名单
+    suspend fun fetchCloudWhitelist(context: Context, accessToken: String): Result<List<String>> = withContext(Dispatchers.IO) {
         try {
             val url = URL("$SUPABASE_URL/rest/v1/user_whitelists?select=domain")
             val conn = url.openConnection() as HttpURLConnection
             conn.requestMethod = "GET"
             conn.setRequestProperty("apikey", SUPABASE_KEY)
             conn.setRequestProperty("Authorization", "Bearer $accessToken")
+
             if (conn.responseCode in 200..299) {
-                val reader = BufferedReader(InputStreamReader(conn.inputStream))
-                val jsonArray = JSONArray(reader.readText())
+                val jsonArray = JSONArray(BufferedReader(InputStreamReader(conn.inputStream)).readText())
                 val domains = mutableListOf<String>()
                 for (i in 0 until jsonArray.length()) { domains.add(jsonArray.getJSONObject(i).optString("domain")) }
                 Result.success(domains)
-            } else { Result.failure(Exception("拉取白名单失败")) }
+            } else if (conn.responseCode == 401) {
+                // Token 过期，刷新后重试
+                val refreshResult = refreshToken(context)
+                if (refreshResult.isSuccess) return@withContext fetchCloudWhitelist(context, refreshResult.getOrNull()!!)
+                Result.failure(Exception("拉取失败: 401"))
+            } else {
+                Result.failure(Exception("拉取失败: ${conn.responseCode}"))
+            }
         } catch (e: Exception) { Result.failure(e) }
     }
 
-    // 上传白名单 (带自动刷新逻辑)
+    // 上传白名单
     suspend fun uploadWhitelistDomain(context: Context, accessToken: String, domain: String): Result<Unit> = withContext(Dispatchers.IO) {
         try {
             val url = URL("$SUPABASE_URL/rest/v1/user_whitelists")
@@ -164,25 +149,18 @@ object AuthManager {
 
             if (conn.responseCode in 200..299) {
                 Result.success(Unit)
+            } else if (conn.responseCode == 401) {
+                val refreshResult = refreshToken(context)
+                if (refreshResult.isSuccess) return@withContext uploadWhitelistDomain(context, refreshResult.getOrNull()!!, domain)
+                Result.failure(Exception("上传失败: Token 无效"))
             } else {
-                // 如果是 401，尝试刷新 Token 后重试一次
-                if (conn.responseCode == 401) {
-                    Log.w(TAG, "Token 过期，尝试刷新...")
-                    val refreshResult = refreshToken(context)
-                    if (refreshResult.isSuccess) {
-                        val newToken = refreshResult.getOrNull()!!
-                        // 使用新 Token 重试
-                        return@withContext uploadWhitelistDomain(context, newToken, domain)
-                    }
-                }
-                val errorStream = conn.errorStream
-                val errorResponse = BufferedReader(InputStreamReader(errorStream)).readText()
+                val errorResponse = BufferedReader(InputStreamReader(conn.errorStream)).readText()
                 Result.failure(Exception("上传失败: ${conn.responseCode} ($errorResponse)"))
             }
         } catch (e: Exception) { Result.failure(e) }
     }
 
-    // 删除云端白名单 (带自动刷新逻辑)
+    // 删除白名单
     suspend fun deleteCloudWhitelistDomain(context: Context, accessToken: String, domain: String): Result<Unit> = withContext(Dispatchers.IO) {
         try {
             val url = URL("$SUPABASE_URL/rest/v1/user_whitelists?domain=eq.$domain")
@@ -193,14 +171,11 @@ object AuthManager {
 
             if (conn.responseCode in 200..299) {
                 Result.success(Unit)
+            } else if (conn.responseCode == 401) {
+                val refreshResult = refreshToken(context)
+                if (refreshResult.isSuccess) return@withContext deleteCloudWhitelistDomain(context, refreshResult.getOrNull()!!, domain)
+                Result.failure(Exception("删除失败: Token 无效"))
             } else {
-                if (conn.responseCode == 401) {
-                    Log.w(TAG, "Token 过期，尝试刷新...")
-                    val refreshResult = refreshToken(context)
-                    if (refreshResult.isSuccess) {
-                        return@withContext deleteCloudWhitelistDomain(context, refreshResult.getOrNull()!!, domain)
-                    }
-                }
                 Result.failure(Exception("删除失败: ${conn.responseCode}"))
             }
         } catch (e: Exception) { Result.failure(e) }
