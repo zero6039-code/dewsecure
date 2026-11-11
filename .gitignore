@@ -89,3 +89,7 @@ releases/
 # 迁移期备份（观察期后清理）
 *.bak_*
 *.udl.disabled
+
+# 迁移期备份（观察期后清理）
+*.bak_*
+*.udl.disabled
