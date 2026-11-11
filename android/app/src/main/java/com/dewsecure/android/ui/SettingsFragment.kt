@@ -3,6 +3,8 @@ package com.dewsecure.android.ui
 import android.content.Context
 import android.content.Intent
 import android.graphics.Color
+import android.content.res.ColorStateList
+import androidx.appcompat.widget.SwitchCompat
 import android.os.Bundle
 import android.view.Gravity
 import android.view.LayoutInflater
@@ -51,9 +53,10 @@ class SettingsFragment : Fragment() {
         setupTabs()
         setupLanguageGrid()
         setupWhitelistLogic()
+        setupPrivacyLogic(view)
 
         // 默认选中白名单页
-        switchTab("whitelist")
+        switchTab("lang")
     }
 
     private fun initViews(view: View) {
@@ -302,5 +305,30 @@ class SettingsFragment : Fragment() {
             array.put(item)
         }
         prefs.edit().putString("domains", array.toString()).apply()
+    }
+
+    private fun setupPrivacyLogic(view: View) {
+        val switchShareThreat = view.findViewById<SwitchCompat>(R.id.switch_share_threat)
+        val prefs = requireContext().getSharedPreferences("app_settings", Context.MODE_PRIVATE)
+
+        // 设置与保护页一致的开关颜色
+        val states = arrayOf(
+            intArrayOf(android.R.attr.state_checked),
+            intArrayOf(-android.R.attr.state_checked)
+        )
+        val thumbColors = intArrayOf(Color.WHITE, Color.WHITE)
+        val trackColors = intArrayOf(Color.parseColor("#00E5FF"), Color.parseColor("#424242"))
+        
+        switchShareThreat.thumbTintList = ColorStateList(states, thumbColors)
+        switchShareThreat.trackTintList = ColorStateList(states, trackColors)
+
+        // 默认关闭
+        switchShareThreat.isChecked = prefs.getBoolean("pref_share_threat_intel", true)
+
+        switchShareThreat.setOnCheckedChangeListener { _, isChecked ->
+            prefs.edit().putBoolean("pref_share_threat_intel", isChecked).apply()
+            val msg = if (isChecked) "已开启：将匿名上报新型威胁" else "已关闭：停止匿名上报"
+            Toast.makeText(requireContext(), msg, Toast.LENGTH_SHORT).show()
+        }
     }
 }

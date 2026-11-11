@@ -21,7 +21,6 @@ object EngineBridge {
             engine = HostEngine(config)
             Log.i(TAG, "HostEngine 初始化成功")
 
-            // 自检：强行测一下底层是不是坏的
             val testRes = engine?.shouldBlock("doubleclick.net")
             Log.i(TAG, "🧪 引擎自检 - doubleclick.net 结果: ${testRes?.decision} / ${testRes?.reason}")
 
@@ -31,64 +30,35 @@ object EngineBridge {
         }
     }
 
-    // 🌟 新增：初始化历史统计数据
     fun setInitialStats(total: Long, today: Long) {
         try {
             engine?.setInitialStats(total, today)
             Log.i(TAG, "设置初始统计数据: total=$total, today=$today")
-        } catch (e: Throwable) {
-            Log.e(TAG, "setInitialStats err", e)
-        }
+        } catch (e: Throwable) { Log.e(TAG, "setInitialStats err", e) }
     }
 
     fun shouldBlock(domain: String): BlockResult {
         val e = engine ?: return fallbackAllow()
-        return try {
-            e.shouldBlock(domain)
-        } catch (ex: Throwable) {
-            Log.e(TAG, "调用 should_block 异常: $domain", ex)
-            fallbackAllow()
+        return try { e.shouldBlock(domain) } catch (ex: Throwable) {
+            Log.e(TAG, "调用 should_block 异常: $domain", ex); fallbackAllow()
         }
     }
 
-    private fun fallbackAllow(): BlockResult {
-        return BlockResult(BlockDecision.ALLOW, "fallback_allow", 0.0f)
-    }
+    private fun fallbackAllow(): BlockResult = BlockResult(BlockDecision.ALLOW, "fallback_allow", 0.0f)
 
-    fun userAllow(domain: String) {
-        try { engine?.userAllow(domain) } catch (e: Throwable) { Log.e(TAG, "userAllow err", e) }
-    }
+    fun userAllow(domain: String) { try { engine?.userAllow(domain) } catch (e: Throwable) { Log.e(TAG, "userAllow err", e) } }
+    fun userRemoveAllow(domain: String) { try { engine?.userRemoveAllow(domain) } catch (e: Throwable) { Log.e(TAG, "userRemoveAllow err", e) } }
+    fun loadUserWhitelist(domains: List<String>) { try { engine?.loadUserWhitelist(domains) } catch (e: Throwable) { Log.e(TAG, "loadUserWhitelist err", e) } }
+    fun getUserAllowList(): List<String> { return try { engine?.getUserAllowList() ?: emptyList() } catch (e: Throwable) { emptyList() } }
+    fun getStatsJson(): String { return try { engine?.getStats() ?: "{}" } catch (e: Exception) { "{}" } }
 
-    fun userRemoveAllow(domain: String) {
-        try { engine?.userRemoveAllow(domain) } catch (e: Throwable) { Log.e(TAG, "userRemoveAllow err", e) }
-    }
-
-    fun loadUserWhitelist(domains: List<String>) {
-        try {
-            engine?.loadUserWhitelist(domains)
-            Log.i(TAG, "加载用户白名单 ${domains.size} 条")
-        } catch (e: Throwable) {
-            Log.e(TAG, "loadUserWhitelist err", e)
-        }
-    }
-
-    fun getUserAllowList(): List<String> {
-        return try {
-            engine?.getUserAllowList() ?: emptyList()
-        } catch (e: Throwable) {
-            Log.e(TAG, "getUserAllowList err", e)
-            emptyList()
-        }
-    }
-
-    fun getStatsJson(): String {
-        return try {
-            engine?.getStats() ?: "{}"
-        } catch (e: Exception) {
-            Log.e(TAG, "getStatsJson err", e)
-            "{}"
-        }
-    }
+    // --- 6 大功能联动透传 ---
+    fun setEnableDnr(enabled: Boolean) { try { engine?.setEnableDnr(enabled) } catch (e: Throwable) { Log.e(TAG, "setEnableDnr err", e) } }
+    fun setEnableTracker(enabled: Boolean) { try { engine?.setEnableTracker(enabled) } catch (e: Throwable) { Log.e(TAG, "setEnableTracker err", e) } }
+    fun setEnableSocial(enabled: Boolean) { try { engine?.setEnableSocial(enabled) } catch (e: Throwable) { Log.e(TAG, "setEnableSocial err", e) } }
+    fun setEnableThreatIntel(enabled: Boolean) { try { engine?.setEnableThreatIntel(enabled) } catch (e: Throwable) { Log.e(TAG, "setEnableThreatIntel err", e) } }
+    fun setEnableAiPhishing(enabled: Boolean) { try { engine?.setEnableAiPhishing(enabled) } catch (e: Throwable) { Log.e(TAG, "setEnableAiPhishing err", e) } }
+    fun setEnableAiZeroDay(enabled: Boolean) { try { engine?.setEnableAiZeroDay(enabled) } catch (e: Throwable) { Log.e(TAG, "setEnableAiZeroDay err", e) } }
 
     fun getBlockLogs(): List<BlockLog> {
         val jsonStr = getStatsJson()
@@ -106,23 +76,18 @@ object EngineBridge {
                     ))
                 }
             }
-        } catch (e: Exception) {
-            Log.e(TAG, "解析日志失败", e)
-        }
+        } catch (e: Exception) { Log.e(TAG, "解析日志失败", e) }
 
         val groupedMap = mutableMapOf<String, BlockLog>()
         for (log in rawList) {
             if (groupedMap.containsKey(log.domain)) {
                 val existing = groupedMap[log.domain]!!
                 existing.count += 1
-                if (log.timestamp > existing.timestamp) {
-                    existing.timestamp = log.timestamp
-                }
+                if (log.timestamp > existing.timestamp) existing.timestamp = log.timestamp
             } else {
                 groupedMap[log.domain] = log
             }
         }
-
         return groupedMap.values.sortedByDescending { it.timestamp }
     }
 }

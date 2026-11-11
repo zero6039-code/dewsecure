@@ -746,6 +746,30 @@ internal interface UniffiForeignFutureCompleteVoid : com.sun.jna.Callback {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 // A JNA Library to expose the extern-C FFI definitions.
 // This is an implementation detail which will be called internally by the public API.
 
@@ -793,7 +817,31 @@ internal interface UniffiLib : Library {
     ): RustBuffer.ByValue
     fun uniffi_dewsecure_core_fn_method_hostengine_get_user_allow_list(`ptr`: Pointer,uniffi_out_err: UniffiRustCallStatus, 
     ): RustBuffer.ByValue
+    fun uniffi_dewsecure_core_fn_method_hostengine_is_enable_ai_phishing(`ptr`: Pointer,uniffi_out_err: UniffiRustCallStatus, 
+    ): Byte
+    fun uniffi_dewsecure_core_fn_method_hostengine_is_enable_ai_zero_day(`ptr`: Pointer,uniffi_out_err: UniffiRustCallStatus, 
+    ): Byte
+    fun uniffi_dewsecure_core_fn_method_hostengine_is_enable_dnr(`ptr`: Pointer,uniffi_out_err: UniffiRustCallStatus, 
+    ): Byte
+    fun uniffi_dewsecure_core_fn_method_hostengine_is_enable_social(`ptr`: Pointer,uniffi_out_err: UniffiRustCallStatus, 
+    ): Byte
+    fun uniffi_dewsecure_core_fn_method_hostengine_is_enable_threat_intel(`ptr`: Pointer,uniffi_out_err: UniffiRustCallStatus, 
+    ): Byte
+    fun uniffi_dewsecure_core_fn_method_hostengine_is_enable_tracker(`ptr`: Pointer,uniffi_out_err: UniffiRustCallStatus, 
+    ): Byte
     fun uniffi_dewsecure_core_fn_method_hostengine_load_user_whitelist(`ptr`: Pointer,`domains`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
+    ): Unit
+    fun uniffi_dewsecure_core_fn_method_hostengine_set_enable_ai_phishing(`ptr`: Pointer,`enabled`: Byte,uniffi_out_err: UniffiRustCallStatus, 
+    ): Unit
+    fun uniffi_dewsecure_core_fn_method_hostengine_set_enable_ai_zero_day(`ptr`: Pointer,`enabled`: Byte,uniffi_out_err: UniffiRustCallStatus, 
+    ): Unit
+    fun uniffi_dewsecure_core_fn_method_hostengine_set_enable_dnr(`ptr`: Pointer,`enabled`: Byte,uniffi_out_err: UniffiRustCallStatus, 
+    ): Unit
+    fun uniffi_dewsecure_core_fn_method_hostengine_set_enable_social(`ptr`: Pointer,`enabled`: Byte,uniffi_out_err: UniffiRustCallStatus, 
+    ): Unit
+    fun uniffi_dewsecure_core_fn_method_hostengine_set_enable_threat_intel(`ptr`: Pointer,`enabled`: Byte,uniffi_out_err: UniffiRustCallStatus, 
+    ): Unit
+    fun uniffi_dewsecure_core_fn_method_hostengine_set_enable_tracker(`ptr`: Pointer,`enabled`: Byte,uniffi_out_err: UniffiRustCallStatus, 
     ): Unit
     fun uniffi_dewsecure_core_fn_method_hostengine_set_initial_stats(`ptr`: Pointer,`total`: Long,`today`: Long,uniffi_out_err: UniffiRustCallStatus, 
     ): Unit
@@ -931,7 +979,31 @@ internal interface UniffiLib : Library {
     ): Short
     fun uniffi_dewsecure_core_checksum_method_hostengine_get_user_allow_list(
     ): Short
+    fun uniffi_dewsecure_core_checksum_method_hostengine_is_enable_ai_phishing(
+    ): Short
+    fun uniffi_dewsecure_core_checksum_method_hostengine_is_enable_ai_zero_day(
+    ): Short
+    fun uniffi_dewsecure_core_checksum_method_hostengine_is_enable_dnr(
+    ): Short
+    fun uniffi_dewsecure_core_checksum_method_hostengine_is_enable_social(
+    ): Short
+    fun uniffi_dewsecure_core_checksum_method_hostengine_is_enable_threat_intel(
+    ): Short
+    fun uniffi_dewsecure_core_checksum_method_hostengine_is_enable_tracker(
+    ): Short
     fun uniffi_dewsecure_core_checksum_method_hostengine_load_user_whitelist(
+    ): Short
+    fun uniffi_dewsecure_core_checksum_method_hostengine_set_enable_ai_phishing(
+    ): Short
+    fun uniffi_dewsecure_core_checksum_method_hostengine_set_enable_ai_zero_day(
+    ): Short
+    fun uniffi_dewsecure_core_checksum_method_hostengine_set_enable_dnr(
+    ): Short
+    fun uniffi_dewsecure_core_checksum_method_hostengine_set_enable_social(
+    ): Short
+    fun uniffi_dewsecure_core_checksum_method_hostengine_set_enable_threat_intel(
+    ): Short
+    fun uniffi_dewsecure_core_checksum_method_hostengine_set_enable_tracker(
     ): Short
     fun uniffi_dewsecure_core_checksum_method_hostengine_set_initial_stats(
     ): Short
@@ -986,10 +1058,46 @@ private fun uniffiCheckApiChecksums(lib: UniffiLib) {
     if (lib.uniffi_dewsecure_core_checksum_method_hostengine_get_user_allow_list() != 4136.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
+    if (lib.uniffi_dewsecure_core_checksum_method_hostengine_is_enable_ai_phishing() != 13453.toShort()) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
+    if (lib.uniffi_dewsecure_core_checksum_method_hostengine_is_enable_ai_zero_day() != 28440.toShort()) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
+    if (lib.uniffi_dewsecure_core_checksum_method_hostengine_is_enable_dnr() != 13760.toShort()) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
+    if (lib.uniffi_dewsecure_core_checksum_method_hostengine_is_enable_social() != 49270.toShort()) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
+    if (lib.uniffi_dewsecure_core_checksum_method_hostengine_is_enable_threat_intel() != 13571.toShort()) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
+    if (lib.uniffi_dewsecure_core_checksum_method_hostengine_is_enable_tracker() != 46369.toShort()) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
     if (lib.uniffi_dewsecure_core_checksum_method_hostengine_load_user_whitelist() != 7304.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
-    if (lib.uniffi_dewsecure_core_checksum_method_hostengine_set_initial_stats() != 46391.toShort()) {
+    if (lib.uniffi_dewsecure_core_checksum_method_hostengine_set_enable_ai_phishing() != 27434.toShort()) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
+    if (lib.uniffi_dewsecure_core_checksum_method_hostengine_set_enable_ai_zero_day() != 61876.toShort()) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
+    if (lib.uniffi_dewsecure_core_checksum_method_hostengine_set_enable_dnr() != 1997.toShort()) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
+    if (lib.uniffi_dewsecure_core_checksum_method_hostengine_set_enable_social() != 64304.toShort()) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
+    if (lib.uniffi_dewsecure_core_checksum_method_hostengine_set_enable_threat_intel() != 64270.toShort()) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
+    if (lib.uniffi_dewsecure_core_checksum_method_hostengine_set_enable_tracker() != 31220.toShort()) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
+    if (lib.uniffi_dewsecure_core_checksum_method_hostengine_set_initial_stats() != 34260.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if (lib.uniffi_dewsecure_core_checksum_method_hostengine_should_block() != 36394.toShort()) {
@@ -1670,11 +1778,32 @@ public interface HostEngineInterface {
     
     fun `getUserAllowList`(): List<kotlin.String>
     
+    fun `isEnableAiPhishing`(): kotlin.Boolean
+    
+    fun `isEnableAiZeroDay`(): kotlin.Boolean
+    
+    fun `isEnableDnr`(): kotlin.Boolean
+    
+    fun `isEnableSocial`(): kotlin.Boolean
+    
+    fun `isEnableThreatIntel`(): kotlin.Boolean
+    
+    fun `isEnableTracker`(): kotlin.Boolean
+    
     fun `loadUserWhitelist`(`domains`: List<kotlin.String>)
     
-    /**
-     * 暴露给 Kotlin 的获取统计数据接口
-     */
+    fun `setEnableAiPhishing`(`enabled`: kotlin.Boolean)
+    
+    fun `setEnableAiZeroDay`(`enabled`: kotlin.Boolean)
+    
+    fun `setEnableDnr`(`enabled`: kotlin.Boolean)
+    
+    fun `setEnableSocial`(`enabled`: kotlin.Boolean)
+    
+    fun `setEnableThreatIntel`(`enabled`: kotlin.Boolean)
+    
+    fun `setEnableTracker`(`enabled`: kotlin.Boolean)
+    
     fun `setInitialStats`(`total`: kotlin.Long, `today`: kotlin.Long)
     
     fun `shouldBlock`(`domain`: kotlin.String): BlockResult
@@ -1798,6 +1927,78 @@ open class HostEngine: Disposable, AutoCloseable, HostEngineInterface {
     }
     
 
+    override fun `isEnableAiPhishing`(): kotlin.Boolean {
+            return FfiConverterBoolean.lift(
+    callWithPointer {
+    uniffiRustCall() { _status ->
+    UniffiLib.INSTANCE.uniffi_dewsecure_core_fn_method_hostengine_is_enable_ai_phishing(
+        it, _status)
+}
+    }
+    )
+    }
+    
+
+    override fun `isEnableAiZeroDay`(): kotlin.Boolean {
+            return FfiConverterBoolean.lift(
+    callWithPointer {
+    uniffiRustCall() { _status ->
+    UniffiLib.INSTANCE.uniffi_dewsecure_core_fn_method_hostengine_is_enable_ai_zero_day(
+        it, _status)
+}
+    }
+    )
+    }
+    
+
+    override fun `isEnableDnr`(): kotlin.Boolean {
+            return FfiConverterBoolean.lift(
+    callWithPointer {
+    uniffiRustCall() { _status ->
+    UniffiLib.INSTANCE.uniffi_dewsecure_core_fn_method_hostengine_is_enable_dnr(
+        it, _status)
+}
+    }
+    )
+    }
+    
+
+    override fun `isEnableSocial`(): kotlin.Boolean {
+            return FfiConverterBoolean.lift(
+    callWithPointer {
+    uniffiRustCall() { _status ->
+    UniffiLib.INSTANCE.uniffi_dewsecure_core_fn_method_hostengine_is_enable_social(
+        it, _status)
+}
+    }
+    )
+    }
+    
+
+    override fun `isEnableThreatIntel`(): kotlin.Boolean {
+            return FfiConverterBoolean.lift(
+    callWithPointer {
+    uniffiRustCall() { _status ->
+    UniffiLib.INSTANCE.uniffi_dewsecure_core_fn_method_hostengine_is_enable_threat_intel(
+        it, _status)
+}
+    }
+    )
+    }
+    
+
+    override fun `isEnableTracker`(): kotlin.Boolean {
+            return FfiConverterBoolean.lift(
+    callWithPointer {
+    uniffiRustCall() { _status ->
+    UniffiLib.INSTANCE.uniffi_dewsecure_core_fn_method_hostengine_is_enable_tracker(
+        it, _status)
+}
+    }
+    )
+    }
+    
+
     override fun `loadUserWhitelist`(`domains`: List<kotlin.String>)
         = 
     callWithPointer {
@@ -1809,10 +2010,73 @@ open class HostEngine: Disposable, AutoCloseable, HostEngineInterface {
     
     
 
+    override fun `setEnableAiPhishing`(`enabled`: kotlin.Boolean)
+        = 
+    callWithPointer {
+    uniffiRustCall() { _status ->
+    UniffiLib.INSTANCE.uniffi_dewsecure_core_fn_method_hostengine_set_enable_ai_phishing(
+        it, FfiConverterBoolean.lower(`enabled`),_status)
+}
+    }
     
-    /**
-     * 暴露给 Kotlin 的获取统计数据接口
-     */override fun `setInitialStats`(`total`: kotlin.Long, `today`: kotlin.Long)
+    
+
+    override fun `setEnableAiZeroDay`(`enabled`: kotlin.Boolean)
+        = 
+    callWithPointer {
+    uniffiRustCall() { _status ->
+    UniffiLib.INSTANCE.uniffi_dewsecure_core_fn_method_hostengine_set_enable_ai_zero_day(
+        it, FfiConverterBoolean.lower(`enabled`),_status)
+}
+    }
+    
+    
+
+    override fun `setEnableDnr`(`enabled`: kotlin.Boolean)
+        = 
+    callWithPointer {
+    uniffiRustCall() { _status ->
+    UniffiLib.INSTANCE.uniffi_dewsecure_core_fn_method_hostengine_set_enable_dnr(
+        it, FfiConverterBoolean.lower(`enabled`),_status)
+}
+    }
+    
+    
+
+    override fun `setEnableSocial`(`enabled`: kotlin.Boolean)
+        = 
+    callWithPointer {
+    uniffiRustCall() { _status ->
+    UniffiLib.INSTANCE.uniffi_dewsecure_core_fn_method_hostengine_set_enable_social(
+        it, FfiConverterBoolean.lower(`enabled`),_status)
+}
+    }
+    
+    
+
+    override fun `setEnableThreatIntel`(`enabled`: kotlin.Boolean)
+        = 
+    callWithPointer {
+    uniffiRustCall() { _status ->
+    UniffiLib.INSTANCE.uniffi_dewsecure_core_fn_method_hostengine_set_enable_threat_intel(
+        it, FfiConverterBoolean.lower(`enabled`),_status)
+}
+    }
+    
+    
+
+    override fun `setEnableTracker`(`enabled`: kotlin.Boolean)
+        = 
+    callWithPointer {
+    uniffiRustCall() { _status ->
+    UniffiLib.INSTANCE.uniffi_dewsecure_core_fn_method_hostengine_set_enable_tracker(
+        it, FfiConverterBoolean.lower(`enabled`),_status)
+}
+    }
+    
+    
+
+    override fun `setInitialStats`(`total`: kotlin.Long, `today`: kotlin.Long)
         = 
     callWithPointer {
     uniffiRustCall() { _status ->
