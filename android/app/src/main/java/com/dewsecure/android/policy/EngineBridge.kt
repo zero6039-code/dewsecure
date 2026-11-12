@@ -50,11 +50,11 @@ object EngineBridge {
     fun userRemoveAllow(domain: String) { try { engine?.userRemoveAllow(domain) } catch (e: Throwable) { Log.e(TAG, "userRemoveAllow err", e) } }
     fun loadUserWhitelist(domains: List<String>) { try { engine?.loadUserWhitelist(domains) } catch (e: Throwable) { Log.e(TAG, "loadUserWhitelist err", e) } }
     fun getUserAllowList(): List<String> { return try { engine?.getUserAllowList() ?: emptyList() } catch (e: Throwable) { emptyList() } }
-    fun getStatsJson(): String { 
-        return try { 
+    
+    fun getStatsJson(): String {
+        return try {
             val jsonStr = engine?.getStats() ?: "{}"
             val json = JSONObject(jsonStr)
-            // 用 Kotlin 的本地时区纠正 Rust 的 UTC 跨天 Bug
             val logs = json.optJSONArray("logs")
             if (logs != null) {
                 val todayStartMillis = java.util.Calendar.getInstance().apply {
@@ -63,7 +63,7 @@ object EngineBridge {
                     set(java.util.Calendar.SECOND, 0)
                     set(java.util.Calendar.MILLISECOND, 0)
                 }.timeInMillis
-                
+
                 var realTodayCount = 0
                 for (i in 0 until logs.length()) {
                     if (logs.getJSONObject(i).optLong("timestamp", 0L) >= todayStartMillis) {
@@ -73,7 +73,7 @@ object EngineBridge {
                 json.put("today_blocked", realTodayCount)
             }
             json.toString()
-        } catch (e: Exception) { "{}" } 
+        } catch (e: Exception) { "{}" }
     }
 
     // --- 6 大功能联动透传 ---
@@ -89,6 +89,28 @@ object EngineBridge {
             engine?.unloadAdblockModel()
             Log.i(TAG, "AI 模型已卸载")
         } catch (e: Throwable) { Log.e(TAG, "unloadAdblockModel err", e) }
+    }
+
+    fun loadSignedAdblockModel(version: String, sha256Hex: String, sigB64: String, body: String, modelType: String, channel: String, validUntil: Long, localVersion: String?): Boolean {
+        return try {
+            engine?.loadSignedAdblockModel(version, sha256Hex, sigB64, body, modelType, channel, validUntil.toULong(), localVersion)
+            Log.i(TAG, "✅ AI 模型热更新成功")
+            true
+        } catch (e: Throwable) {
+            Log.e(TAG, "AI 模型热更新失败", e)
+            false
+        }
+    }
+
+    fun verifyAndUpdateRules(payload: String, expectedSha256: String, msgStr: String, sigB64: String): Boolean {
+        return try {
+            engine?.verifyAndUpdateRules(payload, expectedSha256, msgStr, sigB64)
+            Log.i(TAG, "✅ 云端规则热更新成功")
+            true
+        } catch (e: Throwable) {
+            Log.e(TAG, "云端规则热更新失败", e)
+            false
+        }
     }
 
     fun getBlockLogs(isTodayOnly: Boolean = false): List<BlockLog> {
@@ -109,7 +131,6 @@ object EngineBridge {
             }
         } catch (e: Exception) { Log.e(TAG, "解析日志失败", e) }
 
-        // 1. 先按时间过滤（如果在看今日，只保留今天 0 点之后的数据）
         val filteredList = if (isTodayOnly) {
             val todayStartMillis = java.util.Calendar.getInstance().apply {
                 set(java.util.Calendar.HOUR_OF_DAY, 0)
@@ -122,7 +143,6 @@ object EngineBridge {
             rawList
         }
 
-        // 2. 再按域名合并聚合
         val groupedMap = mutableMapOf<String, BlockLog>()
         for (log in filteredList) {
             if (groupedMap.containsKey(log.domain)) {

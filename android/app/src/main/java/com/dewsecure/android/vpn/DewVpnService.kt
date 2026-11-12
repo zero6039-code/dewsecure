@@ -12,6 +12,7 @@ import android.os.Build
 import android.os.ParcelFileDescriptor
 import android.util.Log
 import com.dewsecure.android.policy.EngineBridge
+import com.dewsecure.android.policy.UpdateManager
 import com.dewsecure.android.policy.AuthManager
 import com.dewsecure.android.ui.MainActivity
 import java.io.FileInputStream
@@ -91,6 +92,11 @@ class DewVpnService : VpnService() {
         val savedLogs = statsPrefs.getString("logs_json", "[]") ?: "[]"
         EngineBridge.setInitialStats(savedTotal, savedToday, savedLogs)
         
+        // 触发云端热更新 (后台静默进行)
+        CoroutineScope(Dispatchers.IO).launch {
+            UpdateManager.checkForUpdates(this@DewVpnService)
+        }
+
         Log.i(TAG, "🔥 VPN 服务已成功启动，底层引擎初始化完毕，已恢复历史数据")
         isRunningState = true
 
