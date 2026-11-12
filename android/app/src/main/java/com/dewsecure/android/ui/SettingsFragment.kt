@@ -1,5 +1,4 @@
 package com.dewsecure.android.ui
-import com.dewsecure.android.vpn.DewVpnService
 
 import android.content.Context
 import android.content.Intent
@@ -24,6 +23,9 @@ import androidx.recyclerview.widget.RecyclerView
 import com.dewsecure.android.R
 import com.dewsecure.android.policy.AuthManager
 import com.dewsecure.android.policy.EngineBridge
+import com.dewsecure.android.ui.adapter.AppModel
+import com.dewsecure.android.ui.adapter.AppRoutingAdapter
+import com.dewsecure.android.vpn.DewVpnService
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -91,7 +93,7 @@ class SettingsFragment : Fragment() {
         btnAdd = view.findViewById(R.id.btn_add_whitelist)
         containerWhitelist = view.findViewById(R.id.container_whitelist)
         tvEmpty = view.findViewById(R.id.tv_whitelist_empty)
-        
+
         etSearchApp = view.findViewById(R.id.et_search_app)
         rvApps = view.findViewById(R.id.rv_apps)
     }
@@ -108,7 +110,7 @@ class SettingsFragment : Fragment() {
         tabWhitelist.setBackgroundResource(R.drawable.bg_glass_tab_inactive)
         tabPrivacy.setBackgroundResource(R.drawable.bg_glass_tab_inactive)
         tabRouting.setBackgroundResource(R.drawable.bg_glass_tab_inactive)
-        
+
         paneLang.visibility = View.GONE
         paneWhitelist.visibility = View.GONE
         panePrivacy.visibility = View.GONE
@@ -157,30 +159,34 @@ class SettingsFragment : Fragment() {
     }
 
     private fun loadInstalledApps() {
+        // 在进入异步之前，安全地获取 Context 引用，防止协程执行期间 Fragment 被销毁导致闪退
+        val appContext = requireContext().applicationContext
+        val myPackageName = appContext.packageName
+
         lifecycleScope.launch(Dispatchers.IO) {
-            val pm = requireContext().packageManager
+            val pm = appContext.packageManager
             val packages = pm.getInstalledApplications(PackageManager.GET_META_DATA)
-            val prefs = requireContext().getSharedPreferences("app_settings", Context.MODE_PRIVATE)
-            
+            val prefs = appContext.getSharedPreferences("app_settings", Context.MODE_PRIVATE)
+
             val list = mutableListOf<AppModel>()
             for (info in packages) {
-                // 过滤掉自己
-                if (info.packageName == requireContext().packageName) continue
-                // 过滤掉系统核心应用（可选，这里保留大部分）
+                if (info.packageName == myPackageName) continue
                 if ((info.flags and ApplicationInfo.FLAG_SYSTEM) != 0 && pm.getLaunchIntentForPackage(info.packageName) == null) continue
-                
+
                 val name = pm.getApplicationLabel(info).toString()
                 val icon = info.loadIcon(pm)
                 val isBypassed = prefs.getBoolean("routing_${info.packageName}", false)
                 list.add(AppModel(name, info.packageName, icon, isBypassed))
             }
-            
-            // 按已开启优先 + 字母排序
+
             val sortedList = list.sortedWith(compareByDescending<AppModel> { it.isBypassed }.thenBy { it.name })
-            
+
             withContext(Dispatchers.Main) {
-                allApps = sortedList
-                appAdapter.updateData(allApps)
+                // 回到主线程时，必须检查 Fragment 是否还活着
+                if (isAdded && view != null) {
+                    allApps = sortedList
+                    appAdapter.updateData(allApps)
+                }
             }
         }
     }
@@ -189,8 +195,8 @@ class SettingsFragment : Fragment() {
         if (query.isEmpty()) {
             appAdapter.updateData(allApps)
         } else {
-            val filtered = allApps.filter { 
-                it.name.contains(query, ignoreCase = true) || it.packageName.contains(query, ignoreCase = true) 
+            val filtered = allApps.filter {
+                it.name.contains(query, ignoreCase = true) || it.packageName.contains(query, ignoreCase = true)
             }
             appAdapter.updateData(filtered)
         }
@@ -199,7 +205,7 @@ class SettingsFragment : Fragment() {
     private fun saveAppRouting(packageName: String, isBypassed: Boolean) {
         val prefs = requireContext().getSharedPreferences("app_settings", Context.MODE_PRIVATE)
         prefs.edit().putBoolean("routing_$packageName", isBypassed).apply()
-        
+
         if (DewVpnService.isRunningState) {
             Toast.makeText(requireContext(), "配置已保存，正在重启 VPN...", Toast.LENGTH_SHORT).show()
             val intent = Intent(requireContext(), DewVpnService::class.java)
@@ -422,64 +428,5 @@ class SettingsFragment : Fragment() {
             val msg = if (isChecked) "已开启：将匿名上报新型威胁" else "已关闭：停止匿名上报"
             Toast.makeText(requireContext(), msg, Toast.LENGTH_SHORT).show()
         }
-    }
-}
-
-// 数据类
-data class AppModel(
-    val name: String,
-    val packageName: String,
-    val icon: android.graphics.drawable.Drawable,
-    val isBypassed: Boolean
-)
-
-// 适配器
-class AppRoutingAdapter(
-    private var apps: List<AppModel>,
-    private val onSwitchChanged: (AppModel, Boolean) -> Unit
-) : RecyclerView.Adapter<AppRoutingAdapter.ViewHolder>() {
-
-    class ViewHolder(view: View) : RecyclerView.ViewHolder(view) {
-        val ivAppIcon: ImageView = view.findViewById(R.id.iv_app_icon)
-        val tvAppName: TextView = view.findViewById(R.id.tv_app_name)
-        val tvPackageName: TextView = view.findViewById(R.id.tv_package_name)
-        val switchBypass: SwitchCompat = view.findViewById(R.id.switch_bypass)
-    }
-
-    override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): ViewHolder {
-        val view = LayoutInflater.from(parent.context).inflate(R.layout.item_app_routing, parent, false)
-        return ViewHolder(view)
-    }
-
-    override fun onBindViewHolder(holder: ViewHolder, position: Int) {
-        val app = apps[position]
-        holder.ivAppIcon.setImageDrawable(app.icon)
-        holder.tvAppName.text = app.name
-        holder.tvPackageName.text = app.packageName
-        
-        // 设置开关颜色
-        val states = arrayOf(intArrayOf(android.R.attr.state_checked), intArrayOf(-android.R.attr.state_checked))
-        val thumbColors = intArrayOf(Color.WHITE, Color.WHITE)
-        val trackColors = intArrayOf(Color.parseColor("#00E5FF"), Color.parseColor("#424242"))
-        holder.switchBypass.thumbTintList = ColorStateList(states, thumbColors)
-        holder.switchBypass.trackTintList = ColorStateList(states, trackColors)
-
-        // 防止复用导致状态错乱
-        holder.switchBypass.setOnCheckedChangeListener(null)
-        holder.switchBypass.isChecked = app.isBypassed
-
-        holder.switchBypass.setOnCheckedChangeListener { _, isChecked ->
-            onSwitchChanged(app, isChecked)
-            app.copy(isBypassed = isChecked).let {
-                // 这里其实可以不更新本地集合，因为下一次加载会重新读取
-            }
-        }
-    }
-
-    override fun getItemCount() = apps.size
-
-    fun updateData(newApps: List<AppModel>) {
-        apps = newApps
-        notifyDataSetChanged()
     }
 }

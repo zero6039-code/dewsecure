@@ -31,18 +31,33 @@ class MainActivity : AppCompatActivity() {
         setContentView(R.layout.activity_main)
 
         val bottomNav = findViewById<BottomNavigationView>(R.id.bottom_navigation)
+        
+        // 首次初始化，把三个 Fragment 都 add 进去，但只显示 Home
+        if (savedInstanceState == null) {
+            supportFragmentManager.beginTransaction().apply {
+                add(R.id.fragment_container, homeFragment, "HOME")
+                add(R.id.fragment_container, protectionFragment, "PROTECTION").hide(protectionFragment)
+                add(R.id.fragment_container, settingsFragment, "SETTINGS").hide(settingsFragment)
+                commit()
+            }
+        }
+
         bottomNav.setOnItemSelectedListener { item ->
             when (item.itemId) {
-                R.id.nav_home -> { loadFragment(homeFragment); true }
-                R.id.nav_protection -> { loadFragment(protectionFragment); true }
-                R.id.nav_settings -> { loadFragment(settingsFragment); true }
+                R.id.nav_home -> { switchFragment(homeFragment); true }
+                R.id.nav_protection -> { switchFragment(protectionFragment); true }
+                R.id.nav_settings -> { switchFragment(settingsFragment); true }
                 else -> false
             }
         }
 
-        if (savedInstanceState == null) {
-            loadFragment(homeFragment)
-        }
+        // 🌟 启动时立即初始化引擎并恢复缓存，防止首页显示为 0
+        EngineBridge.init(aiEnabled = false)
+        val statsPrefs = getSharedPreferences("stats_cache", MODE_PRIVATE)
+        val savedTotal = statsPrefs.getLong("total", 0)
+        val savedToday = statsPrefs.getLong("today", 0)
+        val savedLogs = statsPrefs.getString("logs_json", "[]") ?: "[]"
+        EngineBridge.setInitialStats(savedTotal, savedToday, savedLogs)
 
         // 自动同步云端白名单
         val userPrefs = getSharedPreferences("user_session", MODE_PRIVATE)
@@ -59,10 +74,15 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    private fun loadFragment(fragment: Fragment) {
-        supportFragmentManager.beginTransaction()
-            .replace(R.id.fragment_container, fragment)
-            .commit()
+    private fun switchFragment(targetFragment: Fragment) {
+        // 利用 hide / show 代替 replace，避免 View 被销毁重建导致数据闪烁
+        supportFragmentManager.beginTransaction().apply {
+            supportFragmentManager.fragments.forEach { 
+                if (it != targetFragment) hide(it) 
+            }
+            show(targetFragment)
+            commit()
+        }
     }
 
     fun startVpn() {

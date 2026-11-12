@@ -184,6 +184,18 @@ class HomeFragment : Fragment() {
         handler.removeCallbacks(updateRunnable)
     }
 
+    override fun onHiddenChanged(hidden: Boolean) {
+        super.onHiddenChanged(hidden)
+        if (hidden) {
+            // 当被隐藏时（切到其他 Tab），停止定时器刷新，节省性能
+            handler.removeCallbacks(updateRunnable)
+        } else {
+            // 当重新显示时，立刻刷新一次数据，然后启动定时器
+            updateStats()
+            handler.post(updateRunnable)
+        }
+    }
+
     private fun updateStats() {
         val jsonStr = EngineBridge.getStatsJson()
         try {

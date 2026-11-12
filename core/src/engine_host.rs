@@ -229,6 +229,13 @@ impl HostEngine {
         self.stats_engine.get_stats_json()
     }
 
+    /// 权限降级时卸载 AI 模型，恢复纯规则拦截
+    pub fn unload_adblock_model(&self) {
+        let mut guard = self.adblock_model.lock().unwrap_or_else(|e| e.into_inner());
+        *guard = None;
+        tracing::info!("🔒 权限不足，AI 模型已被自动卸载");
+    }
+
     // --- 6 大开关的 Setter/Getter ---
     pub fn set_enable_dnr(&self, enabled: bool) { self.enable_dnr.store(enabled, Ordering::Relaxed); }
     pub fn is_enable_dnr(&self) -> bool { self.enable_dnr.load(Ordering::Relaxed) }
