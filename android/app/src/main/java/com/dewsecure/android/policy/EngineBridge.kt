@@ -50,7 +50,31 @@ object EngineBridge {
     fun userRemoveAllow(domain: String) { try { engine?.userRemoveAllow(domain) } catch (e: Throwable) { Log.e(TAG, "userRemoveAllow err", e) } }
     fun loadUserWhitelist(domains: List<String>) { try { engine?.loadUserWhitelist(domains) } catch (e: Throwable) { Log.e(TAG, "loadUserWhitelist err", e) } }
     fun getUserAllowList(): List<String> { return try { engine?.getUserAllowList() ?: emptyList() } catch (e: Throwable) { emptyList() } }
-    fun getStatsJson(): String { return try { engine?.getStats() ?: "{}" } catch (e: Exception) { "{}" } }
+    fun getStatsJson(): String { 
+        return try { 
+            val jsonStr = engine?.getStats() ?: "{}"
+            val json = JSONObject(jsonStr)
+            // 用 Kotlin 的本地时区纠正 Rust 的 UTC 跨天 Bug
+            val logs = json.optJSONArray("logs")
+            if (logs != null) {
+                val todayStartMillis = java.util.Calendar.getInstance().apply {
+                    set(java.util.Calendar.HOUR_OF_DAY, 0)
+                    set(java.util.Calendar.MINUTE, 0)
+                    set(java.util.Calendar.SECOND, 0)
+                    set(java.util.Calendar.MILLISECOND, 0)
+                }.timeInMillis
+                
+                var realTodayCount = 0
+                for (i in 0 until logs.length()) {
+                    if (logs.getJSONObject(i).optLong("timestamp", 0L) >= todayStartMillis) {
+                        realTodayCount++
+                    }
+                }
+                json.put("today_blocked", realTodayCount)
+            }
+            json.toString()
+        } catch (e: Exception) { "{}" } 
+    }
 
     // --- 6 大功能联动透传 ---
     fun setEnableDnr(enabled: Boolean) { try { engine?.setEnableDnr(enabled) } catch (e: Throwable) { Log.e(TAG, "setEnableDnr err", e) } }
@@ -60,7 +84,14 @@ object EngineBridge {
     fun setEnableAiPhishing(enabled: Boolean) { try { engine?.setEnableAiPhishing(enabled) } catch (e: Throwable) { Log.e(TAG, "setEnableAiPhishing err", e) } }
     fun setEnableAiZeroDay(enabled: Boolean) { try { engine?.setEnableAiZeroDay(enabled) } catch (e: Throwable) { Log.e(TAG, "setEnableAiZeroDay err", e) } }
 
-    fun getBlockLogs(): List<BlockLog> {
+    fun unloadAdblockModel() {
+        try {
+            engine?.unloadAdblockModel()
+            Log.i(TAG, "AI 模型已卸载")
+        } catch (e: Throwable) { Log.e(TAG, "unloadAdblockModel err", e) }
+    }
+
+    fun getBlockLogs(isTodayOnly: Boolean = false): List<BlockLog> {
         val jsonStr = getStatsJson()
         val rawList = mutableListOf<BlockLog>()
         try {
@@ -78,8 +109,22 @@ object EngineBridge {
             }
         } catch (e: Exception) { Log.e(TAG, "解析日志失败", e) }
 
+        // 1. 先按时间过滤（如果在看今日，只保留今天 0 点之后的数据）
+        val filteredList = if (isTodayOnly) {
+            val todayStartMillis = java.util.Calendar.getInstance().apply {
+                set(java.util.Calendar.HOUR_OF_DAY, 0)
+                set(java.util.Calendar.MINUTE, 0)
+                set(java.util.Calendar.SECOND, 0)
+                set(java.util.Calendar.MILLISECOND, 0)
+            }.timeInMillis
+            rawList.filter { it.timestamp >= todayStartMillis }
+        } else {
+            rawList
+        }
+
+        // 2. 再按域名合并聚合
         val groupedMap = mutableMapOf<String, BlockLog>()
-        for (log in rawList) {
+        for (log in filteredList) {
             if (groupedMap.containsKey(log.domain)) {
                 val existing = groupedMap[log.domain]!!
                 existing.count += 1

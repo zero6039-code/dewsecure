@@ -772,6 +772,8 @@ internal interface UniffiForeignFutureCompleteVoid : com.sun.jna.Callback {
 
 
 
+
+
 // A JNA Library to expose the extern-C FFI definitions.
 // This is an implementation detail which will be called internally by the public API.
 
@@ -851,6 +853,8 @@ internal interface UniffiLib : Library {
     ): Unit
     fun uniffi_dewsecure_core_fn_method_hostengine_should_block(`ptr`: Pointer,`domain`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
     ): RustBuffer.ByValue
+    fun uniffi_dewsecure_core_fn_method_hostengine_unload_adblock_model(`ptr`: Pointer,uniffi_out_err: UniffiRustCallStatus, 
+    ): Unit
     fun uniffi_dewsecure_core_fn_method_hostengine_user_allow(`ptr`: Pointer,`domain`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
     ): Unit
     fun uniffi_dewsecure_core_fn_method_hostengine_user_remove_allow(`ptr`: Pointer,`domain`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
@@ -1015,6 +1019,8 @@ internal interface UniffiLib : Library {
     ): Short
     fun uniffi_dewsecure_core_checksum_method_hostengine_should_block(
     ): Short
+    fun uniffi_dewsecure_core_checksum_method_hostengine_unload_adblock_model(
+    ): Short
     fun uniffi_dewsecure_core_checksum_method_hostengine_user_allow(
     ): Short
     fun uniffi_dewsecure_core_checksum_method_hostengine_user_remove_allow(
@@ -1110,6 +1116,9 @@ private fun uniffiCheckApiChecksums(lib: UniffiLib) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if (lib.uniffi_dewsecure_core_checksum_method_hostengine_should_block() != 36394.toShort()) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
+    if (lib.uniffi_dewsecure_core_checksum_method_hostengine_unload_adblock_model() != 54444.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if (lib.uniffi_dewsecure_core_checksum_method_hostengine_user_allow() != 33069.toShort()) {
@@ -1822,6 +1831,11 @@ public interface HostEngineInterface {
     
     fun `shouldBlock`(`domain`: kotlin.String): BlockResult
     
+    /**
+     * 权限降级时卸载 AI 模型，恢复纯规则拦截
+     */
+    fun `unloadAdblockModel`()
+    
     fun `userAllow`(`domain`: kotlin.String)
     
     fun `userRemoveAllow`(`domain`: kotlin.String)
@@ -2125,6 +2139,20 @@ open class HostEngine: Disposable, AutoCloseable, HostEngineInterface {
     }
     )
     }
+    
+
+    
+    /**
+     * 权限降级时卸载 AI 模型，恢复纯规则拦截
+     */override fun `unloadAdblockModel`()
+        = 
+    callWithPointer {
+    uniffiRustCall() { _status ->
+    UniffiLib.INSTANCE.uniffi_dewsecure_core_fn_method_hostengine_unload_adblock_model(
+        it, _status)
+}
+    }
+    
     
 
     override fun `userAllow`(`domain`: kotlin.String)

@@ -65,14 +65,24 @@ class DewVpnService : VpnService() {
 
         EngineBridge.init(aiEnabled = false)
         
+        // 🌟 权限冷启动校验：非 Pro 强制卸载 AI
+        val userPrefs = getSharedPreferences("user_session", MODE_PRIVATE)
+        val cachedTier = userPrefs.getString("tier", "free") ?: "free"
+        val isUserPro = cachedTier in listOf("pro", "premium", "trial", "trial-pro", "family", "sub-family", "family_sub")
+        if (!isUserPro) {
+            EngineBridge.unloadAdblockModel()
+            val modelDir = java.io.File(filesDir, "models")
+            if (modelDir.exists()) modelDir.deleteRecursively()
+        }
+
         // 从本地存储恢复开关状态并同步给 Rust 引擎
         val appPrefs = getSharedPreferences("app_settings", MODE_PRIVATE)
-        EngineBridge.setEnableDnr(appPrefs.getBoolean("pref_dnr", true))
-        EngineBridge.setEnableTracker(appPrefs.getBoolean("pref_tracker", true))
-        EngineBridge.setEnableSocial(appPrefs.getBoolean("pref_social", true))
-        EngineBridge.setEnableThreatIntel(appPrefs.getBoolean("pref_intel", true))
-        EngineBridge.setEnableAiPhishing(appPrefs.getBoolean("pref_ai_phishing", true))
-        EngineBridge.setEnableAiZeroDay(appPrefs.getBoolean("pref_ai_zero_day", true))
+        EngineBridge.setEnableDnr(appPrefs.getBoolean("pref_v3_dnr", true))
+        EngineBridge.setEnableTracker(appPrefs.getBoolean("pref_v3_tracker", true))
+        EngineBridge.setEnableSocial(appPrefs.getBoolean("pref_v3_social", true))
+        EngineBridge.setEnableThreatIntel(appPrefs.getBoolean("pref_v3_intel", true))
+        EngineBridge.setEnableAiPhishing(appPrefs.getBoolean("pref_v3_ai_phishing", true))
+        EngineBridge.setEnableAiZeroDay(appPrefs.getBoolean("pref_v3_ai_zero_day", true))
         
         // 恢复历史统计数据及日志
         val statsPrefs = getSharedPreferences("stats_cache", MODE_PRIVATE)

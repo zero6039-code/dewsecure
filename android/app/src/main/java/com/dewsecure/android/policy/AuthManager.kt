@@ -3,6 +3,7 @@ package com.dewsecure.android.policy
 import android.content.Context
 import android.util.Log
 import kotlinx.coroutines.Dispatchers
+import com.dewsecure.android.policy.EngineBridge
 import kotlinx.coroutines.withContext
 import org.json.JSONArray
 import org.json.JSONObject
@@ -271,10 +272,28 @@ object AuthManager {
                     }
                     
                     Log.i(TAG, "fetchUserProfile: 最终解析 Tier = $tier")
-                    prefs.edit().putString("tier", tier).apply()
-                    Result.success(tier)
+                    val isPro = tier in listOf("pro", "premium", "trial", "trial-pro", "family", "sub-family", "family_sub")
+                    if (!isPro) {
+                        // 🌟 权限降级或 Free 用户：强制卸载 Rust 内存中的模型
+                        EngineBridge.unloadAdblockModel()
+                        
+                        // 🌟 强制删除本地缓存的模型文件
+                        val modelDir = java.io.File(context.filesDir, "models")
+                        if (modelDir.exists()) {
+                            modelDir.deleteRecursively()
+                            Log.i(TAG, "权限降级，本地 AI 模型缓存已彻底清除")
+                        }
+                        prefs.edit().putString("tier", "free").apply()
+                        Result.success("free")
+                    } else {
+                        prefs.edit().putString("tier", tier).apply()
+                        Result.success(tier)
+                    }
                 } else {
                     Log.w(TAG, "fetchUserProfile: 结果为空，默认 free")
+                    EngineBridge.unloadAdblockModel()
+                    val modelDir = java.io.File(context.filesDir, "models")
+                    if (modelDir.exists()) modelDir.deleteRecursively()
                     prefs.edit().putString("tier", "free").apply()
                     Result.success("free")
                 }

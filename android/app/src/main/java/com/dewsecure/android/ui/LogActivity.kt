@@ -10,6 +10,7 @@ import com.dewsecure.android.R
 import com.dewsecure.android.policy.EngineBridge
 import com.dewsecure.android.ui.adapter.LogAdapter
 import org.json.JSONObject
+import java.util.Calendar
 
 class LogActivity : AppCompatActivity() {
 
@@ -38,9 +39,10 @@ class LogActivity : AppCompatActivity() {
             }
         } catch (e: Exception) {}
 
-        val logs = EngineBridge.getBlockLogs()
+        // 直接把标记传给 Bridge，在 Bridge 内部先过滤时间，再合并聚合
+        val displayLogs = EngineBridge.getBlockLogs(isTodayOnly = isToday)
 
-        if (logs.isEmpty()) {
+        if (displayLogs.isEmpty()) {
             tvEmpty.visibility = View.VISIBLE
             recycler.visibility = View.GONE
         } else {
@@ -49,6 +51,6 @@ class LogActivity : AppCompatActivity() {
         }
 
         recycler.layoutManager = LinearLayoutManager(this)
-        recycler.adapter = LogAdapter(logs)
+        recycler.adapter = LogAdapter(displayLogs)
     }
 }
