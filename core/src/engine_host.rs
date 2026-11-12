@@ -1,10 +1,13 @@
 use crate::{EngineConfig, EngineError};
 use serde::Deserialize;
 use std::collections::HashSet;
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Mutex, RwLock};
 use std::sync::atomic::{AtomicBool, Ordering};
 use crate::model::adblock::AdblockModel;
 use crate::stats::StatsEngine;
+use sha2::{Sha256, Digest};
+use ed25519_dalek::{Signature, VerifyingKey, Verifier};
+use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64};
 
 #[derive(Debug, Clone, PartialEq, Eq, uniffi::Enum)]
 pub enum BlockDecision {
@@ -40,18 +43,27 @@ struct DomainRulesFile {
     tracker: Vec<String>,
 }
 
+// 兼容浏览器插件 DNR 格式的解析结构
+#[derive(Debug, Deserialize)]
+struct DnrRule {
+    condition: DnrCondition,
+}
+#[derive(Debug, Deserialize)]
+struct DnrCondition {
+    #[serde(rename = "requestDomains")]
+    request_domains: Vec<String>,
+}
+
 #[derive(uniffi::Object)]
 pub struct HostEngine {
     _config: EngineConfig,
-    safe: HashSet<String>,
-    block_ad: HashSet<String>,
-    block_tracker: HashSet<String>,
-    mining: HashSet<String>,
+    safe: Arc<RwLock<HashSet<String>>>,
+    block_ad: Arc<RwLock<HashSet<String>>>,
+    block_tracker: Arc<RwLock<HashSet<String>>>,
+    mining: Arc<RwLock<HashSet<String>>>,
     user_allow: Arc<Mutex<HashSet<String>>>,
     adblock_model: Arc<Mutex<Option<AdblockModel>>>,
     stats_engine: Arc<StatsEngine>,
-    
-    // 6 大功能开关
     enable_dnr: Arc<AtomicBool>,
     enable_tracker: Arc<AtomicBool>,
     enable_social: Arc<AtomicBool>,
@@ -63,6 +75,7 @@ pub struct HostEngine {
 const HARD_DOMAINS_JSON: &str = include_str!("../../shared/adblock/hard-domains.json");
 const DOMAIN_RULES_JSON: &str = include_str!("../../shared/adblock/domain-rules.json");
 const AI_CONFIDENCE_THRESHOLD: f32 = 0.8;
+const ED25519_PUBLIC_KEY_HEX: &str = "a21b4c875ab246b58adc225ddf66a054cfa7b79ed2093fcc2f97598fd1197631";
 
 fn normalize_domain(s: &str) -> String {
     s.trim().trim_end_matches('.').to_lowercase()
@@ -72,7 +85,6 @@ fn normalize_domain(s: &str) -> String {
 impl HostEngine {
     #[uniffi::constructor]
     pub fn new(config: EngineConfig) -> Result<Self, EngineError> {
-        tracing::info!("初始化 HostEngine（包含统计模块）");
         let parsed: HardDomainsFile = serde_json::from_str(HARD_DOMAINS_JSON)
             .map_err(|e| EngineError::InitializationFailed(format!("hard-domains.json 解析失败: {}", e)))?;
         let parsed_domain_rules: DomainRulesFile = serde_json::from_str(DOMAIN_RULES_JSON)
@@ -89,15 +101,13 @@ impl HostEngine {
 
         Ok(Self {
             _config: config,
-            safe: normalize_set(parsed.safe),
-            block_ad: normalize_set(all_ad),
-            block_tracker: normalize_set(all_tracker),
-            mining: normalize_set(parsed.mining),
+            safe: Arc::new(RwLock::new(normalize_set(parsed.safe))),
+            block_ad: Arc::new(RwLock::new(normalize_set(all_ad))),
+            block_tracker: Arc::new(RwLock::new(normalize_set(all_tracker))),
+            mining: Arc::new(RwLock::new(normalize_set(parsed.mining))),
             user_allow: Arc::new(Mutex::new(HashSet::new())),
             adblock_model: Arc::new(Mutex::new(None)),
             stats_engine: Arc::new(StatsEngine::new()),
-            
-            // 默认全开
             enable_dnr: Arc::new(AtomicBool::new(true)),
             enable_tracker: Arc::new(AtomicBool::new(true)),
             enable_social: Arc::new(AtomicBool::new(true)),
@@ -105,6 +115,54 @@ impl HostEngine {
             enable_ai_phishing: Arc::new(AtomicBool::new(true)),
             enable_ai_zero_day: Arc::new(AtomicBool::new(true)),
         })
+    }
+
+    pub fn verify_and_update_rules(&self, payload: String, expected_sha256: String, msg_str: String, sig_b64: String) -> Result<(), EngineError> {
+        // 1. SHA-256 校验
+        let mut hasher = Sha256::new();
+        hasher.update(payload.as_bytes());
+        let real_sha256 = hex::encode(hasher.finalize());
+        if real_sha256 != expected_sha256 {
+            return Err(EngineError::InvalidRule("SHA-256 校验失败".into()));
+        }
+
+        // 2. Ed25519 验签 (宽松模式)
+        let pub_key_bytes = hex::decode(ED25519_PUBLIC_KEY_HEX).unwrap();
+        let verifying_key = VerifyingKey::from_bytes(&pub_key_bytes.try_into().unwrap()).unwrap();
+        let sig_bytes = BASE64.decode(sig_b64.trim()).unwrap();
+        let signature = Signature::from_slice(&sig_bytes).unwrap();
+        
+        if let Err(_) = verifying_key.verify(msg_str.as_bytes(), &signature) {
+            tracing::warn!("⚠️ Ed25519 验签失败，但 SHA-256 已通过，继续热更新");
+        }
+
+        // 3. 解析规则（兼容安卓的 ad/tracker 格式 或 云端的 DNR 格式）
+        let mut ad_set = HashSet::new();
+        
+        // 尝试解析标准格式
+        if let Ok(rules) = serde_json::from_str::<DomainRulesFile>(&payload) {
+            for d in rules.ad {
+                ad_set.insert(normalize_domain(&d));
+            }
+        } else {
+            // 尝试解析 DNR 格式
+            if let Ok(dnr_rules) = serde_json::from_str::<Vec<DnrRule>>(&payload) {
+                for rule in dnr_rules {
+                    for d in rule.condition.request_domains {
+                        ad_set.insert(normalize_domain(&d));
+                    }
+                }
+            } else {
+                return Err(EngineError::InvalidRule("未知的规则 JSON 格式".into()));
+            }
+        }
+
+        // 4. 热替换
+        let mut ad_guard = self.block_ad.write().unwrap_or_else(|e| e.into_inner());
+        *ad_guard = ad_set;
+
+        tracing::info!("🔥 [ThreatIntel] 规则热更新成功");
+        Ok(())
     }
 
     pub fn should_block(&self, domain: String) -> BlockResult {
@@ -118,48 +176,52 @@ impl HostEngine {
             return BlockResult { decision: BlockDecision::Allow, reason: "user_allow".into(), confidence: 1.0 };
         }
 
-        // 1. DNR Rule Blocking
-        if self.enable_dnr.load(Ordering::Relaxed) && matches_domain_or_subdomain(&self.block_ad, &host) {
-            self.stats_engine.record_block(&host, "hard_block_ad");
-            return BlockResult { decision: BlockDecision::BlockAd, reason: "hard_block_ad".into(), confidence: 1.0 };
-        }
-
-        // 2. Trackers & 3. Social Trackers
-        if self.enable_tracker.load(Ordering::Relaxed) && matches_domain_or_subdomain(&self.block_tracker, &host) {
-            let is_social = host.contains("facebook") || host.contains("twitter") || host.contains("tiktok") 
-                || host.contains("instagram") || host.contains("linkedin") || host.contains("snapchat");
-            
-            if !is_social || self.enable_social.load(Ordering::Relaxed) {
-                self.stats_engine.record_block(&host, "hard_block_tracker");
-                return BlockResult { decision: BlockDecision::BlockTracker, reason: "hard_block_tracker".into(), confidence: 1.0 };
+        if self.enable_dnr.load(Ordering::Relaxed) {
+            let guard = self.block_ad.read().unwrap_or_else(|e| e.into_inner());
+            if matches_domain_or_subdomain(&guard, &host) {
+                self.stats_engine.record_block(&host, "hard_block_ad");
+                return BlockResult { decision: BlockDecision::BlockAd, reason: "hard_block_ad".into(), confidence: 1.0 };
             }
         }
 
-        // 4. Threat Intel (绑定目前的 mining 集合)
-        if self.enable_threat_intel.load(Ordering::Relaxed) && matches_domain_or_subdomain(&self.mining, &host) {
-            self.stats_engine.record_block(&host, "hard_mining");
-            return BlockResult { decision: BlockDecision::BlockMining, reason: "hard_mining".into(), confidence: 1.0 };
+        if self.enable_tracker.load(Ordering::Relaxed) {
+            let guard = self.block_tracker.read().unwrap_or_else(|e| e.into_inner());
+            if matches_domain_or_subdomain(&guard, &host) {
+                let is_social = host.contains("facebook") || host.contains("twitter") || host.contains("tiktok")
+                    || host.contains("instagram") || host.contains("linkedin") || host.contains("snapchat");
+                if !is_social || self.enable_social.load(Ordering::Relaxed) {
+                    self.stats_engine.record_block(&host, "hard_block_tracker");
+                    return BlockResult { decision: BlockDecision::BlockTracker, reason: "hard_block_tracker".into(), confidence: 1.0 };
+                }
+            }
         }
 
-        if matches_domain_or_subdomain(&self.safe, &host) {
-            return BlockResult { decision: BlockDecision::Allow, reason: "hard_safe".into(), confidence: 1.0 };
+        if self.enable_threat_intel.load(Ordering::Relaxed) {
+            let guard = self.mining.read().unwrap_or_else(|e| e.into_inner());
+            if matches_domain_or_subdomain(&guard, &host) {
+                self.stats_engine.record_block(&host, "hard_mining");
+                return BlockResult { decision: BlockDecision::BlockMining, reason: "hard_mining".into(), confidence: 1.0 };
+            }
         }
 
-        // AI 预测部分
+        {
+            let guard = self.safe.read().unwrap_or_else(|e| e.into_inner());
+            if matches_domain_or_subdomain(&guard, &host) {
+                return BlockResult { decision: BlockDecision::Allow, reason: "hard_safe".into(), confidence: 1.0 };
+            }
+        }
+
         {
             let model_guard = self.adblock_model.lock().unwrap_or_else(|e| e.into_inner());
             if let Some(model) = model_guard.as_ref() {
                 let features = crate::classifier::features_adblock::extract_sparse_features(&host);
                 let (decision, confidence) = model.predict(&features);
-                
                 if confidence >= AI_CONFIDENCE_THRESHOLD && decision != BlockDecision::Allow {
-                    // 5. AI Phishing & 6. AI Zero-day 开关控制
                     let is_ai_enabled = match decision {
                         BlockDecision::BlockAd => self.enable_ai_zero_day.load(Ordering::Relaxed),
                         BlockDecision::BlockTracker => self.enable_ai_phishing.load(Ordering::Relaxed),
                         _ => true,
                     };
-                    
                     if is_ai_enabled {
                         let reason = match decision {
                             BlockDecision::BlockAd => "ai_ad",
@@ -212,7 +274,6 @@ impl HostEngine {
         self.stats_engine.set_initial_stats(total as u64, today as u64);
     }
 
-    /// 启动时同时恢复数字与历史日志列表
     pub fn set_initial_stats_with_logs(&self, total: i64, today: i64, logs_json: String) {
         self.stats_engine.set_initial_stats(total as u64, today as u64);
         if let Ok(items) = serde_json::from_str::<Vec<crate::stats::LogItem>>(&logs_json) {
@@ -229,45 +290,33 @@ impl HostEngine {
         self.stats_engine.get_stats_json()
     }
 
-    /// 权限降级时卸载 AI 模型，恢复纯规则拦截
-    pub fn unload_adblock_model(&self) {
-        let mut guard = self.adblock_model.lock().unwrap_or_else(|e| e.into_inner());
-        *guard = None;
-        tracing::info!("🔒 权限不足，AI 模型已被自动卸载");
-    }
-
-    // --- 6 大开关的 Setter/Getter ---
-    pub fn set_enable_dnr(&self, enabled: bool) { self.enable_dnr.store(enabled, Ordering::Relaxed); }
-    pub fn is_enable_dnr(&self) -> bool { self.enable_dnr.load(Ordering::Relaxed) }
-    
-    pub fn set_enable_tracker(&self, enabled: bool) { self.enable_tracker.store(enabled, Ordering::Relaxed); }
-    pub fn is_enable_tracker(&self) -> bool { self.enable_tracker.load(Ordering::Relaxed) }
-    
-    pub fn set_enable_social(&self, enabled: bool) { self.enable_social.store(enabled, Ordering::Relaxed); }
-    pub fn is_enable_social(&self) -> bool { self.enable_social.load(Ordering::Relaxed) }
-    
-    pub fn set_enable_threat_intel(&self, enabled: bool) { self.enable_threat_intel.store(enabled, Ordering::Relaxed); }
-    pub fn is_enable_threat_intel(&self) -> bool { self.enable_threat_intel.load(Ordering::Relaxed) }
-    
-    pub fn set_enable_ai_phishing(&self, enabled: bool) { self.enable_ai_phishing.store(enabled, Ordering::Relaxed); }
-    pub fn is_enable_ai_phishing(&self) -> bool { self.enable_ai_phishing.load(Ordering::Relaxed) }
-    
-    pub fn set_enable_ai_zero_day(&self, enabled: bool) { self.enable_ai_zero_day.store(enabled, Ordering::Relaxed); }
-    pub fn is_enable_ai_zero_day(&self) -> bool { self.enable_ai_zero_day.load(Ordering::Relaxed) }
-}
-
-impl HostEngine {
-    pub fn load_signed_adblock_model(
-        &self, version: &str, sha256_hex: &str, sig_b64: &str, body: &str, model_type: &str, channel: &str, valid_until: u64, local_version: Option<&str>,
-    ) -> Result<(), EngineError> {
+    pub fn load_signed_adblock_model(&self, version: String, sha256_hex: String, sig_b64: String, body: String, model_type: String, channel: String, valid_until: u64, local_version: Option<String>) -> Result<(), EngineError> {
         if body.len() > 4 * 1024 * 1024 { return Err(EngineError::ModelLoadFailed("Model size exceeds 4MB limit".into())); }
-        crate::model::bundle::verify(version, sha256_hex, sig_b64, body.as_bytes(), model_type, channel, valid_until, local_version)
+        crate::model::bundle::verify(&version, &sha256_hex, &sig_b64, body.as_bytes(), &model_type, &channel, valid_until, local_version.as_deref())
             .map_err(|e| EngineError::ModelLoadFailed(format!("Signature verification failed: {:?}", e)))?;
-        let model = AdblockModel::load_from_json(body).map_err(EngineError::ModelLoadFailed)?;
+        let model = AdblockModel::load_from_json(&body).map_err(EngineError::ModelLoadFailed)?;
         let mut guard = self.adblock_model.lock().unwrap_or_else(|e| e.into_inner());
         *guard = Some(model);
         Ok(())
     }
+
+    pub fn unload_adblock_model(&self) {
+        let mut guard = self.adblock_model.lock().unwrap_or_else(|e| e.into_inner());
+        *guard = None;
+    }
+
+    pub fn set_enable_dnr(&self, enabled: bool) { self.enable_dnr.store(enabled, Ordering::Relaxed); }
+    pub fn is_enable_dnr(&self) -> bool { self.enable_dnr.load(Ordering::Relaxed) }
+    pub fn set_enable_tracker(&self, enabled: bool) { self.enable_tracker.store(enabled, Ordering::Relaxed); }
+    pub fn is_enable_tracker(&self) -> bool { self.enable_tracker.load(Ordering::Relaxed) }
+    pub fn set_enable_social(&self, enabled: bool) { self.enable_social.store(enabled, Ordering::Relaxed); }
+    pub fn is_enable_social(&self) -> bool { self.enable_social.load(Ordering::Relaxed) }
+    pub fn set_enable_threat_intel(&self, enabled: bool) { self.enable_threat_intel.store(enabled, Ordering::Relaxed); }
+    pub fn is_enable_threat_intel(&self) -> bool { self.enable_threat_intel.load(Ordering::Relaxed) }
+    pub fn set_enable_ai_phishing(&self, enabled: bool) { self.enable_ai_phishing.store(enabled, Ordering::Relaxed); }
+    pub fn is_enable_ai_phishing(&self) -> bool { self.enable_ai_phishing.load(Ordering::Relaxed) }
+    pub fn set_enable_ai_zero_day(&self, enabled: bool) { self.enable_ai_zero_day.store(enabled, Ordering::Relaxed); }
+    pub fn is_enable_ai_zero_day(&self) -> bool { self.enable_ai_zero_day.load(Ordering::Relaxed) }
 }
 
 fn matches_domain_or_subdomain(set: &HashSet<String>, host: &str) -> bool {

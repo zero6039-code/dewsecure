@@ -774,6 +774,10 @@ internal interface UniffiForeignFutureCompleteVoid : com.sun.jna.Callback {
 
 
 
+
+
+
+
 // A JNA Library to expose the extern-C FFI definitions.
 // This is an implementation detail which will be called internally by the public API.
 
@@ -833,6 +837,8 @@ internal interface UniffiLib : Library {
     ): Byte
     fun uniffi_dewsecure_core_fn_method_hostengine_is_enable_tracker(`ptr`: Pointer,uniffi_out_err: UniffiRustCallStatus, 
     ): Byte
+    fun uniffi_dewsecure_core_fn_method_hostengine_load_signed_adblock_model(`ptr`: Pointer,`version`: RustBuffer.ByValue,`sha256Hex`: RustBuffer.ByValue,`sigB64`: RustBuffer.ByValue,`body`: RustBuffer.ByValue,`modelType`: RustBuffer.ByValue,`channel`: RustBuffer.ByValue,`validUntil`: Long,`localVersion`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
+    ): Unit
     fun uniffi_dewsecure_core_fn_method_hostengine_load_user_whitelist(`ptr`: Pointer,`domains`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
     ): Unit
     fun uniffi_dewsecure_core_fn_method_hostengine_set_enable_ai_phishing(`ptr`: Pointer,`enabled`: Byte,uniffi_out_err: UniffiRustCallStatus, 
@@ -858,6 +864,8 @@ internal interface UniffiLib : Library {
     fun uniffi_dewsecure_core_fn_method_hostengine_user_allow(`ptr`: Pointer,`domain`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
     ): Unit
     fun uniffi_dewsecure_core_fn_method_hostengine_user_remove_allow(`ptr`: Pointer,`domain`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
+    ): Unit
+    fun uniffi_dewsecure_core_fn_method_hostengine_verify_and_update_rules(`ptr`: Pointer,`payload`: RustBuffer.ByValue,`expectedSha256`: RustBuffer.ByValue,`msgStr`: RustBuffer.ByValue,`sigB64`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
     ): Unit
     fun ffi_dewsecure_core_rustbuffer_alloc(`size`: Long,uniffi_out_err: UniffiRustCallStatus, 
     ): RustBuffer.ByValue
@@ -999,6 +1007,8 @@ internal interface UniffiLib : Library {
     ): Short
     fun uniffi_dewsecure_core_checksum_method_hostengine_is_enable_tracker(
     ): Short
+    fun uniffi_dewsecure_core_checksum_method_hostengine_load_signed_adblock_model(
+    ): Short
     fun uniffi_dewsecure_core_checksum_method_hostengine_load_user_whitelist(
     ): Short
     fun uniffi_dewsecure_core_checksum_method_hostengine_set_enable_ai_phishing(
@@ -1024,6 +1034,8 @@ internal interface UniffiLib : Library {
     fun uniffi_dewsecure_core_checksum_method_hostengine_user_allow(
     ): Short
     fun uniffi_dewsecure_core_checksum_method_hostengine_user_remove_allow(
+    ): Short
+    fun uniffi_dewsecure_core_checksum_method_hostengine_verify_and_update_rules(
     ): Short
     fun uniffi_dewsecure_core_checksum_constructor_dewengine_new(
     ): Short
@@ -1088,6 +1100,9 @@ private fun uniffiCheckApiChecksums(lib: UniffiLib) {
     if (lib.uniffi_dewsecure_core_checksum_method_hostengine_is_enable_tracker() != 46369.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
+    if (lib.uniffi_dewsecure_core_checksum_method_hostengine_load_signed_adblock_model() != 26382.toShort()) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
     if (lib.uniffi_dewsecure_core_checksum_method_hostengine_load_user_whitelist() != 7304.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
@@ -1112,19 +1127,22 @@ private fun uniffiCheckApiChecksums(lib: UniffiLib) {
     if (lib.uniffi_dewsecure_core_checksum_method_hostengine_set_initial_stats() != 34260.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
-    if (lib.uniffi_dewsecure_core_checksum_method_hostengine_set_initial_stats_with_logs() != 20033.toShort()) {
+    if (lib.uniffi_dewsecure_core_checksum_method_hostengine_set_initial_stats_with_logs() != 53271.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if (lib.uniffi_dewsecure_core_checksum_method_hostengine_should_block() != 36394.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
-    if (lib.uniffi_dewsecure_core_checksum_method_hostengine_unload_adblock_model() != 54444.toShort()) {
+    if (lib.uniffi_dewsecure_core_checksum_method_hostengine_unload_adblock_model() != 12259.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if (lib.uniffi_dewsecure_core_checksum_method_hostengine_user_allow() != 33069.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if (lib.uniffi_dewsecure_core_checksum_method_hostengine_user_remove_allow() != 48478.toShort()) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
+    if (lib.uniffi_dewsecure_core_checksum_method_hostengine_verify_and_update_rules() != 10107.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if (lib.uniffi_dewsecure_core_checksum_constructor_dewengine_new() != 7659.toShort()) {
@@ -1179,6 +1197,29 @@ inline fun <T : Disposable?, R> T.use(block: (T) -> R) =
  * @suppress
  * */
 object NoPointer
+
+/**
+ * @suppress
+ */
+public object FfiConverterULong: FfiConverter<ULong, Long> {
+    override fun lift(value: Long): ULong {
+        return value.toULong()
+    }
+
+    override fun read(buf: ByteBuffer): ULong {
+        return lift(buf.getLong())
+    }
+
+    override fun lower(value: ULong): Long {
+        return value.toLong()
+    }
+
+    override fun allocationSize(value: ULong) = 8UL
+
+    override fun write(value: ULong, buf: ByteBuffer) {
+        buf.putLong(value.toLong())
+    }
+}
 
 /**
  * @suppress
@@ -1808,6 +1849,8 @@ public interface HostEngineInterface {
     
     fun `isEnableTracker`(): kotlin.Boolean
     
+    fun `loadSignedAdblockModel`(`version`: kotlin.String, `sha256Hex`: kotlin.String, `sigB64`: kotlin.String, `body`: kotlin.String, `modelType`: kotlin.String, `channel`: kotlin.String, `validUntil`: kotlin.ULong, `localVersion`: kotlin.String?)
+    
     fun `loadUserWhitelist`(`domains`: List<kotlin.String>)
     
     fun `setEnableAiPhishing`(`enabled`: kotlin.Boolean)
@@ -1824,21 +1867,17 @@ public interface HostEngineInterface {
     
     fun `setInitialStats`(`total`: kotlin.Long, `today`: kotlin.Long)
     
-    /**
-     * 启动时同时恢复数字与历史日志列表
-     */
     fun `setInitialStatsWithLogs`(`total`: kotlin.Long, `today`: kotlin.Long, `logsJson`: kotlin.String)
     
     fun `shouldBlock`(`domain`: kotlin.String): BlockResult
     
-    /**
-     * 权限降级时卸载 AI 模型，恢复纯规则拦截
-     */
     fun `unloadAdblockModel`()
     
     fun `userAllow`(`domain`: kotlin.String)
     
     fun `userRemoveAllow`(`domain`: kotlin.String)
+    
+    fun `verifyAndUpdateRules`(`payload`: kotlin.String, `expectedSha256`: kotlin.String, `msgStr`: kotlin.String, `sigB64`: kotlin.String)
     
     companion object
 }
@@ -2027,6 +2066,18 @@ open class HostEngine: Disposable, AutoCloseable, HostEngineInterface {
     }
     
 
+    
+    @Throws(EngineException::class)override fun `loadSignedAdblockModel`(`version`: kotlin.String, `sha256Hex`: kotlin.String, `sigB64`: kotlin.String, `body`: kotlin.String, `modelType`: kotlin.String, `channel`: kotlin.String, `validUntil`: kotlin.ULong, `localVersion`: kotlin.String?)
+        = 
+    callWithPointer {
+    uniffiRustCallWithError(EngineException) { _status ->
+    UniffiLib.INSTANCE.uniffi_dewsecure_core_fn_method_hostengine_load_signed_adblock_model(
+        it, FfiConverterString.lower(`version`),FfiConverterString.lower(`sha256Hex`),FfiConverterString.lower(`sigB64`),FfiConverterString.lower(`body`),FfiConverterString.lower(`modelType`),FfiConverterString.lower(`channel`),FfiConverterULong.lower(`validUntil`),FfiConverterOptionalString.lower(`localVersion`),_status)
+}
+    }
+    
+    
+
     override fun `loadUserWhitelist`(`domains`: List<kotlin.String>)
         = 
     callWithPointer {
@@ -2115,10 +2166,7 @@ open class HostEngine: Disposable, AutoCloseable, HostEngineInterface {
     
     
 
-    
-    /**
-     * 启动时同时恢复数字与历史日志列表
-     */override fun `setInitialStatsWithLogs`(`total`: kotlin.Long, `today`: kotlin.Long, `logsJson`: kotlin.String)
+    override fun `setInitialStatsWithLogs`(`total`: kotlin.Long, `today`: kotlin.Long, `logsJson`: kotlin.String)
         = 
     callWithPointer {
     uniffiRustCall() { _status ->
@@ -2141,10 +2189,7 @@ open class HostEngine: Disposable, AutoCloseable, HostEngineInterface {
     }
     
 
-    
-    /**
-     * 权限降级时卸载 AI 模型，恢复纯规则拦截
-     */override fun `unloadAdblockModel`()
+    override fun `unloadAdblockModel`()
         = 
     callWithPointer {
     uniffiRustCall() { _status ->
@@ -2172,6 +2217,18 @@ open class HostEngine: Disposable, AutoCloseable, HostEngineInterface {
     uniffiRustCall() { _status ->
     UniffiLib.INSTANCE.uniffi_dewsecure_core_fn_method_hostengine_user_remove_allow(
         it, FfiConverterString.lower(`domain`),_status)
+}
+    }
+    
+    
+
+    
+    @Throws(EngineException::class)override fun `verifyAndUpdateRules`(`payload`: kotlin.String, `expectedSha256`: kotlin.String, `msgStr`: kotlin.String, `sigB64`: kotlin.String)
+        = 
+    callWithPointer {
+    uniffiRustCallWithError(EngineException) { _status ->
+    UniffiLib.INSTANCE.uniffi_dewsecure_core_fn_method_hostengine_verify_and_update_rules(
+        it, FfiConverterString.lower(`payload`),FfiConverterString.lower(`expectedSha256`),FfiConverterString.lower(`msgStr`),FfiConverterString.lower(`sigB64`),_status)
 }
     }
     
@@ -2553,6 +2610,38 @@ public object FfiConverterOptionalBoolean: FfiConverterRustBuffer<kotlin.Boolean
         } else {
             buf.put(1)
             FfiConverterBoolean.write(value, buf)
+        }
+    }
+}
+
+
+
+
+/**
+ * @suppress
+ */
+public object FfiConverterOptionalString: FfiConverterRustBuffer<kotlin.String?> {
+    override fun read(buf: ByteBuffer): kotlin.String? {
+        if (buf.get().toInt() == 0) {
+            return null
+        }
+        return FfiConverterString.read(buf)
+    }
+
+    override fun allocationSize(value: kotlin.String?): ULong {
+        if (value == null) {
+            return 1UL
+        } else {
+            return 1UL + FfiConverterString.allocationSize(value)
+        }
+    }
+
+    override fun write(value: kotlin.String?, buf: ByteBuffer) {
+        if (value == null) {
+            buf.put(0)
+        } else {
+            buf.put(1)
+            FfiConverterString.write(value, buf)
         }
     }
 }
