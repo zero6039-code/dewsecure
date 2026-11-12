@@ -8,6 +8,16 @@ license.workspace = true
 crate-type = ["cdylib", "staticlib", "rlib"]
 
 [dependencies]
+http-body-util = "0.1"
+bytes = "1"
+aws-lc-rs = "1"
+tokio = { version = "1.40", features = ["full", "net"] }
+hudsucker = { version = "0.23", features = ["rcgen-ca", "rustls-client"] }
+hyper = { version = "1.4", features = ["full"] }
+rcgen = "0.13"
+rustls = "0.23"
+
+hex = "0.4"
 semver = "1.0"
 uniffi = { version = "0.28", features = ["cli"] }
 serde = { workspace = true }
@@ -28,4 +38,3 @@ pretty_assertions = "1.4"
 [[bin]]
 name = "uniffi-bindgen"
 path = "src/bin/uniffi-bindgen.rs"
-

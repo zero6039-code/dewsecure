@@ -66,6 +66,7 @@ class DewVpnService : VpnService() {
 
         EngineBridge.init(aiEnabled = false)
         
+        
         // 🌟 权限冷启动校验：非 Pro 强制卸载 AI
         val userPrefs = getSharedPreferences("user_session", MODE_PRIVATE)
         val cachedTier = userPrefs.getString("tier", "free") ?: "free"
@@ -105,6 +106,7 @@ class DewVpnService : VpnService() {
         return START_STICKY
     }
 
+
     private fun refreshUpstreamDns(cm: ConnectivityManager) {
         val linkProperties = cm.getLinkProperties(cm.activeNetwork)
         val systemDns = linkProperties?.dnsServers?.firstOrNull {
@@ -127,6 +129,8 @@ class DewVpnService : VpnService() {
                 .addDnsServer("fd00::1")
                 .addRoute("10.0.0.1", 32)
                 .addRoute("fd00::1", 128)
+                .addRoute("0.0.0.0", 0) // 接管所有 IPv4 流量
+                .addRoute("::", 0)      // 接管所有 IPv6 流量
                 .setMtu(1500)
                 .setBlocking(true)
 
@@ -150,8 +154,10 @@ class DewVpnService : VpnService() {
             }
 
             vpnInterface = builder.establish()
-
             val fd = vpnInterface?.fileDescriptor ?: return
+
+            // 🌟 启动 MitM 代理 (在后台异步运行)
+            EngineBridge.startMitmProxy()
             val inStream = FileInputStream(fd)
             val outStream = FileOutputStream(fd)
             val packet = ByteArray(32768)
@@ -180,6 +186,8 @@ class DewVpnService : VpnService() {
             TcpDnsRelay.handle(packet, length, outStream, this)
             return
         }
+
+        // MitM 流量现在由 Rust 的 netstack 处理，Kotlin 侧无需再手动转发
         
         val domain = DnsPacketCodec.extractDomain(packet, length)
         

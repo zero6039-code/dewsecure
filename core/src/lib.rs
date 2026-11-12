@@ -11,6 +11,7 @@ pub mod model;
 pub mod model_loader;
 pub mod rule_matcher;
 pub mod engine_host;
+pub mod mitm_proxy;
 pub mod stats;
 
 pub use engine_host::{BlockDecision, BlockResult, HostEngine};
@@ -171,5 +172,34 @@ impl DewEngine {
 
     pub fn get_stats(&self) -> String {
         self.stats_engine.get_stats_json()
+    }
+}
+
+/// 获取 MitM CA 证书 (PEM 格式)，供 Android 端下载安装
+#[uniffi::export]
+pub fn get_mitm_ca_cert() -> String {
+    mitm_proxy::MitmProxy::get_ca_cert_pem()
+}
+
+/// 启动 MitM 代理 (异步)
+#[uniffi::export]
+pub fn start_mitm_proxy() -> String {
+    let (tx, rx) = std::sync::mpsc::channel();
+    
+    std::thread::spawn(move || {
+        let rt = tokio::runtime::Runtime::new().unwrap();
+        let res = rt.block_on(async {
+            let proxy = mitm_proxy::MitmProxy::new();
+            proxy.start().await
+        });
+        
+        let _ = tx.send(res);
+        loop { std::thread::park(); }
+    });
+    
+    match rx.recv_timeout(std::time::Duration::from_secs(3)) {
+        Ok(Ok(_)) => "OK".to_string(),
+        Ok(Err(e)) => format!("ERR: {}", e),
+        Err(_) => "TIMEOUT".to_string(),
     }
 }
