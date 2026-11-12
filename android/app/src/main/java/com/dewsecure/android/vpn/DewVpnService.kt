@@ -132,7 +132,7 @@ class DewVpnService : VpnService() {
                 .addRoute("0.0.0.0", 0) // 接管所有 IPv4 流量
                 .addRoute("::", 0)      // 接管所有 IPv6 流量
                 .setMtu(1500)
-                .setBlocking(true)
+                .setBlocking(false)
 
             // 🌟 核心：读取分应用路由配置，踢出勾选直连的 App
             val appPrefs = getSharedPreferences("app_settings", MODE_PRIVATE)
@@ -154,24 +154,16 @@ class DewVpnService : VpnService() {
             }
 
             vpnInterface = builder.establish()
-            val fd = vpnInterface?.fileDescriptor ?: return
+            // 🌟 核心改动：提取原生文件描述符 (Int)，并彻底移交给 Rust
+            val fdInt = vpnInterface?.detachFd() ?: return
 
-            // 🌟 启动 MitM 代理 (在后台异步运行)
-            EngineBridge.startMitmProxy()
-            val inStream = FileInputStream(fd)
-            val outStream = FileOutputStream(fd)
-            val packet = ByteArray(32768)
-            val socket = DatagramSocket()
-            protect(socket)
+            // 启动 Rust 侧的 VPN 引擎，传入 TUN 句柄
+            val res = EngineBridge.startMitmVpnEngine(fdInt)
+            Log.i(TAG, "Rust VPN Engine 启动状态: $res")
 
+            // Kotlin 侧不再读取 TUN 数据，保持后台线程存活即可
             while (isRunning) {
-                try {
-                    val length = inStream.read(packet)
-                    if (length <= 0) continue
-                    handlePacket(packet, length, socket, outStream)
-                } catch (e: Exception) {
-                    Log.w(TAG, "单次循环异常", e)
-                }
+                Thread.sleep(1000)
             }
         } catch (e: Exception) {
             Log.e(TAG, "VPN 循环整体异常", e)
@@ -180,65 +172,9 @@ class DewVpnService : VpnService() {
         }
     }
 
-    private fun handlePacket(packet: ByteArray, length: Int,
-                             socket: DatagramSocket, outStream: FileOutputStream) {
-        if (DnsPacketCodec.isTcpDns(packet, length)) {
-            TcpDnsRelay.handle(packet, length, outStream, this)
-            return
-        }
 
-        // MitM 流量现在由 Rust 的 netstack 处理，Kotlin 侧无需再手动转发
-        
-        val domain = DnsPacketCodec.extractDomain(packet, length)
-        
-        if (domain != null) {
-            Log.d(TAG, "🔍 抓到 DNS 请求: $domain")
-        } else {
-            return
-        }
 
-        val result = EngineBridge.shouldBlock(domain)
-        if (result.decision != com.dewsecure.core.BlockDecision.ALLOW) {
-            Log.i(TAG, "🛑 拦截: $domain (${result.reason})")
-            outStream.write(DnsPacketCodec.buildNxDomainResponse(packet, length))
-            
-            // 每次拦截后，立刻存盘，防止杀后台丢失数据
-            saveStatsToDisk()
 
-            // 🌟 真实联动：如果开启了匿名情报分享，则自动上报
-            val appPrefs = getSharedPreferences("app_settings", MODE_PRIVATE)
-            if (appPrefs.getBoolean("pref_share_threat_intel", true)) {
-                CoroutineScope(Dispatchers.IO).launch {
-                    val lastReportKey = "last_report_$domain"
-                    val lastReportTime = appPrefs.getLong(lastReportKey, 0L)
-                    val now = System.currentTimeMillis()
-                    // 同一个域名 24 小时内只上报一次，防止风暴
-                    if (now - lastReportTime > 24 * 60 * 60 * 1000) {
-                        val result = AuthManager.submitReport(applicationContext, "auto_threat_intel", domain)
-                        if (result.isSuccess) {
-                            appPrefs.edit().putLong(lastReportKey, now).apply()
-                            Log.d(TAG, "📡 匿名情报已上报: $domain")
-                        }
-                    }
-                }
-            }
-        } else {
-            Log.d(TAG, "✅ 放行: $domain (原因: ${result.reason})")
-            DnsForwarder.forward(packet, length, socket, outStream, upstreamDns)
-        }
-    }
-
-    private fun saveStatsToDisk() {
-        try {
-            val json = org.json.JSONObject(EngineBridge.getStatsJson())
-            val logsArray = json.optJSONArray("logs")
-            getSharedPreferences("stats_cache", MODE_PRIVATE).edit()
-                .putLong("total", json.optLong("total_blocked", 0))
-                .putLong("today", json.optLong("today_blocked", 0))
-                .putString("logs_json", logsArray?.toString() ?: "[]")
-                .apply()
-        } catch (e: Exception) {}
-    }
 
     private fun stopVpn() {
         isRunning = false

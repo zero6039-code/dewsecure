@@ -873,7 +873,7 @@ internal interface UniffiLib : Library {
     ): Unit
     fun uniffi_dewsecure_core_fn_func_get_mitm_ca_cert(uniffi_out_err: UniffiRustCallStatus, 
     ): RustBuffer.ByValue
-    fun uniffi_dewsecure_core_fn_func_start_mitm_proxy(uniffi_out_err: UniffiRustCallStatus, 
+    fun uniffi_dewsecure_core_fn_func_start_mitm_vpn_engine(`tunFd`: Int,uniffi_out_err: UniffiRustCallStatus, 
     ): RustBuffer.ByValue
     fun ffi_dewsecure_core_rustbuffer_alloc(`size`: Long,uniffi_out_err: UniffiRustCallStatus, 
     ): RustBuffer.ByValue
@@ -989,7 +989,7 @@ internal interface UniffiLib : Library {
     ): Unit
     fun uniffi_dewsecure_core_checksum_func_get_mitm_ca_cert(
     ): Short
-    fun uniffi_dewsecure_core_checksum_func_start_mitm_proxy(
+    fun uniffi_dewsecure_core_checksum_func_start_mitm_vpn_engine(
     ): Short
     fun uniffi_dewsecure_core_checksum_method_dewengine_add_custom_rule(
     ): Short
@@ -1073,7 +1073,7 @@ private fun uniffiCheckApiChecksums(lib: UniffiLib) {
     if (lib.uniffi_dewsecure_core_checksum_func_get_mitm_ca_cert() != 40720.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
-    if (lib.uniffi_dewsecure_core_checksum_func_start_mitm_proxy() != 38402.toShort()) {
+    if (lib.uniffi_dewsecure_core_checksum_func_start_mitm_vpn_engine() != 46012.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if (lib.uniffi_dewsecure_core_checksum_method_dewengine_add_custom_rule() != 496.toShort()) {
@@ -1215,6 +1215,29 @@ inline fun <T : Disposable?, R> T.use(block: (T) -> R) =
  * @suppress
  * */
 object NoPointer
+
+/**
+ * @suppress
+ */
+public object FfiConverterInt: FfiConverter<Int, Int> {
+    override fun lift(value: Int): Int {
+        return value
+    }
+
+    override fun read(buf: ByteBuffer): Int {
+        return buf.getInt()
+    }
+
+    override fun lower(value: Int): Int {
+        return value
+    }
+
+    override fun allocationSize(value: Int) = 4UL
+
+    override fun write(value: Int, buf: ByteBuffer) {
+        buf.putInt(value)
+    }
+}
 
 /**
  * @suppress
@@ -2733,11 +2756,11 @@ public object FfiConverterSequenceTypeFilterRule: FfiConverterRustBuffer<List<Fi
 
         /**
          * 启动 MitM 代理 (异步)
-         */ fun `startMitmProxy`(): kotlin.String {
+         */ fun `startMitmVpnEngine`(`tunFd`: kotlin.Int): kotlin.String {
             return FfiConverterString.lift(
     uniffiRustCall() { _status ->
-    UniffiLib.INSTANCE.uniffi_dewsecure_core_fn_func_start_mitm_proxy(
-        _status)
+    UniffiLib.INSTANCE.uniffi_dewsecure_core_fn_func_start_mitm_vpn_engine(
+        FfiConverterInt.lower(`tunFd`),_status)
 }
     )
     }

@@ -12,6 +12,7 @@ pub mod model_loader;
 pub mod rule_matcher;
 pub mod engine_host;
 pub mod mitm_proxy;
+pub mod vpn_engine;
 pub mod stats;
 
 pub use engine_host::{BlockDecision, BlockResult, HostEngine};
@@ -183,23 +184,28 @@ pub fn get_mitm_ca_cert() -> String {
 
 /// 启动 MitM 代理 (异步)
 #[uniffi::export]
-pub fn start_mitm_proxy() -> String {
+pub fn start_mitm_vpn_engine(tun_fd: i32) -> String {
+    #[cfg(target_os = "android")]
+    android_logger::init_once(
+        android_logger::Config::default()
+            .with_max_level(log::LevelFilter::Debug)
+            .with_tag("DewSecureRust"),
+    );
+    log::info!("🔥 Rust 引擎已启动，日志已接入 Logcat");
     let (tx, rx) = std::sync::mpsc::channel();
     
     std::thread::spawn(move || {
         let rt = tokio::runtime::Runtime::new().unwrap();
-        let res = rt.block_on(async {
-            let proxy = mitm_proxy::MitmProxy::new();
-            proxy.start().await
-        });
+        // 发送启动成功信号
+        let _ = tx.send(Ok::<(), String>(()));
         
-        let _ = tx.send(res);
-        loop { std::thread::park(); }
+        let engine = vpn_engine::VpnEngine::new(tun_fd);
+        rt.block_on(engine.start());
     });
     
+    // 只要线程起来了就返回 OK
     match rx.recv_timeout(std::time::Duration::from_secs(3)) {
         Ok(Ok(_)) => "OK".to_string(),
-        Ok(Err(e)) => format!("ERR: {}", e),
-        Err(_) => "TIMEOUT".to_string(),
+        _ => "TIMEOUT".to_string(),
     }
 }
