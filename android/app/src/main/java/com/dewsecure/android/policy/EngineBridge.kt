@@ -2,6 +2,8 @@ package com.dewsecure.android.policy
 
 import android.util.Log
 import com.dewsecure.core.*
+import com.dewsecure.core.getMitmCaCert as rustGetMitmCaCert
+import com.dewsecure.core.startMitmProxy as rustStartMitmProxy
 import org.json.JSONObject
 
 object EngineBridge {
@@ -99,6 +101,30 @@ object EngineBridge {
         } catch (e: Throwable) {
             Log.e(TAG, "AI 模型热更新失败", e)
             false
+        }
+    }
+
+    fun getMitmCaCert(): String {
+        return try {
+            rustGetMitmCaCert()
+        } catch (e: Throwable) {
+            Log.e(TAG, "获取 CA 证书失败", e)
+            ""
+        }
+    }
+
+    fun startMitmProxy() {
+        try {
+            val res = rustStartMitmProxy()
+            if (res == "OK") {
+                Log.i(TAG, "✅ MitM 代理启动成功，端口 8888 已监听")
+            } else if (res == "TIMEOUT") {
+                Log.e(TAG, "❌ MitM 代理启动超时，可能端口被占用或证书生成卡住")
+            } else {
+                Log.e(TAG, "❌ MitM 代理启动失败: $res")
+            }
+        } catch (e: Throwable) {
+            Log.e(TAG, "启动 MitM 代理异常", e)
         }
     }
 

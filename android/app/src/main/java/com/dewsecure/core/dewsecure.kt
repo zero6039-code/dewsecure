@@ -778,6 +778,10 @@ internal interface UniffiForeignFutureCompleteVoid : com.sun.jna.Callback {
 
 
 
+
+
+
+
 // A JNA Library to expose the extern-C FFI definitions.
 // This is an implementation detail which will be called internally by the public API.
 
@@ -867,6 +871,10 @@ internal interface UniffiLib : Library {
     ): Unit
     fun uniffi_dewsecure_core_fn_method_hostengine_verify_and_update_rules(`ptr`: Pointer,`payload`: RustBuffer.ByValue,`expectedSha256`: RustBuffer.ByValue,`msgStr`: RustBuffer.ByValue,`sigB64`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
     ): Unit
+    fun uniffi_dewsecure_core_fn_func_get_mitm_ca_cert(uniffi_out_err: UniffiRustCallStatus, 
+    ): RustBuffer.ByValue
+    fun uniffi_dewsecure_core_fn_func_start_mitm_proxy(uniffi_out_err: UniffiRustCallStatus, 
+    ): RustBuffer.ByValue
     fun ffi_dewsecure_core_rustbuffer_alloc(`size`: Long,uniffi_out_err: UniffiRustCallStatus, 
     ): RustBuffer.ByValue
     fun ffi_dewsecure_core_rustbuffer_from_bytes(`bytes`: ForeignBytes.ByValue,uniffi_out_err: UniffiRustCallStatus, 
@@ -979,6 +987,10 @@ internal interface UniffiLib : Library {
     ): Unit
     fun ffi_dewsecure_core_rust_future_complete_void(`handle`: Long,uniffi_out_err: UniffiRustCallStatus, 
     ): Unit
+    fun uniffi_dewsecure_core_checksum_func_get_mitm_ca_cert(
+    ): Short
+    fun uniffi_dewsecure_core_checksum_func_start_mitm_proxy(
+    ): Short
     fun uniffi_dewsecure_core_checksum_method_dewengine_add_custom_rule(
     ): Short
     fun uniffi_dewsecure_core_checksum_method_dewengine_classify(
@@ -1058,6 +1070,12 @@ private fun uniffiCheckContractApiVersion(lib: UniffiLib) {
 
 @Suppress("UNUSED_PARAMETER")
 private fun uniffiCheckApiChecksums(lib: UniffiLib) {
+    if (lib.uniffi_dewsecure_core_checksum_func_get_mitm_ca_cert() != 40720.toShort()) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
+    if (lib.uniffi_dewsecure_core_checksum_func_start_mitm_proxy() != 38402.toShort()) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
     if (lib.uniffi_dewsecure_core_checksum_method_dewengine_add_custom_rule() != 496.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
@@ -2701,4 +2719,28 @@ public object FfiConverterSequenceTypeFilterRule: FfiConverterRustBuffer<List<Fi
         }
     }
 }
+        /**
+         * 获取 MitM CA 证书 (PEM 格式)，供 Android 端下载安装
+         */ fun `getMitmCaCert`(): kotlin.String {
+            return FfiConverterString.lift(
+    uniffiRustCall() { _status ->
+    UniffiLib.INSTANCE.uniffi_dewsecure_core_fn_func_get_mitm_ca_cert(
+        _status)
+}
+    )
+    }
+    
+
+        /**
+         * 启动 MitM 代理 (异步)
+         */ fun `startMitmProxy`(): kotlin.String {
+            return FfiConverterString.lift(
+    uniffiRustCall() { _status ->
+    UniffiLib.INSTANCE.uniffi_dewsecure_core_fn_func_start_mitm_proxy(
+        _status)
+}
+    )
+    }
+    
+
 
