@@ -3,7 +3,7 @@ package com.dewsecure.android.policy
 import android.util.Log
 import com.dewsecure.core.*
 import com.dewsecure.core.getMitmCaCert as rustGetMitmCaCert
-import com.dewsecure.core.startMitmProxy as rustStartMitmProxy
+import com.dewsecure.core.startMitmVpnEngine as rustStartMitmVpnEngine
 import org.json.JSONObject
 
 object EngineBridge {
@@ -113,18 +113,36 @@ object EngineBridge {
         }
     }
 
-    fun startMitmProxy() {
+        fun stopMitmVpnEngine() {
         try {
-            val res = rustStartMitmProxy()
-            if (res == "OK") {
-                Log.i(TAG, "✅ MitM 代理启动成功，端口 8888 已监听")
-            } else if (res == "TIMEOUT") {
-                Log.e(TAG, "❌ MitM 代理启动超时，可能端口被占用或证书生成卡住")
-            } else {
-                Log.e(TAG, "❌ MitM 代理启动失败: $res")
-            }
+            com.dewsecure.core.stopMitmVpnEngine()
+            Log.i(TAG, "✅ 已通知 Rust 停止 VPN 引擎")
         } catch (e: Throwable) {
-            Log.e(TAG, "启动 MitM 代理异常", e)
+            Log.e(TAG, "stopMitmVpnEngine err", e)
+        }
+    }
+
+    fun setMitmEnabled(enabled: Boolean) {
+        try {
+            com.dewsecure.core.setMitmEnabled(enabled)
+            Log.i(TAG, "MitM 引擎总开关已设置为: $enabled")
+        } catch (e: Throwable) {
+            Log.e(TAG, "setMitmEnabled err", e)
+        }
+    }
+
+    fun startMitmVpnEngine(tunFd: Int, baseDir: String, protector: com.dewsecure.core.VpnProtector): String {
+        return try {
+            val res = rustStartMitmVpnEngine(tunFd, baseDir, protector)
+            if (res == "OK") {
+                Log.i(TAG, "✅ Rust VPN Engine 启动成功，TUN fd=$tunFd")
+            } else {
+                Log.e(TAG, "❌ Rust VPN Engine 启动失败: $res")
+            }
+            res
+        } catch (e: Throwable) {
+            Log.e(TAG, "启动 Rust VPN Engine 异常", e)
+            "EXCEPTION: ${e.message}"
         }
     }
 

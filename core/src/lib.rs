@@ -12,13 +12,16 @@ pub mod model_loader;
 pub mod rule_matcher;
 pub mod engine_host;
 pub mod mitm_proxy;
-pub mod vpn_engine;
+pub mod vpn;
+pub mod policy_rules;
 pub mod stats;
 
 pub use engine_host::{BlockDecision, BlockResult, HostEngine};
 
 use std::sync::Arc;
 use std::sync::Mutex;
+use std::sync::atomic::{AtomicI32, Ordering};
+static GLOBAL_TUN_FD: AtomicI32 = AtomicI32::new(-1);
 use thiserror::Error;
 use stats::StatsEngine;
 
@@ -182,9 +185,15 @@ pub fn get_mitm_ca_cert() -> String {
     mitm_proxy::MitmProxy::get_ca_cert_pem()
 }
 
+
+#[uniffi::export(with_foreign)]
+pub trait VpnProtector: Send + Sync {
+    fn protect_fd(&self, fd: i32) -> bool;
+}
+
 /// 启动 MitM 代理 (异步)
 #[uniffi::export]
-pub fn start_mitm_vpn_engine(tun_fd: i32) -> String {
+pub fn start_mitm_vpn_engine(tun_fd: i32, base_dir: String, protector: std::sync::Arc<dyn VpnProtector>) -> String {
     #[cfg(target_os = "android")]
     android_logger::init_once(
         android_logger::Config::default()
@@ -192,20 +201,41 @@ pub fn start_mitm_vpn_engine(tun_fd: i32) -> String {
             .with_tag("DewSecureRust"),
     );
     log::info!("🔥 Rust 引擎已启动，日志已接入 Logcat");
-    let (tx, rx) = std::sync::mpsc::channel();
     
+    // 设置 base_dir
+    mitm_proxy::set_base_dir(base_dir.clone());
+    
+    let (tx, rx) = std::sync::mpsc::channel();
+
     std::thread::spawn(move || {
         let rt = tokio::runtime::Runtime::new().unwrap();
         // 发送启动成功信号
         let _ = tx.send(Ok::<(), String>(()));
-        
-        let engine = vpn_engine::VpnEngine::new(tun_fd);
+
+        let engine = vpn::VpnEngine::new(tun_fd, protector);
         rt.block_on(engine.start());
     });
-    
+
     // 只要线程起来了就返回 OK
     match rx.recv_timeout(std::time::Duration::from_secs(3)) {
         Ok(Ok(_)) => "OK".to_string(),
         _ => "TIMEOUT".to_string(),
+    }
+}
+
+/// 设置 MitM 总开关 (仅 Root 模式或高级模式下启用)
+#[uniffi::export]
+pub fn set_mitm_enabled(enabled: bool) {
+    vpn::set_mitm_enabled(enabled);
+}
+
+/// 停止 VPN 引擎
+#[uniffi::export]
+pub fn stop_mitm_vpn_engine() {
+    vpn::stop_vpn_engine();
+    let fd = GLOBAL_TUN_FD.swap(-1, Ordering::Relaxed);
+    if fd >= 0 {
+        unsafe { libc::close(fd); }
+        log::info!("🔪 已强制关闭原始 TUN FD: {}", fd);
     }
 }
