@@ -5,3 +5,12 @@ ar     = "/home/keane/Android/Sdk/ndk/27.0.12077973/toolchains/llvm/prebuilt/lin
 [target.x86_64-linux-android]
 linker = "/home/keane/Android/Sdk/ndk/27.0.12077973/toolchains/llvm/prebuilt/linux-x86_64/bin/x86_64-linux-android28-clang"
 ar     = "/home/keane/Android/Sdk/ndk/27.0.12077973/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-ar"
+
+[env]
+CC_aarch64_linux_android = "/home/keane/Android/Sdk/ndk/27.0.12077973/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android28-clang"
+CXX_aarch64_linux_android = "/home/keane/Android/Sdk/ndk/27.0.12077973/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android28-clang++"
+AR_aarch64_linux_android = "/home/keane/Android/Sdk/ndk/27.0.12077973/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-ar"
+
+CC_x86_64_linux_android = "/home/keane/Android/Sdk/ndk/27.0.12077973/toolchains/llvm/prebuilt/linux-x86_64/bin/x86_64-linux-android28-clang"
+CXX_x86_64_linux_android = "/home/keane/Android/Sdk/ndk/27.0.12077973/toolchains/llvm/prebuilt/linux-x86_64/bin/x86_64-linux-android28-clang++"
+AR_x86_64_linux_android = "/home/keane/Android/Sdk/ndk/27.0.12077973/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-ar"

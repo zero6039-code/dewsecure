@@ -72,7 +72,11 @@ class HomeFragment : Fragment() {
                 (activity as MainActivity).startVpn()
                 prefs.edit().putBoolean("is_running", true).apply()
             } else {
-                requireContext().stopService(Intent(requireContext(), DewVpnService::class.java))
+                // 专家修复：发送明确的停止动作，由 Service 内部去执行 close() 和 stopSelf()
+                val stopIntent = Intent(requireContext(), DewVpnService::class.java).apply {
+                    action = "ACTION_STOP_VPN"
+                }
+                requireContext().startService(stopIntent)
                 prefs.edit().putBoolean("is_running", false).apply()
             }
             updateUiState(nowOn)

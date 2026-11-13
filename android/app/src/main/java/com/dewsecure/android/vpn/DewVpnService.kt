@@ -12,6 +12,7 @@ import android.os.Build
 import android.os.ParcelFileDescriptor
 import android.util.Log
 import com.dewsecure.android.policy.EngineBridge
+import com.dewsecure.core.VpnProtector
 import com.dewsecure.android.policy.UpdateManager
 import com.dewsecure.android.policy.AuthManager
 import com.dewsecure.android.ui.MainActivity
@@ -25,6 +26,12 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 
 class DewVpnService : VpnService() {
+
+    inner class ProtectorImpl : VpnProtector {
+        override fun protectFd(fd: Int): Boolean {
+            return this@DewVpnService.protect(fd)
+        }
+    }
 
     private var vpnInterface: ParcelFileDescriptor? = null
     private var isRunning = false
@@ -45,7 +52,14 @@ class DewVpnService : VpnService() {
         createNotificationChannel()
     }
 
-    override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        if (intent?.action == "ACTION_STOP_VPN" || intent?.action == "STOP_DEW_SECURE_VPN") {
+            Log.i(TAG, "🛑 收到关闭指令，开始销毁 VPN")
+            stopVpn()
+            return START_NOT_STICKY
+        }
+
+        if (isRunning) return START_STICKY
         if (isRunning) return START_STICKY
         startForeground(NOTIFICATION_ID, buildNotification())
 
@@ -85,6 +99,10 @@ class DewVpnService : VpnService() {
         EngineBridge.setEnableThreatIntel(appPrefs.getBoolean("pref_v3_intel", true))
         EngineBridge.setEnableAiPhishing(appPrefs.getBoolean("pref_v3_ai_phishing", true))
         EngineBridge.setEnableAiZeroDay(appPrefs.getBoolean("pref_v3_ai_zero_day", true))
+
+        // 🌟 初始化 MitM 总开关 (默认关闭，仅 Root 用户手动开启 Full-App Filtering 时生效)
+        val isMitmFullAppEnabled = appPrefs.getBoolean("pref_mitm_full_app", false)
+        EngineBridge.setMitmEnabled(isMitmFullAppEnabled)
         
         // 恢复历史统计数据及日志
         val statsPrefs = getSharedPreferences("stats_cache", MODE_PRIVATE)
@@ -125,53 +143,39 @@ class DewVpnService : VpnService() {
             val builder = Builder()
                 .addAddress("10.0.0.2", 24)
                 .addAddress("fd00::2", 120)
+                // 暂时注释掉 DNS 接管，让系统使用底层网络的 DNS，以验证 MitM 主链路
                 .addDnsServer("10.0.0.1")
                 .addDnsServer("fd00::1")
-                .addRoute("10.0.0.1", 32)
-                .addRoute("fd00::1", 128)
                 .addRoute("0.0.0.0", 0) // 接管所有 IPv4 流量
                 .addRoute("::", 0)      // 接管所有 IPv6 流量
                 .setMtu(1500)
-                .setBlocking(true)
+                .setBlocking(false)
 
             // 🌟 核心：读取分应用路由配置，踢出勾选直连的 App
             val appPrefs = getSharedPreferences("app_settings", MODE_PRIVATE)
             val allKeys = appPrefs.all
             var bypassCount = 0
-            for ((key, value) in allKeys) {
-                if (key.startsWith("routing_") && value == true) {
-                    val pkg = key.removePrefix("routing_")
-                    try {
-                        builder.addDisallowedApplication(pkg)
-                        bypassCount++
-                    } catch (e: Exception) {
-                        Log.e(TAG, "无法绕过应用: $pkg", e)
-                    }
-                }
-            }
+            // ⚠️ 诊断期间彻底禁用分应用绕过
+            Log.w(TAG, "⚠️ 诊断模式：分应用绕过已全部禁用")
             if (bypassCount > 0) {
                 Log.i(TAG, "🛡️ 成功配置 $bypassCount 个应用绕过 VPN 直连")
             }
 
+            // P0-E: 排除自身进程，避免 hudsucker/DNS 出站被 VPN 再次捕获
+            builder.addDisallowedApplication(packageName)
+
             vpnInterface = builder.establish()
-            val fd = vpnInterface?.fileDescriptor ?: return
+            // 🌟 核心改动：提取原生文件描述符 (Int)，并彻底移交给 Rust
+            val fdInt = vpnInterface?.fd ?: return
 
-            // 🌟 启动 MitM 代理 (在后台异步运行)
-            EngineBridge.startMitmProxy()
-            val inStream = FileInputStream(fd)
-            val outStream = FileOutputStream(fd)
-            val packet = ByteArray(32768)
-            val socket = DatagramSocket()
-            protect(socket)
+            // 启动 Rust 侧的 VPN 引擎，传入 TUN 句柄和 filesDir
+            val filesDir = applicationContext.filesDir.absolutePath
+            val res = EngineBridge.startMitmVpnEngine(fdInt, filesDir, ProtectorImpl())
+            Log.i(TAG, "Rust VPN Engine 启动状态: $res")
 
+            // Kotlin 侧不再读取 TUN 数据，保持后台线程存活即可
             while (isRunning) {
-                try {
-                    val length = inStream.read(packet)
-                    if (length <= 0) continue
-                    handlePacket(packet, length, socket, outStream)
-                } catch (e: Exception) {
-                    Log.w(TAG, "单次循环异常", e)
-                }
+                Thread.sleep(1000)
             }
         } catch (e: Exception) {
             Log.e(TAG, "VPN 循环整体异常", e)
@@ -180,79 +184,44 @@ class DewVpnService : VpnService() {
         }
     }
 
-    private fun handlePacket(packet: ByteArray, length: Int,
-                             socket: DatagramSocket, outStream: FileOutputStream) {
-        if (DnsPacketCodec.isTcpDns(packet, length)) {
-            TcpDnsRelay.handle(packet, length, outStream, this)
-            return
-        }
 
-        // MitM 流量现在由 Rust 的 netstack 处理，Kotlin 侧无需再手动转发
-        
-        val domain = DnsPacketCodec.extractDomain(packet, length)
-        
-        if (domain != null) {
-            Log.d(TAG, "🔍 抓到 DNS 请求: $domain")
-        } else {
-            return
-        }
 
-        val result = EngineBridge.shouldBlock(domain)
-        if (result.decision != com.dewsecure.core.BlockDecision.ALLOW) {
-            Log.i(TAG, "🛑 拦截: $domain (${result.reason})")
-            outStream.write(DnsPacketCodec.buildNxDomainResponse(packet, length))
-            
-            // 每次拦截后，立刻存盘，防止杀后台丢失数据
-            saveStatsToDisk()
 
-            // 🌟 真实联动：如果开启了匿名情报分享，则自动上报
-            val appPrefs = getSharedPreferences("app_settings", MODE_PRIVATE)
-            if (appPrefs.getBoolean("pref_share_threat_intel", true)) {
-                CoroutineScope(Dispatchers.IO).launch {
-                    val lastReportKey = "last_report_$domain"
-                    val lastReportTime = appPrefs.getLong(lastReportKey, 0L)
-                    val now = System.currentTimeMillis()
-                    // 同一个域名 24 小时内只上报一次，防止风暴
-                    if (now - lastReportTime > 24 * 60 * 60 * 1000) {
-                        val result = AuthManager.submitReport(applicationContext, "auto_threat_intel", domain)
-                        if (result.isSuccess) {
-                            appPrefs.edit().putLong(lastReportKey, now).apply()
-                            Log.d(TAG, "📡 匿名情报已上报: $domain")
-                        }
-                    }
-                }
-            }
-        } else {
-            Log.d(TAG, "✅ 放行: $domain (原因: ${result.reason})")
-            DnsForwarder.forward(packet, length, socket, outStream, upstreamDns)
-        }
-    }
-
-    private fun saveStatsToDisk() {
-        try {
-            val json = org.json.JSONObject(EngineBridge.getStatsJson())
-            val logsArray = json.optJSONArray("logs")
-            getSharedPreferences("stats_cache", MODE_PRIVATE).edit()
-                .putLong("total", json.optLong("total_blocked", 0))
-                .putLong("today", json.optLong("today_blocked", 0))
-                .putString("logs_json", logsArray?.toString() ?: "[]")
-                .apply()
-        } catch (e: Exception) {}
-    }
 
     private fun stopVpn() {
         isRunning = false
         isRunningState = false
         TcpDnsRelay.removeAll()
-        vpnInterface?.close()
-        vpnInterface = null
-        networkCallback?.let {
-            val cm = getSystemService(ConnectivityManager::class.java)
-            cm?.unregisterNetworkCallback(it)
-            networkCallback = null
+
+        Log.i(TAG, "🛑 开始彻底销毁 VPN")
+
+        // 1. 强制关闭原生 FD（Rust 内部会执行 close，彻底断开系统 VPN）
+        try {
+            EngineBridge.stopMitmVpnEngine()
+        } catch (e: Throwable) {
+            Log.e(TAG, "通知 Rust 关闭失败", e)
         }
-        stopForeground(STOP_FOREGROUND_REMOVE)
-        stopSelf()
+
+        // 2. 关闭 Kotlin 的 PFD
+        try {
+            vpnInterface?.close()
+        } catch (e: Exception) {}
+        vpnInterface = null
+
+        // 3. 停止前台通知并杀死服务
+        try {
+            stopForeground(STOP_FOREGROUND_REMOVE)
+            stopSelf()
+        } catch (e: Exception) {}
+
+        Log.i(TAG, "✅ VPN 已强制终止")
+    }
+
+
+    override fun onRevoke() {
+        Log.w(TAG, "⚠️ VPN 权限被系统或其他 VPN 抢占，正在紧急关闭...")
+        stopVpn()
+        super.onRevoke()
     }
 
     override fun onDestroy() {

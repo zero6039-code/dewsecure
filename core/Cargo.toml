@@ -8,15 +8,6 @@ license.workspace = true
 crate-type = ["cdylib", "staticlib", "rlib"]
 
 [dependencies]
-http-body-util = "0.1"
-bytes = "1"
-aws-lc-rs = "1"
-tokio = { version = "1.40", features = ["full", "net"] }
-hudsucker = { version = "0.23", features = ["rcgen-ca", "rustls-client"] }
-hyper = { version = "1.4", features = ["full"] }
-rcgen = "0.13"
-rustls = "0.23"
-
 hex = "0.4"
 semver = "1.0"
 uniffi = { version = "0.28", features = ["cli"] }
@@ -24,12 +15,29 @@ serde = { workspace = true }
 serde_json = { workspace = true }
 thiserror = { workspace = true }
 tracing = { workspace = true }
-
-# A2：模型签名验签（与 JS modelManager.js 的 Ed25519 协议一致）
 ed25519-dalek = "2"
 sha2 = "0.10"
 base64 = "0.22"
 aho-corasick = "1.1"
+
+# 网络与代理依赖
+tokio = { version = "1.40", features = ["full"] }
+hudsucker = { version = "0.23.0", default-features = false, features = [
+    "decoder",
+    "rcgen-ca",
+    "rustls-client",
+    "http2"
+] }
+hyper = { version = "1.4", features = ["full"] }
+rcgen = "0.13"
+rustls = "0.23"
+netstack-smoltcp = "0.2"
+smoltcp = "0.10"
+libc = "0.2"
+futures = "0.3"
+bytes = "1"
+android_logger = "0.13"
+log = "0.4"
 
 [dev-dependencies]
 proptest = "1.4"
