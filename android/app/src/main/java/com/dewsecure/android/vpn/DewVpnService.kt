@@ -53,6 +53,21 @@ class DewVpnService : VpnService() {
     }
 
         override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        Log.i(TAG, "🔥 onStartCommand 被调用，action: ${intent?.action}")
+        
+        // 🌟 处理热重启指令（用于分应用路由配置变更）
+        if (intent?.action == "ACTION_RESTART_VPN") {
+            Log.i(TAG, "🔄 收到热重启指令，正在安全重建 VPN...")
+            stopVpn() // 清理旧 TUN 并彻底关闭当前服务
+            
+            // 延迟 2 秒，等系统彻底回收资源后再重新拉起
+            android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
+                val restartIntent = Intent(this@DewVpnService, DewVpnService::class.java)
+                androidx.core.content.ContextCompat.startForegroundService(this@DewVpnService, restartIntent)
+            }, 2000)
+            return START_NOT_STICKY
+        }
+
         if (intent?.action == "ACTION_STOP_VPN" || intent?.action == "STOP_DEW_SECURE_VPN") {
             Log.i(TAG, "🛑 收到关闭指令，开始销毁 VPN")
             stopVpn()
@@ -205,10 +220,23 @@ class DewVpnService : VpnService() {
             val appPrefs = getSharedPreferences("app_settings", MODE_PRIVATE)
             val allKeys = appPrefs.all
             var bypassCount = 0
-            // ⚠️ 诊断期间彻底禁用分应用绕过
-            Log.w(TAG, "⚠️ 诊断模式：分应用绕过已全部禁用")
+            
+            for ((key, value) in allKeys) {
+                if (key.startsWith("routing_") && value is Boolean && value) {
+                    val pkgName = key.removePrefix("routing_")
+                    try {
+                        builder.addDisallowedApplication(pkgName)
+                        bypassCount++
+                    } catch (e: Exception) {
+                        Log.e(TAG, "添加绕过应用失败: $pkgName", e)
+                    }
+                }
+            }
+            
             if (bypassCount > 0) {
                 Log.i(TAG, "🛡️ 成功配置 $bypassCount 个应用绕过 VPN 直连")
+            } else {
+                Log.i(TAG, "🛡️ 当前无应用需要绕过 VPN")
             }
 
             // P0-E: 排除自身进程，避免 hudsucker/DNS 出站被 VPN 再次捕获
