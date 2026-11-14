@@ -146,7 +146,7 @@ impl Device for VpnDevice {
                 if (flags & 0x02) != 0 { 
                     TCP_SYN_PACKETS.fetch_add(1, Ordering::Relaxed); 
                     // 专家要求的 TUN 层 SYN 日志
-                    let src_port = u16::from_be_bytes([pkt[ihl], pkt[ihl + 1]]);
+                    let _src_port = u16::from_be_bytes([pkt[ihl], pkt[ihl + 1]]);
                     let dst_port = u16::from_be_bytes([pkt[ihl + 2], pkt[ihl + 3]]);
                     let dst_ip = format!("{}.{}.{}.{}", pkt[16], pkt[17], pkt[18], pkt[19]);
                     log::info!("📥 [TUN RX] 收到 SYN: 目标 {}:{}", dst_ip, dst_port);
