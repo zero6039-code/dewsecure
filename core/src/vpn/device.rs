@@ -10,6 +10,48 @@ use super::dns::{extract_udp_dns, build_udp_dns_response};
 use crate::VpnProtector;
 use tokio::sync::mpsc;
 
+
+fn extract_dns_qname(payload: &[u8]) -> Option<String> {
+    if payload.len() < 12 { return None; }
+    let mut pos = 12;
+    let mut domain_parts = Vec::new();
+    
+    while pos < payload.len() {
+        let len = payload[pos] as usize;
+        if len == 0 { break; }
+        pos += 1;
+        if pos + len > payload.len() { return None; }
+        if let Ok(part) = std::str::from_utf8(&payload[pos..pos+len]) {
+            domain_parts.push(part);
+        } else {
+            return None;
+        }
+        pos += len;
+    }
+    if domain_parts.is_empty() { None } else { Some(domain_parts.join(".")) }
+}
+
+fn build_block_dns_response(request: &[u8]) -> Vec<u8> {
+    let mut q_end = 12;
+    while q_end < request.len() && request[q_end] != 0 {
+        q_end += request[q_end] as usize + 1;
+    }
+    q_end += 5;
+    if q_end > request.len() { q_end = request.len(); }
+    
+    let mut resp = request[..q_end].to_vec();
+    resp[2] = 0x81;
+    resp[3] = 0x80;
+    resp[6] = 0x00; resp[7] = 0x01;
+    
+    resp.extend_from_slice(&[
+        0xC0, 0x0C, 0x00, 0x01, 0x00, 0x01, 
+        0x00, 0x00, 0x00, 0x05, 0x00, 0x04, 
+        0x00, 0x00, 0x00, 0x00,
+    ]);
+    resp
+}
+
 pub static TUN_RX_PACKETS: AtomicUsize = AtomicUsize::new(0);
 pub static DEVICE_RX_PACKETS: AtomicUsize = AtomicUsize::new(0);
 pub static TCP_SYN_PACKETS: AtomicUsize = AtomicUsize::new(0);
@@ -109,6 +151,23 @@ impl Device for VpnDevice {
                     log::info!("📡 收到 IPv6 DNS 请求，直接放行/丢弃，防止卡死");
                     continue;
                 }
+
+                // 尝试解析域名并执行拦截
+                let mut blocked = false;
+                if let Some(domain) = extract_dns_qname(&dns_payload) {
+                    if let Some(engine) = crate::engine_host::GLOBAL_HOST_ENGINE.get() {
+                        let result = engine.should_block(domain.clone());
+                        if result.decision != crate::engine_host::BlockDecision::Allow {
+                            log::info!("🛡️ [DNS拦截] 阻断 {}: {}", domain, result.reason);
+                            let block_resp = build_block_dns_response(&dns_payload);
+                            let resp_pkt = build_udp_dns_response(&req, &block_resp, false);
+                            writer.write(resp_pkt);
+                            blocked = true;
+                        }
+                    }
+                }
+
+                if blocked { continue; }
 
                 tokio::spawn(async move {
                     let socket = tokio::net::UdpSocket::bind("0.0.0.0:0").await.unwrap();

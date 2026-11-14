@@ -27,20 +27,21 @@ class LogActivity : AppCompatActivity() {
         // 接收 Intent 传来的参数，判断是今日还是总计
         val isToday = intent.getBooleanExtra("is_today", false)
 
-        var totalBlocked = 0
-        try {
-            val json = JSONObject(EngineBridge.getStatsJson())
-            if (isToday) {
-                totalBlocked = json.optInt("today_blocked", 0)
-                tvTitle.text = "今日拦截记录 (共 $totalBlocked 次)"
-            } else {
-                totalBlocked = json.optInt("total_blocked", 0)
-                tvTitle.text = "总拦截记录 (共 $totalBlocked 次)"
-            }
-        } catch (e: Exception) {}
-
         // 直接把标记传给 Bridge，在 Bridge 内部先过滤时间，再合并聚合
-        val displayLogs = EngineBridge.getBlockLogs(isTodayOnly = isToday)
+        val displayLogs = EngineBridge.getBlockLogs(this, isTodayOnly = isToday)
+
+        // 专家修复：标题的次数不再去读全局 Total，而是根据列表中真实展示的聚合次数来求和。
+        // 这样用户看到的标题数字，就永远等于下方列表里各域名次数的总和，彻底消除困惑。
+        var displayCount = 0
+        for (log in displayLogs) {
+            displayCount += log.count
+        }
+        
+        if (isToday) {
+            tvTitle.text = "今日拦截记录 (聚合后 $displayCount 次)"
+        } else {
+            tvTitle.text = "总拦截记录 (聚合后 $displayCount 次)"
+        }
 
         if (displayLogs.isEmpty()) {
             tvEmpty.visibility = View.VISIBLE

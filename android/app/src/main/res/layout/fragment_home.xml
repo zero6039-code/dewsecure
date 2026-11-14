@@ -83,41 +83,68 @@
                     android:textStyle="bold"
                     android:layout_marginBottom="32dp"/>
 
-                <!-- 数据卡片 (今日/总拦截) -->
-                <LinearLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:orientation="horizontal"
-                    android:layout_marginBottom="16dp">
-                    
-                    <LinearLayout
-                        android:layout_width="0dp"
-                        android:layout_height="wrap_content"
-                        android:layout_weight="1"
-                        android:layout_marginEnd="6dp"
-                        android:background="@drawable/bg_glass_card"
-                        android:gravity="center"
-                        android:paddingVertical="24dp"
-                        android:orientation="vertical">
-                        <TextView android:id="@+id/tv_blocked_today" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="0" android:textSize="32sp" android:textStyle="bold" android:textColor="@color/text_primary"/>
-                        <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="今日拦截" android:textColor="@color/text_secondary" android:textSize="12sp"/>
-                    </LinearLayout>
+                <!-- 数据卡片 (今日/总拦截 - 左字右数版) -->
+                  <LinearLayout
+                      android:layout_width="match_parent"
+                      android:layout_height="wrap_content"
+                      android:orientation="vertical"
+                      android:layout_marginBottom="16dp">
 
-                    <LinearLayout
-                        android:layout_width="0dp"
-                        android:layout_height="wrap_content"
-                        android:layout_weight="1"
-                        android:layout_marginStart="6dp"
-                        android:background="@drawable/bg_glass_card"
-                        android:gravity="center"
-                        android:paddingVertical="24dp"
-                        android:orientation="vertical">
-                        <TextView android:id="@+id/tv_blocked_total" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="0" android:textSize="32sp" android:textStyle="bold" android:textColor="@color/text_primary"/>
-                        <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="总拦截" android:textColor="@color/text_secondary" android:textSize="12sp"/>
-                    </LinearLayout>
-                </LinearLayout>
+                      <!-- 今日拦截 -->
+                      <LinearLayout
+                          android:layout_width="match_parent"
+                          android:layout_height="wrap_content"
+                          android:layout_marginBottom="8dp"
+                          android:background="@drawable/bg_glass_card"
+                          android:gravity="center_vertical"
+                          android:paddingHorizontal="20dp"
+                          android:paddingVertical="12dp"
+                          android:orientation="horizontal">
+                          <TextView 
+                              android:layout_width="0dp"
+                              android:layout_height="wrap_content"
+                              android:layout_weight="1"
+                              android:text="今日拦截" 
+                              android:textColor="@color/text_secondary" 
+                              android:textSize="14sp"/>
+                          <TextView 
+                              android:id="@+id/tv_blocked_today" 
+                              android:layout_width="wrap_content" 
+                              android:layout_height="wrap_content" 
+                              android:text="0" 
+                              android:textSize="24sp" 
+                              android:textStyle="bold" 
+                              android:textColor="@color/text_primary"/>
+                      </LinearLayout>
 
-                <!-- 流量统计：合并为一个框 -->
+                      <!-- 总拦截 -->
+                      <LinearLayout
+                          android:layout_width="match_parent"
+                          android:layout_height="wrap_content"
+                          android:background="@drawable/bg_glass_card"
+                          android:gravity="center_vertical"
+                          android:paddingHorizontal="20dp"
+                          android:paddingVertical="12dp"
+                          android:orientation="horizontal">
+                          <TextView 
+                              android:layout_width="0dp"
+                              android:layout_height="wrap_content"
+                              android:layout_weight="1"
+                              android:text="总拦截" 
+                              android:textColor="@color/text_secondary" 
+                              android:textSize="14sp"/>
+                          <TextView 
+                              android:id="@+id/tv_blocked_total" 
+                              android:layout_width="wrap_content" 
+                              android:layout_height="wrap_content" 
+                              android:text="0" 
+                              android:textSize="24sp" 
+                              android:textStyle="bold" 
+                              android:textColor="@color/text_primary"/>
+                      </LinearLayout>
+                  </LinearLayout>
+
+                  <!-- 流量统计：合并为一个框 -->
                 <LinearLayout
                     android:id="@+id/card_traffic"
                     android:layout_width="match_parent"

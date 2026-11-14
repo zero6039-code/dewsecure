@@ -17,7 +17,12 @@ object EngineBridge {
         var count: Int = 1
     )
 
+    @Synchronized
     fun init(ruleData: String = "", modelPath: String = "", aiEnabled: Boolean = true) {
+        if (engine != null) {
+            Log.w(TAG, "HostEngine 已存在，跳过重复初始化")
+            return
+        }
         try {
             val config = EngineConfig(ruleData, modelPath, aiEnabled)
             engine = HostEngine(config)
@@ -53,29 +58,78 @@ object EngineBridge {
     fun loadUserWhitelist(domains: List<String>) { try { engine?.loadUserWhitelist(domains) } catch (e: Throwable) { Log.e(TAG, "loadUserWhitelist err", e) } }
     fun getUserAllowList(): List<String> { return try { engine?.getUserAllowList() ?: emptyList() } catch (e: Throwable) { emptyList() } }
     
-    fun getStatsJson(): String {
+    fun getStatsJson(context: android.content.Context? = null): String {
         return try {
             val jsonStr = engine?.getStats() ?: "{}"
             val json = JSONObject(jsonStr)
+
+            // 1. 强制用 logs 重新计算今日/总拦截数，确保与列表展示绝对一致
             val logs = json.optJSONArray("logs")
             if (logs != null) {
                 val todayStartMillis = java.util.Calendar.getInstance().apply {
-                    set(java.util.Calendar.HOUR_OF_DAY, 0)
-                    set(java.util.Calendar.MINUTE, 0)
-                    set(java.util.Calendar.SECOND, 0)
-                    set(java.util.Calendar.MILLISECOND, 0)
+                    set(java.util.Calendar.HOUR_OF_DAY, 0); set(java.util.Calendar.MINUTE, 0)
+                    set(java.util.Calendar.SECOND, 0); set(java.util.Calendar.MILLISECOND, 0)
                 }.timeInMillis
-
                 var realTodayCount = 0
                 for (i in 0 until logs.length()) {
-                    if (logs.getJSONObject(i).optLong("timestamp", 0L) >= todayStartMillis) {
-                        realTodayCount++
+                    var ts = logs.getJSONObject(i).optLong("timestamp", 0L)
+                    if (ts < 100000000000L && ts > 0) ts *= 1000
+                    if (ts >= todayStartMillis) realTodayCount++
+                }
+                
+                // 用日志的数量覆盖（因为这是我们能保证展示出来的最大数量）
+                json.put("today_blocked", realTodayCount)
+                
+                // 总拦截同样以当前列表包含的数量为准
+                if (json.optInt("total_blocked", 0) < realTodayCount) {
+                    json.put("total_blocked", realTodayCount)
+                }
+            }
+
+            // 2. 持久化与跨天重置 (核心修复)
+            if (context != null) {
+                val prefs = context.getSharedPreferences("stats_cache", android.content.Context.MODE_PRIVATE)
+                val lastDate = prefs.getString("last_date", "") ?: ""
+                val todayStr = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.getDefault()).format(java.util.Date())
+                
+                if (lastDate.isNotEmpty() && lastDate != todayStr) {
+                    // 真正的跨天：今日数据清零
+                    prefs.edit().putString("last_date", todayStr)
+                        .putLong("today", 0)
+                        .putLong("total", json.optLong("total_blocked", 0))
+                        .apply()
+                    json.put("today_blocked", 0)
+                } else {
+                    // 首次记录 (lastDate为空) 或者 同一天
+                    if (lastDate.isEmpty()) {
+                        prefs.edit().putString("last_date", todayStr).apply()
+                    }
+                    
+                    // 只要 logs 列表里有数据，就绝不使用缓存覆盖。
+                    // 只有当 logs 列表为空，且缓存有数据时，才用作兜底展示（如刚启动尚未产生新拦截时）
+                    if (json.optJSONArray("logs")?.length() == 0) {
+                        val cachedToday = prefs.getLong("today", 0)
+                        val cachedTotal = prefs.getLong("total", 0)
+                        if (cachedToday > json.optLong("today_blocked", 0)) json.put("today_blocked", cachedToday)
+                        if (cachedTotal > json.optLong("total_blocked", 0)) json.put("total_blocked", cachedTotal)
                     }
                 }
-                json.put("today_blocked", realTodayCount)
+                
+                // 实时保存最新数据 (核心修复：必须把 logs 也存入本地，否则重装后列表为 0)
+                val logsStr = json.optJSONArray("logs")?.toString() ?: "[]"
+                prefs.edit()
+                    .putLong("today", json.optLong("today_blocked", 0))
+                    .putLong("total", json.optLong("total_blocked", 0))
+                    .putString("logs_json", logsStr)
+                    .apply()
             }
+
+            Log.d(TAG, "UI 获取到的 Stats JSON: $json")
             json.toString()
-        } catch (e: Exception) { "{}" }
+        } catch (e: Exception) {
+            Log.e(TAG, "getStatsJson 解析异常", e)
+            "{}"
+        }
     }
 
     // --- 6 大功能联动透传 ---
@@ -157,8 +211,8 @@ object EngineBridge {
         }
     }
 
-    fun getBlockLogs(isTodayOnly: Boolean = false): List<BlockLog> {
-        val jsonStr = getStatsJson()
+    fun getBlockLogs(context: android.content.Context? = null, isTodayOnly: Boolean = false): List<BlockLog> {
+        val jsonStr = getStatsJson(context)
         val rawList = mutableListOf<BlockLog>()
         try {
             val json = JSONObject(jsonStr)
