@@ -32,19 +32,42 @@ class AccountActivity : AppCompatActivity() {
         btnBack.setOnClickListener { finish() }
 
         btnManage.setOnClickListener {
-            val token = prefs.getString("access_token", null)
-            val refreshToken = prefs.getString("refresh_token", null)
+            // 🌟 核心修复：跳转前先强制刷新一次 Token，避免因为 Token 轮换导致第二次点击失败
+            Toast.makeText(this, "正在获取安全凭证...", Toast.LENGTH_SHORT).show()
             
-            // 🌟 核心修复：拼接 Token 和 source 标识，实现免密直通
-            val url = if (token != null && refreshToken != null) {
-                // 🌟 方案A核心：将参数放在 # 后面
-                "https://dewsecure.com/dashboard#token=$token&refresh=$refreshToken&source=app"
-            } else {
-                "https://dewsecure.com/dashboard"
+            lifecycleScope.launch {
+                val refreshResult = com.dewsecure.android.policy.AuthManager.refreshToken(this@AccountActivity)
+                
+                if (refreshResult.isSuccess) {
+                    // 刷新成功，从本地读取最新的 Token
+                    val latestPrefs = getSharedPreferences("user_session", Context.MODE_PRIVATE)
+                    val token = latestPrefs.getString("access_token", null)
+                    val refreshToken = latestPrefs.getString("refresh_token", null)
+
+                    if (token != null && refreshToken != null) {
+                        val url = "https://dewsecure.com/dashboard#token=$token&refresh=$refreshToken&source=app"
+                        android.util.Log.e("SSO_DEBUG", "🚀 刷新后跳转URL: $url")
+                        val intent = Intent(Intent.ACTION_VIEW, Uri.parse(url))
+                        startActivity(intent)
+                    } else {
+                        Toast.makeText(this@AccountActivity, "凭证解析失败，请重试", Toast.LENGTH_SHORT).show()
+                    }
+                } else {
+                    // 刷新失败（通常意味着用户已经在网页端登出，或者 Token 彻底过期）
+                    android.util.Log.e("SSO_DEBUG", "刷新失败: ${refreshResult.exceptionOrNull()?.message}")
+                    Toast.makeText(this@AccountActivity, "登录状态已失效，正在返回登录页...", Toast.LENGTH_SHORT).show()
+                    
+                    // 🌟 核心优化：清理本地脏数据
+                    prefs.edit().clear().apply()
+                    
+                    // 🌟 自动跳转回 LoginActivity
+                    val intent = Intent(this@AccountActivity, LoginActivity::class.java).apply {
+                        flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
+                    }
+                    startActivity(intent)
+                    finish()
+                }
             }
-            
-            val intent = Intent(Intent.ACTION_VIEW, Uri.parse(url))
-            startActivity(intent)
         }
 
         btnLogout.setOnClickListener {
