@@ -59,7 +59,7 @@
             android:layout_width="1dp"
             android:layout_height="match_parent"
             android:background="#1AFFFFFF"
-            android:layout_marginStart="12dp"
+            android:layout_marginStart="4dp"
             android:layout_marginEnd="16dp" />
 
         <!-- 右侧内容面板 (加顶部呼吸感 - 图4需求) -->
