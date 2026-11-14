@@ -147,8 +147,8 @@ class DewVpnService : VpnService() {
                 .addDnsServer("10.0.0.1")
                 .addDnsServer("fd00::1")
                 .addRoute("0.0.0.0", 0) // 接管所有 IPv4 流量
-                .addRoute("::", 0)      // 接管所有 IPv6 流量
-                .setMtu(1500)
+                // .addRoute("::", 0)      // 接管所有 IPv6 流量
+                .setMtu(1400)
                 .setBlocking(false)
 
             // 🌟 核心：读取分应用路由配置，踢出勾选直连的 App
@@ -189,32 +189,41 @@ class DewVpnService : VpnService() {
 
 
     private fun stopVpn() {
+        Log.i(TAG, "🛑 [强杀] 收到停止命令，立即销毁 VPN")
         isRunning = false
         isRunningState = false
         TcpDnsRelay.removeAll()
 
-        Log.i(TAG, "🛑 开始彻底销毁 VPN")
-
-        // 1. 强制关闭原生 FD（Rust 内部会执行 close，彻底断开系统 VPN）
-        try {
-            EngineBridge.stopMitmVpnEngine()
-        } catch (e: Throwable) {
-            Log.e(TAG, "通知 Rust 关闭失败", e)
-        }
-
-        // 2. 关闭 Kotlin 的 PFD
+        // 1. 绝对优先：先关闭 TUN 接口，让 Android 系统立刻恢复原生路由！
         try {
             vpnInterface?.close()
-        } catch (e: Exception) {}
+            Log.i(TAG, "✅ [强杀] TUN 接口已关闭，系统路由应已恢复")
+        } catch (e: Exception) {
+            Log.e(TAG, "关闭 TUN 失败", e)
+        }
         vpnInterface = null
 
-        // 3. 停止前台通知并杀死服务
-        try {
-            stopForeground(STOP_FOREGROUND_REMOVE)
-            stopSelf()
-        } catch (e: Exception) {}
+        // 2. 通知 Rust 异步退出（绝不阻塞主线程）
+        Thread {
+            try {
+                EngineBridge.stopMitmVpnEngine()
+                Log.i(TAG, "✅ [强杀] Rust 引擎退出信号已发送")
+            } catch (e: Throwable) {
+                Log.e(TAG, "通知 Rust 失败", e)
+            }
+        }.start()
 
-        Log.i(TAG, "✅ VPN 已强制终止")
+        // 3. 清理网络回调
+        networkCallback?.let {
+            val cm = getSystemService(ConnectivityManager::class.java)
+            try { cm?.unregisterNetworkCallback(it) } catch (e: Exception) {}
+            networkCallback = null
+        }
+
+        // 4. 强制销毁 Service
+        stopForeground(STOP_FOREGROUND_REMOVE)
+        stopSelf()
+        Log.i(TAG, "✅ [强杀] VPN 服务已彻底销毁")
     }
 
 
