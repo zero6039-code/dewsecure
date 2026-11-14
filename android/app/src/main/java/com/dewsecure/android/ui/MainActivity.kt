@@ -52,7 +52,7 @@ class MainActivity : AppCompatActivity() {
         }
 
         // 🌟 启动时立即初始化引擎并恢复缓存，防止首页显示为 0
-        EngineBridge.init(aiEnabled = false)
+        EngineBridge.init(this, aiEnabled = true)
         val statsPrefs = getSharedPreferences("stats_cache", MODE_PRIVATE)
         val savedTotal = statsPrefs.getLong("total", 0)
         val savedToday = statsPrefs.getLong("today", 0)
@@ -71,6 +71,25 @@ class MainActivity : AppCompatActivity() {
                     Log.i("MainActivity", "云端白名单同步成功，共计 ${domains.size} 条")
                 }
             }
+        }
+
+        // 🚀 权限门禁：仅当已登录且本地判定为 Pro 时，才拉取云端模型和规则
+        // 修复：必须同时满足 accessToken 不为空，且 email 不为空
+        val isPro = userPrefs.getBoolean("is_pro", false)
+        val userEmail = userPrefs.getString("email", null)
+        
+        if (accessToken != null && userEmail != null && isPro) {
+            lifecycleScope.launch(kotlinx.coroutines.Dispatchers.IO) {
+                com.dewsecure.android.policy.UpdateManager.checkForUpdates(this@MainActivity)
+            }
+        } else {
+            // 未登录或非 Pro 用户：卸载模型，清空本地缓存
+            Log.e("MainActivity", "当前为非 Pro 或未登录状态，已强制卸载 AI 模型")
+            EngineBridge.unloadAdblockModel()
+            getSharedPreferences("app_settings", MODE_PRIVATE).edit()
+                .remove("cloud_model_version")
+                .remove("cloud_rules_version")
+                .apply()
         }
     }
 
@@ -91,6 +110,26 @@ class MainActivity : AppCompatActivity() {
             startActivityForResult(intent, VPN_REQUEST_CODE)
         } else {
             onActivityResult(VPN_REQUEST_CODE, Activity.RESULT_OK, null)
+        }
+    }
+
+    override fun onResume() {
+        super.onResume()
+        // 动态监听登录与 Pro 状态，如果刚刚登录，立刻拉取模型
+        val userPrefs = getSharedPreferences("user_session", MODE_PRIVATE)
+        val token = userPrefs.getString("access_token", null)
+        val tier = userPrefs.getString("tier", "free")
+        val isPro = tier in listOf("pro", "premium", "trial", "trial-pro", "family", "sub-family", "family_sub")
+        
+        if (token != null && isPro) {
+            val appPrefs = getSharedPreferences("app_settings", MODE_PRIVATE)
+            val localVersion = appPrefs.getString("cloud_model_version", "")
+            if (localVersion.isNullOrEmpty()) {
+                Log.i("MainActivity", "检测到 Pro 登录，且无本地模型，立刻触发下载")
+                lifecycleScope.launch(kotlinx.coroutines.Dispatchers.IO) {
+                    com.dewsecure.android.policy.UpdateManager.checkForUpdates(this@MainActivity)
+                }
+            }
         }
     }
 

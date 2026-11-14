@@ -2709,7 +2709,8 @@ public object FfiConverterTypeBlockResult: FfiConverterRustBuffer<BlockResult> {
 data class EngineConfig (
     var `ruleData`: kotlin.String, 
     var `modelPath`: kotlin.String, 
-    var `aiEnabled`: kotlin.Boolean
+    var `aiEnabled`: kotlin.Boolean, 
+    var `baseDir`: kotlin.String
 ) {
     
     companion object
@@ -2724,19 +2725,22 @@ public object FfiConverterTypeEngineConfig: FfiConverterRustBuffer<EngineConfig>
             FfiConverterString.read(buf),
             FfiConverterString.read(buf),
             FfiConverterBoolean.read(buf),
+            FfiConverterString.read(buf),
         )
     }
 
     override fun allocationSize(value: EngineConfig) = (
             FfiConverterString.allocationSize(value.`ruleData`) +
             FfiConverterString.allocationSize(value.`modelPath`) +
-            FfiConverterBoolean.allocationSize(value.`aiEnabled`)
+            FfiConverterBoolean.allocationSize(value.`aiEnabled`) +
+            FfiConverterString.allocationSize(value.`baseDir`)
     )
 
     override fun write(value: EngineConfig, buf: ByteBuffer) {
             FfiConverterString.write(value.`ruleData`, buf)
             FfiConverterString.write(value.`modelPath`, buf)
             FfiConverterBoolean.write(value.`aiEnabled`, buf)
+            FfiConverterString.write(value.`baseDir`, buf)
     }
 }
 

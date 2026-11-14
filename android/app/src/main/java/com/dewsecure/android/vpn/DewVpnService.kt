@@ -59,6 +59,37 @@ class DewVpnService : VpnService() {
             return START_NOT_STICKY
         }
 
+        // 🌟 核心补丁：处理权限变更，不重启 TUN，直接热更新
+        if (intent?.action == "ACTION_ENTITLEMENTS_CHANGED") {
+            Log.i(TAG, "🔄 收到权限变更指令，重新检查云端模型...")
+            val prefs = getSharedPreferences("user_session", MODE_PRIVATE)
+            val cachedTier = prefs.getString("tier", "free") ?: "free"
+            val isUserPro = cachedTier in listOf("pro", "premium", "trial", "trial-pro", "family", "sub-family", "family_sub")
+            
+            if (isUserPro) {
+                Log.i(TAG, "✅ 权限确认为 Pro ($cachedTier)，触发模型拉取")
+                CoroutineScope(Dispatchers.IO).launch {
+                    UpdateManager.checkForUpdates(this@DewVpnService)
+                }
+            } else {
+                Log.i(TAG, "🚫 权限变更为 Free，开始清理本地模型")
+                EngineBridge.unloadAdblockModel()
+                val fstFile = java.io.File(filesDir, "cloud_rules.fst")
+                if (fstFile.exists()) fstFile.delete()
+                val jsonFile = java.io.File(filesDir, "cloud_rules.json")
+                if (jsonFile.exists()) jsonFile.delete()
+                val weightsFile = java.io.File(filesDir, "cloud_weights.json")
+                if (weightsFile.exists()) weightsFile.delete()
+                
+                getSharedPreferences("app_settings", MODE_PRIVATE).edit()
+                    .remove("cloud_model_version")
+                    .remove("cloud_rules_version")
+                    .apply()
+            }
+            // 如果 VPN 已经在运行，直接返回，千万不要重新 establish() 建 TUN
+            if (isRunning) return START_STICKY
+        }
+
         if (isRunning) return START_STICKY
         startForeground(NOTIFICATION_ID, buildNotification())
 
@@ -86,8 +117,23 @@ class DewVpnService : VpnService() {
         val isUserPro = cachedTier in listOf("pro", "premium", "trial", "trial-pro", "family", "sub-family", "family_sub")
         if (!isUserPro) {
             EngineBridge.unloadAdblockModel()
-            val modelDir = java.io.File(filesDir, "models")
-            if (modelDir.exists()) modelDir.deleteRecursively()
+            
+            Log.i(TAG, "🧹 [VPN冷启动] 判定为免费用户，执行本地 AI 缓存强制清理...")
+            val fstFile = java.io.File(filesDir, "cloud_rules.fst")
+            if (fstFile.exists()) {
+                val res = fstFile.delete()
+                Log.i(TAG, "🧹 cloud_rules.fst 删除结果: $res")
+            }
+            val jsonFile = java.io.File(filesDir, "cloud_rules.json")
+            if (jsonFile.exists()) {
+                val res = jsonFile.delete()
+                Log.i(TAG, "🧹 cloud_rules.json 删除结果: $res")
+            }
+            
+            getSharedPreferences("app_settings", MODE_PRIVATE).edit()
+                .remove("cloud_model_version")
+                .remove("cloud_rules_version")
+                .apply()
         }
 
         // 从本地存储恢复开关状态并同步给 Rust 引擎
@@ -111,8 +157,13 @@ class DewVpnService : VpnService() {
         EngineBridge.setInitialStats(savedTotal, savedToday, savedLogs)
         
         // 触发云端热更新 (后台静默进行)
-        CoroutineScope(Dispatchers.IO).launch {
-            UpdateManager.checkForUpdates(this@DewVpnService)
+        // 🛡️ 修复：只有 Pro 用户才允许在 VPN 启动时拉取
+        if (isUserPro) {
+            CoroutineScope(Dispatchers.IO).launch {
+                UpdateManager.checkForUpdates(this@DewVpnService)
+            }
+        } else {
+            Log.i(TAG, "🚫 免费用户，跳过云端热更新拉取")
         }
 
         Log.i(TAG, "🔥 VPN 服务已成功启动，底层引擎初始化完毕，已恢复历史数据")

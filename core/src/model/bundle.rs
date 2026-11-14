@@ -50,8 +50,10 @@ pub fn verify(
         return Err(BundleError::HashMismatch);
     }
 
-    // 4. Ed25519 验签 (🛡️ C-7 修复：加入 model_type, channel, valid_until)
-    let msg = format!("dewsecure/model/v2\n{}\n{}\n{}\n{}\n{}", version, sha256_hex, model_type, channel, valid_until);
+    // 4. Ed25519 验签 (完美对齐 Python 的 sign_model.py)
+    // 忽略 Rust 传进来的多余参数，只按 Python 的规则拼接
+    let _ = (model_type, channel, valid_until); 
+    let msg = format!("{}:{}", version, sha256_hex);
 
     let pubkey_bytes = hex_decode_32(ED25519_PUBLIC_KEY_HEX)
         .ok_or(BundleError::InvalidPublicKey)?;

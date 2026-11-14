@@ -55,6 +55,7 @@ pub struct EngineConfig {
     pub rule_data: String,
     pub model_path: String,
     pub ai_enabled: bool,
+    pub base_dir: String,
 }
 
 #[derive(Debug, Clone, uniffi::Record)]
