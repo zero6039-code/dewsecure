@@ -19,6 +19,7 @@ ed25519-dalek = "2"
 sha2 = "0.10"
 base64 = "0.22"
 aho-corasick = "1.1"
+fst = "0.4"
 
 # 网络与代理依赖
 tokio = { version = "1.40", features = ["full"] }
@@ -46,3 +47,7 @@ pretty_assertions = "1.4"
 [[bin]]
 name = "uniffi-bindgen"
 path = "src/bin/uniffi-bindgen.rs"
+
+[build-dependencies]
+fst = "0.4"
+serde_json = "1.0"

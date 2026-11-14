@@ -31,17 +31,19 @@ struct HardDomainsFile {
     mining: Vec<String>,
 }
 
-#[derive(Debug, Deserialize)]
-struct BlockLists {
-    ad: Vec<String>,
-    tracker: Vec<String>,
-}
 
 #[derive(Debug, Deserialize)]
 struct DomainRulesFile {
     ad: Vec<String>,
     tracker: Vec<String>,
 }
+
+#[derive(Debug, Deserialize)]
+struct BlockLists {
+    ad: Vec<String>,
+    tracker: Vec<String>,
+}
+
 
 // 兼容浏览器插件 DNR 格式的解析结构
 #[derive(Debug, Deserialize)]
@@ -59,6 +61,7 @@ pub static GLOBAL_HOST_ENGINE: OnceLock<Arc<HostEngine>> = OnceLock::new();
 #[derive(uniffi::Object)]
 pub struct HostEngine {
     _config: EngineConfig,
+    fst_rules: fst::Map<&'static [u8]>,
     safe: Arc<RwLock<HashSet<String>>>,
     block_ad: Arc<RwLock<HashSet<String>>>,
     block_tracker: Arc<RwLock<HashSet<String>>>,
@@ -75,7 +78,7 @@ pub struct HostEngine {
 }
 
 const HARD_DOMAINS_JSON: &str = include_str!("../../shared/adblock/hard-domains.json");
-const DOMAIN_RULES_JSON: &str = include_str!("../../shared/adblock/domain-rules.json");
+const DOMAIN_RULES_FST: &[u8] = include_bytes!(concat!(env!("OUT_DIR"), "/rules.fst"));
 const AI_CONFIDENCE_THRESHOLD: f32 = 0.8;
 const ED25519_PUBLIC_KEY_HEX: &str = "a21b4c875ab246b58adc225ddf66a054cfa7b79ed2093fcc2f97598fd1197631";
 
@@ -83,6 +86,7 @@ impl Clone for HostEngine {
     fn clone(&self) -> Self {
         Self {
             _config: self._config.clone(),
+            fst_rules: self.fst_rules.clone(),
             safe: Arc::clone(&self.safe),
             block_ad: Arc::clone(&self.block_ad),
             block_tracker: Arc::clone(&self.block_tracker),
@@ -110,23 +114,21 @@ impl HostEngine {
     pub fn new(config: EngineConfig) -> Result<Self, EngineError> {
         let parsed: HardDomainsFile = serde_json::from_str(HARD_DOMAINS_JSON)
             .map_err(|e| EngineError::InitializationFailed(format!("hard-domains.json 解析失败: {}", e)))?;
-        let parsed_domain_rules: DomainRulesFile = serde_json::from_str(DOMAIN_RULES_JSON)
-            .map_err(|e| EngineError::InitializationFailed(format!("domain-rules.json 解析失败: {}", e)))?;
+
+        // 极速加载编译好的 FST，完全不占用堆内存
+        let fst_rules = fst::Map::new(DOMAIN_RULES_FST)
+            .map_err(|e| EngineError::InitializationFailed(format!("FST 加载失败: {}", e)))?;
 
         let normalize_set = |v: Vec<String>| -> HashSet<String> {
             v.into_iter().map(|s| normalize_domain(&s)).filter(|s| !s.is_empty()).collect()
         };
 
-        let mut all_ad = parsed.block.ad;
-        all_ad.extend(parsed_domain_rules.ad);
-        let mut all_tracker = parsed.block.tracker;
-        all_tracker.extend(parsed_domain_rules.tracker);
-
         let engine = Self {
             _config: config,
+            fst_rules,
             safe: Arc::new(RwLock::new(normalize_set(parsed.safe))),
-            block_ad: Arc::new(RwLock::new(normalize_set(all_ad))),
-            block_tracker: Arc::new(RwLock::new(normalize_set(all_tracker))),
+            block_ad: Arc::new(RwLock::new(normalize_set(parsed.block.ad))),
+            block_tracker: Arc::new(RwLock::new(normalize_set(parsed.block.tracker))),
             mining: Arc::new(RwLock::new(normalize_set(parsed.mining))),
             user_allow: Arc::new(Mutex::new(HashSet::new())),
             adblock_model: Arc::new(Mutex::new(None)),
@@ -203,22 +205,26 @@ impl HostEngine {
         }
 
         if self.enable_dnr.load(Ordering::Relaxed) {
+            // 1. 优先查询极速 FST 规则 (微秒级)
+            if let Some(tag) = match_fst_subdomain(&self.fst_rules, &host) {
+                if tag == 1 {
+                    self.stats_engine.record_block(&host, "hard_block_ad");
+                    return BlockResult { decision: BlockDecision::BlockAd, reason: "hard_block_ad".into(), confidence: 1.0 };
+                } else if tag == 2 && self.enable_tracker.load(Ordering::Relaxed) {
+                    let is_social = host.contains("facebook") || host.contains("twitter") || host.contains("tiktok")
+                        || host.contains("instagram") || host.contains("linkedin") || host.contains("snapchat");
+                    if !is_social || self.enable_social.load(Ordering::Relaxed) {
+                        self.stats_engine.record_block(&host, "hard_block_tracker");
+                        return BlockResult { decision: BlockDecision::BlockTracker, reason: "hard_block_tracker".into(), confidence: 1.0 };
+                    }
+                }
+            }
+
+            // 2. 兜底查询 hard-domains.json 里自带的 block_ad
             let guard = self.block_ad.read().unwrap_or_else(|e| e.into_inner());
             if matches_domain_or_subdomain(&guard, &host) {
                 self.stats_engine.record_block(&host, "hard_block_ad");
                 return BlockResult { decision: BlockDecision::BlockAd, reason: "hard_block_ad".into(), confidence: 1.0 };
-            }
-        }
-
-        if self.enable_tracker.load(Ordering::Relaxed) {
-            let guard = self.block_tracker.read().unwrap_or_else(|e| e.into_inner());
-            if matches_domain_or_subdomain(&guard, &host) {
-                let is_social = host.contains("facebook") || host.contains("twitter") || host.contains("tiktok")
-                    || host.contains("instagram") || host.contains("linkedin") || host.contains("snapchat");
-                if !is_social || self.enable_social.load(Ordering::Relaxed) {
-                    self.stats_engine.record_block(&host, "hard_block_tracker");
-                    return BlockResult { decision: BlockDecision::BlockTracker, reason: "hard_block_tracker".into(), confidence: 1.0 };
-                }
             }
         }
 
@@ -359,3 +365,18 @@ fn matches_domain_or_subdomain(set: &HashSet<String>, host: &str) -> bool {
 #[cfg(test)]
 #[path = "engine_host_test.rs"]
 mod tests;
+
+fn match_fst_subdomain(map: &fst::Map<&'static [u8]>, host: &str) -> Option<u64> {
+    if let Some(tag) = map.get(host.as_bytes()) {
+        return Some(tag);
+    }
+    let mut start = 0;
+    while let Some(pos) = host[start..].find('.') {
+        let next = start + pos + 1;
+        if let Some(tag) = map.get(host[next..].as_bytes()) {
+            return Some(tag);
+        }
+        start = next;
+    }
+    None
+}
