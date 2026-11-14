@@ -1,6 +1,8 @@
 use crate::{EngineConfig, EngineError};
 use serde::Deserialize;
 use std::collections::HashSet;
+use std::fs;
+use std::path::Path;
 use std::sync::{Arc, Mutex, RwLock, OnceLock};
 use std::sync::atomic::{AtomicBool, Ordering};
 use crate::model::adblock::AdblockModel;
@@ -32,9 +34,10 @@ struct HardDomainsFile {
 }
 
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, serde::Serialize)]
 struct DomainRulesFile {
     ad: Vec<String>,
+    #[allow(dead_code)]
     tracker: Vec<String>,
 }
 
@@ -61,7 +64,7 @@ pub static GLOBAL_HOST_ENGINE: OnceLock<Arc<HostEngine>> = OnceLock::new();
 #[derive(uniffi::Object)]
 pub struct HostEngine {
     _config: EngineConfig,
-    fst_rules: fst::Map<&'static [u8]>,
+    fst_rules: Arc<RwLock<fst::Map<Vec<u8>>>>,
     safe: Arc<RwLock<HashSet<String>>>,
     block_ad: Arc<RwLock<HashSet<String>>>,
     block_tracker: Arc<RwLock<HashSet<String>>>,
@@ -86,7 +89,7 @@ impl Clone for HostEngine {
     fn clone(&self) -> Self {
         Self {
             _config: self._config.clone(),
-            fst_rules: self.fst_rules.clone(),
+            fst_rules: Arc::clone(&self.fst_rules),
             safe: Arc::clone(&self.safe),
             block_ad: Arc::clone(&self.block_ad),
             block_tracker: Arc::clone(&self.block_tracker),
@@ -115,9 +118,33 @@ impl HostEngine {
         let parsed: HardDomainsFile = serde_json::from_str(HARD_DOMAINS_JSON)
             .map_err(|e| EngineError::InitializationFailed(format!("hard-domains.json 解析失败: {}", e)))?;
 
-        // 极速加载编译好的 FST，完全不占用堆内存
-        let fst_rules = fst::Map::new(DOMAIN_RULES_FST)
-            .map_err(|e| EngineError::InitializationFailed(format!("FST 加载失败: {}", e)))?;
+        // 优先加载热更新的 FST
+        let cloud_fst_path = Path::new(&config.base_dir).join("cloud_rules.fst");
+        let fst_bytes = if cloud_fst_path.exists() {
+            fs::read(&cloud_fst_path).unwrap_or_else(|_| DOMAIN_RULES_FST.to_vec())
+        } else {
+            DOMAIN_RULES_FST.to_vec()
+        };
+        
+        let fst_rules = Arc::new(RwLock::new(
+            fst::Map::new(fst_bytes)
+                .map_err(|e| EngineError::InitializationFailed(format!("FST 加载失败: {}", e)))?
+        ));
+
+        let normalize_set = |v: Vec<String>| -> HashSet<String> {
+            v.into_iter().map(|s| normalize_domain(&s)).filter(|s| !s.is_empty()).collect()
+        };
+
+        // 加载本地持久化的热更新规则
+        let mut block_ad = normalize_set(parsed.block.ad);
+        let cloud_rules_path = Path::new(&config.base_dir).join("cloud_rules.json");
+        if cloud_rules_path.exists() {
+            if let Ok(json_str) = fs::read_to_string(&cloud_rules_path) {
+                if let Ok(rules) = serde_json::from_str::<DomainRulesFile>(&json_str) {
+                    block_ad.extend(normalize_set(rules.ad));
+                }
+            }
+        }
 
         let normalize_set = |v: Vec<String>| -> HashSet<String> {
             v.into_iter().map(|s| normalize_domain(&s)).filter(|s| !s.is_empty()).collect()
@@ -127,7 +154,7 @@ impl HostEngine {
             _config: config,
             fst_rules,
             safe: Arc::new(RwLock::new(normalize_set(parsed.safe))),
-            block_ad: Arc::new(RwLock::new(normalize_set(parsed.block.ad))),
+            block_ad: Arc::new(RwLock::new(block_ad)),
             block_tracker: Arc::new(RwLock::new(normalize_set(parsed.block.tracker))),
             mining: Arc::new(RwLock::new(normalize_set(parsed.mining))),
             user_allow: Arc::new(Mutex::new(HashSet::new())),
@@ -185,9 +212,19 @@ impl HostEngine {
             }
         }
 
-        // 4. 热替换
+        // 4. 写入本地磁盘缓存 (JSON 格式)
+        let cloud_rules_path = Path::new(&self._config.base_dir).join("cloud_rules.json");
+        let cache_struct = DomainRulesFile {
+            ad: ad_set.iter().cloned().collect(),
+            tracker: vec![],
+        };
+        if let Ok(json_str) = serde_json::to_string(&cache_struct) {
+            let _ = fs::write(&cloud_rules_path, json_str);
+        }
+
+        // 5. 合并到内存中 (绝不覆盖原有的 11 万条 FST 和 hard-domains)
         let mut ad_guard = self.block_ad.write().unwrap_or_else(|e| e.into_inner());
-        *ad_guard = ad_set;
+        ad_guard.extend(ad_set); // 追加新规则
 
         tracing::info!("🔥 [ThreatIntel] 规则热更新成功");
         Ok(())
@@ -206,7 +243,8 @@ impl HostEngine {
 
         if self.enable_dnr.load(Ordering::Relaxed) {
             // 1. 优先查询极速 FST 规则 (微秒级)
-            if let Some(tag) = match_fst_subdomain(&self.fst_rules, &host) {
+            let fst_guard = self.fst_rules.read().unwrap_or_else(|e| e.into_inner());
+            if let Some(tag) = match_fst_subdomain(&fst_guard, &host) {
                 if tag == 1 {
                     self.stats_engine.record_block(&host, "hard_block_ad");
                     return BlockResult { decision: BlockDecision::BlockAd, reason: "hard_block_ad".into(), confidence: 1.0 };
@@ -324,11 +362,14 @@ impl HostEngine {
 
     pub fn load_signed_adblock_model(&self, version: String, sha256_hex: String, sig_b64: String, body: String, model_type: String, channel: String, valid_until: u64, local_version: Option<String>) -> Result<(), EngineError> {
         if body.len() > 4 * 1024 * 1024 { return Err(EngineError::ModelLoadFailed("Model size exceeds 4MB limit".into())); }
+        
         crate::model::bundle::verify(&version, &sha256_hex, &sig_b64, body.as_bytes(), &model_type, &channel, valid_until, local_version.as_deref())
             .map_err(|e| EngineError::ModelLoadFailed(format!("Signature verification failed: {:?}", e)))?;
+
         let model = AdblockModel::load_from_json(&body).map_err(EngineError::ModelLoadFailed)?;
         let mut guard = self.adblock_model.lock().unwrap_or_else(|e| e.into_inner());
         *guard = Some(model);
+        tracing::info!("✅ AdblockModel 已注入内存，准备参与推理！");
         Ok(())
     }
 
@@ -366,7 +407,7 @@ fn matches_domain_or_subdomain(set: &HashSet<String>, host: &str) -> bool {
 #[path = "engine_host_test.rs"]
 mod tests;
 
-fn match_fst_subdomain(map: &fst::Map<&'static [u8]>, host: &str) -> Option<u64> {
+fn match_fst_subdomain(map: &fst::Map<Vec<u8>>, host: &str) -> Option<u64> {
     if let Some(tag) = map.get(host.as_bytes()) {
         return Some(tag);
     }

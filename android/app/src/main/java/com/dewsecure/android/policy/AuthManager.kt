@@ -278,23 +278,50 @@ object AuthManager {
                         EngineBridge.unloadAdblockModel()
                         
                         // 🌟 强制删除本地缓存的模型文件
-                        val modelDir = java.io.File(context.filesDir, "models")
-                        if (modelDir.exists()) {
-                            modelDir.deleteRecursively()
-                            Log.i(TAG, "权限降级，本地 AI 模型缓存已彻底清除")
-                        }
-                        prefs.edit().putString("tier", "free").apply()
+                        val weightsFile = java.io.File(context.filesDir, "cloud_weights.json")
+                          if (weightsFile.exists()) weightsFile.delete()
+                          val fstFile = java.io.File(context.filesDir, "cloud_rules.fst")
+                          if (fstFile.exists()) fstFile.delete()
+                          val jsonFile = java.io.File(context.filesDir, "cloud_rules.json")
+                          if (jsonFile.exists()) jsonFile.delete()
+                          context.getSharedPreferences("app_settings", Context.MODE_PRIVATE).edit()
+                              .remove("cloud_model_version").remove("cloud_rules_version").apply()
+                          Log.e(TAG, "🧹 权限为 Free，已彻底清理本地模型与规则")
+                          prefs.edit().putString("tier", "free").apply()
                         Result.success("free")
                     } else {
-                        prefs.edit().putString("tier", tier).apply()
-                        Result.success(tier)
+                        prefs.edit().putString("tier", tier).commit()
+                          Log.e(TAG, "🔥 权限确认为 Pro ($tier)，准备触发模型下载")
+                          
+                          // 1. 直接原地触发模型下载
+                          UpdateManager.checkForUpdates(context)
+                          
+                          // 2. 如果 VPN 正在运行，立刻发广播让它也刷新
+                          try {
+                              val intent = android.content.Intent(context, com.dewsecure.android.vpn.DewVpnService::class.java).apply {
+                                  action = "ACTION_ENTITLEMENTS_CHANGED"
+                              }
+                              context.startService(intent)
+                              Log.e(TAG, "📡 已向 VPN 服务发送权限变更广播")
+                          } catch (e: Exception) {
+                              Log.e(TAG, "发送广播失败", e)
+                          }
+                          
+                          Result.success(tier)
                     }
                 } else {
                     Log.w(TAG, "fetchUserProfile: 结果为空，默认 free")
                     EngineBridge.unloadAdblockModel()
-                    val modelDir = java.io.File(context.filesDir, "models")
-                    if (modelDir.exists()) modelDir.deleteRecursively()
-                    prefs.edit().putString("tier", "free").apply()
+                    val weightsFile = java.io.File(context.filesDir, "cloud_weights.json")
+                          if (weightsFile.exists()) weightsFile.delete()
+                          val fstFile = java.io.File(context.filesDir, "cloud_rules.fst")
+                          if (fstFile.exists()) fstFile.delete()
+                          val jsonFile = java.io.File(context.filesDir, "cloud_rules.json")
+                          if (jsonFile.exists()) jsonFile.delete()
+                          context.getSharedPreferences("app_settings", Context.MODE_PRIVATE).edit()
+                              .remove("cloud_model_version").remove("cloud_rules_version").apply()
+                          Log.e(TAG, "🧹 权限为 Free，已彻底清理本地模型与规则")
+                          prefs.edit().putString("tier", "free").apply()
                     Result.success("free")
                 }
             } else {

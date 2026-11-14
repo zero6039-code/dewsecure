@@ -18,13 +18,14 @@ object EngineBridge {
     )
 
     @Synchronized
-    fun init(ruleData: String = "", modelPath: String = "", aiEnabled: Boolean = true) {
+    fun init(context: android.content.Context? = null, ruleData: String = "", modelPath: String = "", aiEnabled: Boolean = true) {
         if (engine != null) {
             Log.w(TAG, "HostEngine 已存在，跳过重复初始化")
             return
         }
         try {
-            val config = EngineConfig(ruleData, modelPath, aiEnabled)
+            val baseDir = context?.filesDir?.absolutePath ?: ""
+            val config = EngineConfig(ruleData, modelPath, aiEnabled, baseDir)
             engine = HostEngine(config)
             Log.i(TAG, "HostEngine 初始化成功")
 
