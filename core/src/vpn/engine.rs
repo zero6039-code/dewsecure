@@ -69,7 +69,7 @@ impl VpnEngine {
         let tx_writer = TunWriter::new(fd_write);
         let mut device = VpnDevice { rx_queue, tx_writer, protector: self.protector.clone() };
 
-        let mut config = Config::new(smoltcp::wire::HardwareAddress::Ip);
+        let config = Config::new(smoltcp::wire::HardwareAddress::Ip);
         let mut iface = Interface::new(config, &mut device, Instant::now());
         
         iface.set_any_ip(true);
@@ -297,7 +297,11 @@ impl VpnEngine {
         }
 
         // 强制关闭所有 fd，让系统彻底释放 TUN
-        unsafe { libc::close(self.tun_fd); }
-        info!("🛑 Rust 引擎主循环退出完毕，原始 FD 已释放");
+        unsafe { 
+            libc::close(self.tun_fd); 
+            libc::close(fd_read);
+            libc::close(fd_write);
+        }
+        info!("🛑 Rust 引擎主循环退出完毕，所有 FD 已彻底释放");
     }
 }

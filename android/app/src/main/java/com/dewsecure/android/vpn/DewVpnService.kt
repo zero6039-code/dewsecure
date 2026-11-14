@@ -60,7 +60,6 @@ class DewVpnService : VpnService() {
         }
 
         if (isRunning) return START_STICKY
-        if (isRunning) return START_STICKY
         startForeground(NOTIFICATION_ID, buildNotification())
 
         val cm = getSystemService(ConnectivityManager::class.java)
@@ -194,24 +193,22 @@ class DewVpnService : VpnService() {
         isRunningState = false
         TcpDnsRelay.removeAll()
 
-        // 1. 绝对优先：先关闭 TUN 接口，让 Android 系统立刻恢复原生路由！
-        try {
-            vpnInterface?.close()
-            Log.i(TAG, "✅ [强杀] TUN 接口已关闭，系统路由应已恢复")
-        } catch (e: Exception) {
-            Log.e(TAG, "关闭 TUN 失败", e)
-        }
-        vpnInterface = null
-
-        // 2. 通知 Rust 异步退出（绝不阻塞主线程）
+        // 1. 通知 Rust 立即释放资源（异步）
         Thread {
             try {
                 EngineBridge.stopMitmVpnEngine()
                 Log.i(TAG, "✅ [强杀] Rust 引擎退出信号已发送")
-            } catch (e: Throwable) {
-                Log.e(TAG, "通知 Rust 失败", e)
-            }
+            } catch (e: Throwable) {}
         }.start()
+
+        // 2. 强行关闭 Kotlin 侧的 TUN 接口
+        try {
+            vpnInterface?.close()
+            Log.i(TAG, "✅ [强杀] TUN 接口已关闭")
+        } catch (e: Exception) {
+            Log.e(TAG, "关闭 TUN 失败", e)
+        }
+        vpnInterface = null
 
         // 3. 清理网络回调
         networkCallback?.let {
