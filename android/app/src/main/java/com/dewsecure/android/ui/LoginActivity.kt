@@ -9,6 +9,7 @@ import android.util.Log
 import android.view.View
 import android.widget.*
 import androidx.appcompat.app.AppCompatActivity
+import androidx.browser.customtabs.CustomTabsIntent
 import androidx.lifecycle.lifecycleScope
 import com.dewsecure.android.R
 import com.dewsecure.android.policy.AuthManager
@@ -138,8 +139,15 @@ class LoginActivity : AppCompatActivity() {
             val redirectUrl = "$DEEP_LINK_SCHEME://$DEEP_LINK_HOST"
             val authUrl = "$supabaseUrl/auth/v1/authorize?provider=google&redirect_to=$redirectUrl&response_type=token"
 
-            val intent = Intent(Intent.ACTION_VIEW, Uri.parse(authUrl))
-            startActivity(intent)
+            // 🌟 核心修复：使用 CustomTabsIntent 打开，自带半屏和自动关闭
+            try {
+                val customTabsIntent = CustomTabsIntent.Builder().build()
+                customTabsIntent.launchUrl(this, Uri.parse(authUrl))
+            } catch (e: Exception) {
+                // 如果设备不支持 Custom Tabs，则降级为普通浏览器
+                val intent = Intent(Intent.ACTION_VIEW, Uri.parse(authUrl))
+                startActivity(intent)
+            }
             Toast.makeText(this, "正在跳转 Google 登录...", Toast.LENGTH_SHORT).show()
         }
     }
