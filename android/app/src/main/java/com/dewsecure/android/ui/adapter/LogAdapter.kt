@@ -14,6 +14,25 @@ import java.util.Locale
 class LogAdapter(
     private val logs: List<EngineBridge.BlockLog>
 ) : RecyclerView.Adapter<LogAdapter.ViewHolder>() {
+    private fun formatLogTime(timestamp: Long): String {
+        if (timestamp <= 0) return ""
+        val now = java.util.Calendar.getInstance()
+        val logCal = java.util.Calendar.getInstance().apply { timeInMillis = timestamp }
+        
+        val isToday = now.get(java.util.Calendar.YEAR) == logCal.get(java.util.Calendar.YEAR) &&
+                      now.get(java.util.Calendar.DAY_OF_YEAR) == logCal.get(java.util.Calendar.DAY_OF_YEAR)
+                      
+        val yesterday = java.util.Calendar.getInstance().apply { add(java.util.Calendar.DAY_OF_YEAR, -1) }
+        val isYesterday = yesterday.get(java.util.Calendar.YEAR) == logCal.get(java.util.Calendar.YEAR) &&
+                          yesterday.get(java.util.Calendar.DAY_OF_YEAR) == logCal.get(java.util.Calendar.DAY_OF_YEAR)
+
+        return when {
+            isToday -> java.text.SimpleDateFormat("HH:mm:ss", java.util.Locale.getDefault()).format(java.util.Date(timestamp))
+            isYesterday -> "昨天 " + java.text.SimpleDateFormat("HH:mm", java.util.Locale.getDefault()).format(java.util.Date(timestamp))
+            else -> java.text.SimpleDateFormat("yyyy/MM/dd HH:mm", java.util.Locale.getDefault()).format(java.util.Date(timestamp))
+        }
+    }
+
 
     class ViewHolder(view: View) : RecyclerView.ViewHolder(view) {
         val domain: TextView = view.findViewById(R.id.tv_domain)
@@ -30,8 +49,7 @@ class LogAdapter(
         val log = logs[position]
         holder.domain.text = log.domain
 
-        val sdf = SimpleDateFormat("HH:mm:ss", Locale.getDefault())
-        holder.time.text = "${sdf.format(Date(log.timestamp))} · ${log.blockType}"
+        holder.time.text = "${formatLogTime(log.timestamp)} · ${log.blockType}"
         // 直接显示次数，不再加 x
         holder.count.text = log.count.toString()
     }

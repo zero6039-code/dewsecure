@@ -200,15 +200,28 @@ class HomeFragment : Fragment() {
         }
     }
 
+    
+    private fun formatNumber(num: Int): String {
+        return String.format(java.util.Locale.US, "%,d", num)
+    }
+
     private fun updateStats() {
-        val jsonStr = EngineBridge.getStatsJson()
+        val jsonStr = EngineBridge.getStatsJson(requireContext())
         try {
             val json = JSONObject(jsonStr)
             val today = json.optInt("today_blocked", 0)
             val total = json.optInt("total_blocked", 0)
             
-            tvBlockedToday.text = today.toString()
-            tvBlockedTotal.text = total.toString()
+            // 只有当数字变化时才更新 UI，防止 TextView 频繁闪烁
+            val todayStr = formatNumber(today)
+            val totalStr = formatNumber(total)
+
+            if (tvBlockedToday.text.toString() != todayStr) {
+                tvBlockedToday.text = todayStr
+            }
+            if (tvBlockedTotal.text.toString() != totalStr) {
+                tvBlockedTotal.text = totalStr
+            }
 
             val trafficTodayMb = today * 0.08
             val trafficTotalMb = total * 0.08

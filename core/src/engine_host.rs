@@ -1,7 +1,7 @@
 use crate::{EngineConfig, EngineError};
 use serde::Deserialize;
 use std::collections::HashSet;
-use std::sync::{Arc, Mutex, RwLock};
+use std::sync::{Arc, Mutex, RwLock, OnceLock};
 use std::sync::atomic::{AtomicBool, Ordering};
 use crate::model::adblock::AdblockModel;
 use crate::stats::StatsEngine;
@@ -54,6 +54,8 @@ struct DnrCondition {
     request_domains: Vec<String>,
 }
 
+pub static GLOBAL_HOST_ENGINE: OnceLock<Arc<HostEngine>> = OnceLock::new();
+
 #[derive(uniffi::Object)]
 pub struct HostEngine {
     _config: EngineConfig,
@@ -77,6 +79,27 @@ const DOMAIN_RULES_JSON: &str = include_str!("../../shared/adblock/domain-rules.
 const AI_CONFIDENCE_THRESHOLD: f32 = 0.8;
 const ED25519_PUBLIC_KEY_HEX: &str = "a21b4c875ab246b58adc225ddf66a054cfa7b79ed2093fcc2f97598fd1197631";
 
+impl Clone for HostEngine {
+    fn clone(&self) -> Self {
+        Self {
+            _config: self._config.clone(),
+            safe: Arc::clone(&self.safe),
+            block_ad: Arc::clone(&self.block_ad),
+            block_tracker: Arc::clone(&self.block_tracker),
+            mining: Arc::clone(&self.mining),
+            user_allow: Arc::clone(&self.user_allow),
+            adblock_model: Arc::clone(&self.adblock_model),
+            stats_engine: Arc::clone(&self.stats_engine),
+            enable_dnr: Arc::clone(&self.enable_dnr),
+            enable_tracker: Arc::clone(&self.enable_tracker),
+            enable_social: Arc::clone(&self.enable_social),
+            enable_threat_intel: Arc::clone(&self.enable_threat_intel),
+            enable_ai_phishing: Arc::clone(&self.enable_ai_phishing),
+            enable_ai_zero_day: Arc::clone(&self.enable_ai_zero_day),
+        }
+    }
+}
+
 fn normalize_domain(s: &str) -> String {
     s.trim().trim_end_matches('.').to_lowercase()
 }
@@ -99,7 +122,7 @@ impl HostEngine {
         let mut all_tracker = parsed.block.tracker;
         all_tracker.extend(parsed_domain_rules.tracker);
 
-        Ok(Self {
+        let engine = Self {
             _config: config,
             safe: Arc::new(RwLock::new(normalize_set(parsed.safe))),
             block_ad: Arc::new(RwLock::new(normalize_set(all_ad))),
@@ -114,7 +137,10 @@ impl HostEngine {
             enable_threat_intel: Arc::new(AtomicBool::new(true)),
             enable_ai_phishing: Arc::new(AtomicBool::new(true)),
             enable_ai_zero_day: Arc::new(AtomicBool::new(true)),
-        })
+        };
+        
+        let _ = GLOBAL_HOST_ENGINE.set(Arc::new(engine.clone()));
+        Ok(engine)
     }
 
     pub fn verify_and_update_rules(&self, payload: String, expected_sha256: String, msg_str: String, sig_b64: String) -> Result<(), EngineError> {
