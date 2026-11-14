@@ -32,8 +32,18 @@ class AccountActivity : AppCompatActivity() {
         btnBack.setOnClickListener { finish() }
 
         btnManage.setOnClickListener {
-            // 跳转到你的官网控制台
-            val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://dewsecure.com/dashboard"))
+            val token = prefs.getString("access_token", null)
+            val refreshToken = prefs.getString("refresh_token", null)
+            
+            // 🌟 核心修复：拼接 Token 和 source 标识，实现免密直通
+            val url = if (token != null && refreshToken != null) {
+                // 🌟 方案A核心：将参数放在 # 后面
+                "https://dewsecure.com/dashboard#token=$token&refresh=$refreshToken&source=app"
+            } else {
+                "https://dewsecure.com/dashboard"
+            }
+            
+            val intent = Intent(Intent.ACTION_VIEW, Uri.parse(url))
             startActivity(intent)
         }
 
