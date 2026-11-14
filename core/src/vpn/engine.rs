@@ -12,7 +12,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use crate::VpnProtector;
 
-use super::device::{VpnDevice, spawn_tun_reader, TCP_443_CONNECTIONS};
+use super::device::{VpnDevice, spawn_tun_reader, TCP_443_CONNECTIONS, TunWriter};
 use super::utils::extract_sni;
 
 static MITM_ENABLED: AtomicBool = AtomicBool::new(false);
@@ -25,10 +25,13 @@ pub fn set_mitm_enabled(enabled: bool) {
 
 pub fn stop_vpn_engine() {
     RUNNING.store(false, Ordering::Relaxed);
-    info!("🛑 收到停止信号，Rust 引擎正在异步退出，不再阻塞调用方...");
+    info!("🛑 收到停止信号，Rust 引擎正在异步退出...");
 }
 
-struct PendingWrite { data: Vec<u8>, offset: usize }
+struct PendingWrite { 
+    data: Vec<u8>, 
+    offset: usize 
+}
 
 struct ConnectionState {
     tx_to_proxy: mpsc::Sender<Bytes>,
@@ -44,29 +47,40 @@ pub struct VpnEngine {
 }
 
 impl VpnEngine {
-    pub fn new(tun_fd: RawFd, protector: Arc<dyn VpnProtector>) -> Self { Self { tun_fd, protector } }
+    pub fn new(tun_fd: RawFd, protector: Arc<dyn VpnProtector>) -> Self { 
+        Self { tun_fd, protector } 
+    }
 
     pub async fn start(self) {
-        info!("🚀 初始化 Rust 侧 smoltcp 透明代理 (专家防死锁版)...");
+        info!("🚀 初始化 Rust 侧 smoltcp 透明代理 (完全接管版)...");
         RUNNING.store(true, Ordering::Relaxed);
 
         let proxy = crate::mitm_proxy::MitmProxy::new();
-        if let Err(e) = proxy.start().await { error!("❌ hudsucker 启动失败: {}", e); return; }
+        if let Err(e) = proxy.start().await { 
+            error!("❌ hudsucker 启动失败: {}", e); 
+            return; 
+        }
 
         let rx_queue = Arc::new(Mutex::new(VecDeque::new()));
-        // 专家修改：不再 dup，直接使用同一个 FD，由 lib.rs 统一强制关闭
-        let fd_read = self.tun_fd;
-        let fd_write = self.tun_fd;
+        let fd_read = unsafe { libc::dup(self.tun_fd) };
+        let fd_write = self.tun_fd; // 写端直接用原始 fd，由 TunWriter 接管
         spawn_tun_reader(fd_read, rx_queue.clone(), Arc::new(AtomicBool::new(true)));
 
-        let mut device = VpnDevice { rx_queue, tx_fd: fd_write };
-        let config = Config::new(smoltcp::wire::HardwareAddress::Ip);
+        let tx_writer = TunWriter::new(fd_write);
+        let mut device = VpnDevice { rx_queue, tx_writer, protector: self.protector.clone() };
+
+        let mut config = Config::new(smoltcp::wire::HardwareAddress::Ip);
         let mut iface = Interface::new(config, &mut device, Instant::now());
+        
         iface.set_any_ip(true);
         iface.update_ip_addrs(|ip_addrs| {
             let _ = ip_addrs.push(IpCidr::new(IpAddress::Ipv4(Ipv4Address::new(10, 0, 0, 1)), 24));
             let _ = ip_addrs.push(IpCidr::new(IpAddress::Ipv6(Ipv6Address::new(0xfd00, 0, 0, 0, 0, 0, 0, 2)), 120));
         });
+        
+        // 专家核心配置：默认路由网关指向自身
+        iface.routes_mut().add_default_ipv4_route(Ipv4Address::new(10, 0, 0, 1)).unwrap();
+        iface.routes_mut().add_default_ipv6_route(Ipv6Address::new(0xfd00, 0, 0, 0, 0, 0, 0, 2)).unwrap();
 
         let mut sockets = SocketSet::new(vec![]);
         let mut connections: HashMap<SocketHandle, ConnectionState> = HashMap::new();
@@ -81,8 +95,6 @@ impl VpnEngine {
                 break;
             }
             
-            iface.poll(Instant::now(), &mut device, &mut sockets);
-
             // 1. 补充 Listener
             let mut listen_count = 0;
             for (_, socket) in sockets.iter() {
@@ -90,26 +102,33 @@ impl VpnEngine {
                     if s.state() == tcp::State::Listen { listen_count += 1; }
                 }
             }
-            // 专家修复：降低缓存大小，且只固定补充到 64 个，防止爆内存
+            
             for _ in listen_count..64 {
-                let tcp_rx = tcp::SocketBuffer::new(vec![0u8; 16384]);
-                let tcp_tx = tcp::SocketBuffer::new(vec![0u8; 16384]);
+                let tcp_rx = tcp::SocketBuffer::new(vec![0u8; 65535]);
+                let tcp_tx = tcp::SocketBuffer::new(vec![0u8; 65535]);
                 let tcp_socket = tcp::Socket::new(tcp_rx, tcp_tx);
                 let handle = sockets.add(tcp_socket);
                 let socket = sockets.get_mut::<tcp::Socket>(handle);
-                let _ = socket.listen(IpListenEndpoint { addr: None, port: 443 });
+                if let Err(e) = socket.listen(IpListenEndpoint { addr: None, port: 443 }) {
+                    error!("监听 443 端口失败: {:?}", e);
+                }
             }
 
-            // 2. 诊断日志
-            if last_report.elapsed().as_secs() >= 5 {
-                info!("📊 [诊断] TCP_SYN={}, TCP_443_CONN={}, Listen={}", 
-                    super::device::TCP_SYN_PACKETS.load(Ordering::Relaxed), 
-                    TCP_443_CONNECTIONS.load(Ordering::Relaxed),
-                    listen_count);
+            // 2. 核心 poll
+            iface.poll(Instant::now(), &mut device, &mut sockets);
+
+            // 3. 实时状态打印（每 2 秒）
+            if last_report.elapsed().as_secs() >= 2 {
+                for (h, s) in sockets.iter() {
+                    if let smoltcp::socket::Socket::Tcp(socket) = s {
+                        if socket.state() != tcp::State::Listen && socket.state() != tcp::State::Closed {
+                            info!("🔍 Socket {:?} 状态: {:?}", h, socket.state());
+                        }
+                    }
+                }
                 last_report = std::time::Instant::now();
             }
 
-            // 3. 处理已激活的 Socket
             let active_handles: Vec<SocketHandle> = sockets.iter()
                 .filter_map(|(h, _)| { if sockets.get::<tcp::Socket>(h).is_active() { Some(h) } else { None } })
                 .collect();
@@ -117,26 +136,6 @@ impl VpnEngine {
             let mut sent_any = false;
 
             for handle in active_handles {
-                // 先做不可变查询
-                // 专家修复：安全借用，避免直接 get() 导致 panic
-                let is_closed = sockets.iter()
-                    .find(|(h, _)| *h == handle)
-                    .map(|(_, s)| {
-                        if let smoltcp::socket::Socket::Tcp(tcp) = s {
-                            tcp.state() == tcp::State::Closed
-                        } else {
-                            false
-                        }
-                    })
-                    .unwrap_or(true);
-
-                // 如果是 Closed 且 connections 里有，删掉
-                if is_closed {
-                    if connections.remove(&handle).is_some() {
-                        info!("♻️ 释放残留的 Handle");
-                    }
-                }
-
                 let tcp_socket = sockets.get_mut::<tcp::Socket>(handle);
                 if tcp_socket.state() == tcp::State::Listen { continue; }
 
@@ -150,12 +149,14 @@ impl VpnEngine {
                     info!("🔗 捕获 TCP 连接: {}", ip_str);
                     TCP_443_CONNECTIONS.fetch_add(1, Ordering::Relaxed);
 
-                    // 专家修改：改为 unbounded_channel，永远不背压
                     let (tx_to_proxy, mut rx_from_tun) = mpsc::channel::<Bytes>(128);
                     let (tx_to_tun, rx_from_proxy) = mpsc::unbounded_channel::<Bytes>();
-                    
-                    connections.insert(handle, ConnectionState {
-                        tx_to_proxy, rx_from_proxy, pending_writes: VecDeque::new(), pending_rx: VecDeque::new(), is_aborted: false,
+                    connections.insert(handle, ConnectionState { 
+                        tx_to_proxy, 
+                        rx_from_proxy, 
+                        pending_writes: VecDeque::new(), 
+                        pending_rx: VecDeque::new(), 
+                        is_aborted: false 
                     });
 
                     let tx_to_tun_clone = tx_to_tun.clone();
@@ -185,12 +186,15 @@ impl VpnEngine {
                             let socket = if is_ipv6 { tokio::net::TcpSocket::new_v6().unwrap() } else { tokio::net::TcpSocket::new_v4().unwrap() };
                             let fd = socket.as_raw_fd();
                             
-                            if !prot_clone.protect_fd(fd) { error!("❌ protect fd 失败"); return; }
+                            if !prot_clone.protect_fd(fd) { error!("protect fd 失败"); return; }
 
-                            let mut real_conn = match tokio::time::timeout(std::time::Duration::from_secs(3), socket.connect(target_addr.parse().unwrap())).await {
+                            let mut real_conn = match tokio::time::timeout(
+                                std::time::Duration::from_secs(5), 
+                                socket.connect(target_addr.parse().unwrap())
+                            ).await {
                                 Ok(Ok(c)) => c,
-                                Ok(Err(e)) => { error!("❌ 直连 {} 失败: {}", target_addr, e); return; },
-                                Err(_) => { error!("❌ 直连 {} 超时，放弃连接", target_addr); return; }
+                                Ok(Err(e)) => { error!("直连失败: {}", e); return; },
+                                Err(_) => { error!("直连超时，放弃连接"); return; }
                             };
 
                             if !first_chunk.is_empty() {
@@ -212,7 +216,6 @@ impl VpnEngine {
                                     match pr.read(&mut buf).await {
                                         Ok(0) => break,
                                         Ok(n) => {
-                                            // 使用 unbounded send，不会阻塞，永远不会死锁
                                             if tx_to_tun_clone.send(Bytes::copy_from_slice(&buf[..n])).is_err() { break; }
                                         }
                                         Err(_) => break,
@@ -230,21 +233,15 @@ impl VpnEngine {
 
                 let conn_state = connections.get_mut(&handle).unwrap();
 
-                // 4. 专家修改：一次性抽干 rx_from_proxy，绝不只取一条
                 while let Ok(data) = conn_state.rx_from_proxy.try_recv() {
                     conn_state.pending_writes.push_back(PendingWrite { data: data.to_vec(), offset: 0 });
                 }
 
-                if conn_state.rx_from_proxy.is_closed() {
-                    // 专家修复：发送 FIN 优雅关闭，不要直接 abort
-                    if !conn_state.is_aborted {
-                        info!("⚠️ 检测到代理端断开，执行优雅关闭");
-                        tcp_socket.close();
-                        conn_state.is_aborted = true;
-                    }
+                if conn_state.rx_from_proxy.is_closed() && !conn_state.is_aborted {
+                    tcp_socket.close();
+                    conn_state.is_aborted = true;
                 }
 
-                // 5. 发送数据到 TUN
                 let mut total_sent = 0;
                 while total_sent < 16384 {
                     if let Some(front) = conn_state.pending_writes.front_mut() {
@@ -261,7 +258,6 @@ impl VpnEngine {
                     } else { break; }
                 }
 
-                // 6. 读取 TUN 数据发给代理
                 let mut total_recv = 0;
                 let mut buf = vec![0u8; 16384];
                 while tcp_socket.can_recv() && total_recv < 16384 {
@@ -278,7 +274,6 @@ impl VpnEngine {
                 }
             }
 
-            // 7. 专家修改：等 Socket 进入 Closed 并排空发送队列后，才 remove
             let mut to_remove = Vec::new();
             for (handle, socket) in sockets.iter() {
                 if let smoltcp::socket::Socket::Tcp(s) = socket {
@@ -301,6 +296,8 @@ impl VpnEngine {
             }
         }
 
-        info!("🛑 Rust 引擎主循环退出完毕");
+        // 强制关闭所有 fd，让系统彻底释放 TUN
+        unsafe { libc::close(self.tun_fd); }
+        info!("🛑 Rust 引擎主循环退出完毕，原始 FD 已释放");
     }
 }

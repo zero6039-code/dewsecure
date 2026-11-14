@@ -5,8 +5,10 @@ use smoltcp::time::Instant;
 use std::sync::{Arc, Mutex};
 use std::collections::VecDeque;
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
-use log::info;
+use log::{info, error};
 use super::dns::{extract_udp_dns, build_udp_dns_response};
+use crate::VpnProtector;
+use tokio::sync::mpsc;
 
 pub static TUN_RX_PACKETS: AtomicUsize = AtomicUsize::new(0);
 pub static DEVICE_RX_PACKETS: AtomicUsize = AtomicUsize::new(0);
@@ -19,9 +21,55 @@ impl AsRawFd for TunFd {
     fn as_raw_fd(&self) -> RawFd { self.0 }
 }
 
+#[derive(Clone)]
+pub struct TunWriter {
+    tx: mpsc::UnboundedSender<Vec<u8>>,
+}
+
+impl TunWriter {
+    pub fn new(fd: RawFd) -> Self {
+        let (tx, mut rx) = mpsc::unbounded_channel::<Vec<u8>>();
+        
+        // 启动独立的阻塞写线程，彻底释放 smoltcp 主循环
+        std::thread::spawn(move || {
+            while let Some(buf) = rx.blocking_recv() {
+                let mut written = 0;
+                let buf_len = buf.len();
+                while written < buf_len {
+                    let n = unsafe {
+                        libc::write(
+                            fd,
+                            buf[written..].as_ptr() as *const libc::c_void,
+                            buf_len - written,
+                        )
+                    };
+                    if n < 0 {
+                        let err = std::io::Error::last_os_error();
+                        if err.raw_os_error() != Some(libc::EAGAIN) {
+                            error!("❌ TUN 独立写入线程失败: {}", err);
+                            break;
+                        }
+                        std::thread::sleep(std::time::Duration::from_millis(1));
+                        continue;
+                    }
+                    written += n as usize;
+                }
+            }
+            unsafe { libc::close(fd); }
+        });
+        
+        Self { tx }
+    }
+
+    pub fn write(&self, buf: Vec<u8>) {
+        let _ = self.tx.send(buf);
+    }
+}
+
 pub struct VpnDevice {
     pub rx_queue: Arc<Mutex<VecDeque<Vec<u8>>>>,
-    pub tx_fd: RawFd,
+    pub tx_writer: TunWriter,
+    pub protector: Arc<dyn VpnProtector>,
 }
 
 pub struct VpnRxToken(Vec<u8>);
@@ -32,20 +80,12 @@ impl RxToken for VpnRxToken {
     }
 }
 
-pub struct VpnTxToken(RawFd);
+pub struct VpnTxToken(TunWriter);
 impl TxToken for VpnTxToken {
     fn consume<R, F>(self, len: usize, f: F) -> R where F: FnOnce(&mut [u8]) -> R {
         let mut buf = vec![0u8; len];
         let result = f(&mut buf);
-        let written = unsafe { libc::write(self.0, buf.as_ptr() as *const libc::c_void, buf.len()) };
-        if written < 0 {
-            let err = std::io::Error::last_os_error();
-            if err.raw_os_error() != Some(libc::EAGAIN) {
-                log::error!("❌ TUN 写入失败: {}", err);
-            }
-        } else if (written as usize) < len {
-            log::error!("❌ TUN 部分写入: {}/{}", written, len);
-        }
+        self.0.write(buf); // 瞬间推入无界通道，主循环立刻返回
         result
     }
 }
@@ -60,17 +100,36 @@ impl Device for VpnDevice {
         while let Some(pkt) = queue.pop_front() {
             if let Some((dns_payload, is_ipv6)) = extract_udp_dns(&pkt) {
                 DNS_INTERCEPTED.fetch_add(1, Ordering::Relaxed);
-                let tx = self.tx_fd;
+                let writer = self.tx_writer.clone();
                 let req = pkt.clone();
+                let prot_clone = self.protector.clone();
+                
+                // 专家修复：仅代理 IPv4 的 DNS，彻底放弃 IPv6 DNS，防止死锁
+                if is_ipv6 {
+                    log::info!("📡 收到 IPv6 DNS 请求，直接放行/丢弃，防止卡死");
+                    continue;
+                }
+
                 tokio::spawn(async move {
-                    let bind_addr = if is_ipv6 { "[::]:0" } else { "0.0.0.0:0" };
-                    let socket = tokio::net::UdpSocket::bind(bind_addr).await.unwrap();
-                    let dns_server = if is_ipv6 { "[2400:3200::1]:53" } else { "223.5.5.5:53" };
+                    let socket = tokio::net::UdpSocket::bind("0.0.0.0:0").await.unwrap();
+                    let fd = socket.as_raw_fd();
+                    if !prot_clone.protect_fd(fd) {
+                        log::error!("❌ DNS 上游 Socket protect 失败");
+                        return;
+                    }
+
+                    let dns_server = "223.5.5.5:53";
                     let _ = socket.send_to(&dns_payload, dns_server).await;
                     let mut resp_buf = [0u8; 1500];
-                    if let Ok((n, _)) = socket.recv_from(&mut resp_buf).await {
-                        let resp_pkt = build_udp_dns_response(&req, &resp_buf[..n], is_ipv6);
-                        unsafe { libc::write(tx, resp_pkt.as_ptr() as *const libc::c_void, resp_pkt.len()); }
+                    
+                    // 加超时，防止 DNS 线程永久卡死
+                    let recv_res = tokio::time::timeout(std::time::Duration::from_secs(2), socket.recv_from(&mut resp_buf)).await;
+                    if let Ok(Ok((n, _))) = recv_res {
+                        let resp_pkt = build_udp_dns_response(&req, &resp_buf[..n], false);
+                        log::info!("📤 返回 IPv4 DNS 响应包，长度: {} 字节", resp_pkt.len());
+                        writer.write(resp_pkt);
+                    } else {
+                        log::error!("⏰ DNS 上游查询超时");
                     }
                 });
                 continue;
@@ -84,14 +143,21 @@ impl Device for VpnDevice {
             let ihl = (pkt[0] & 0x0F) as usize * 4;
             if pkt[9] == 6 && pkt.len() >= ihl + 14 {
                 let flags = pkt[ihl + 13];
-                if (flags & 0x02) != 0 { TCP_SYN_PACKETS.fetch_add(1, Ordering::Relaxed); }
+                if (flags & 0x02) != 0 { 
+                    TCP_SYN_PACKETS.fetch_add(1, Ordering::Relaxed); 
+                    // 专家要求的 TUN 层 SYN 日志
+                    let src_port = u16::from_be_bytes([pkt[ihl], pkt[ihl + 1]]);
+                    let dst_port = u16::from_be_bytes([pkt[ihl + 2], pkt[ihl + 3]]);
+                    let dst_ip = format!("{}.{}.{}.{}", pkt[16], pkt[17], pkt[18], pkt[19]);
+                    log::info!("📥 [TUN RX] 收到 SYN: 目标 {}:{}", dst_ip, dst_port);
+                }
             }
         }
-        Some((VpnRxToken(pkt), VpnTxToken(self.tx_fd)))
+        Some((VpnRxToken(pkt), VpnTxToken(self.tx_writer.clone())))
     }
 
     fn transmit(&mut self, _timestamp: Instant) -> Option<Self::TxToken<'_>> {
-        Some(VpnTxToken(self.tx_fd))
+        Some(VpnTxToken(self.tx_writer.clone()))
     }
 
     fn capabilities(&self) -> DeviceCapabilities {
