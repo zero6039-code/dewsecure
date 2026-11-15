@@ -1,10 +1,16 @@
 <?xml version="1.0" encoding="utf-8"?>
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
-    android:layout_height="match_parent"
-    android:orientation="vertical"
-    android:paddingTop="16dp"
-    android:paddingHorizontal="16dp">
+    android:layout_height="match_parent">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:layout_gravity="center"
+        android:orientation="vertical"
+        android:paddingTop="16dp"
+        android:paddingHorizontal="@dimen/settings_horizontal_padding"
+        android:maxWidth="700dp">
 
     <!-- 核心卡片容器：左内边距改为 8dp，让整体靠左 -->
     <LinearLayout
@@ -124,7 +130,7 @@
 
                 <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal" android:layout_marginBottom="16dp" android:gravity="center_vertical">
                     <EditText android:id="@+id/et_whitelist_domain" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:hint="example.com" android:textColor="@color/text_primary" android:textColorHint="@color/text_secondary" android:inputType="textUri" android:backgroundTint="@color/text_secondary" android:layout_marginEnd="8dp"/>
-                    <Button android:id="@+id/btn_add_whitelist" android:layout_width="wrap_content" android:layout_height="40dp" android:text="ADD" android:textSize="12sp" android:minWidth="0dp" android:paddingHorizontal="16dp" android:insetTop="0dp" android:insetBottom="0dp"/>
+                    <Button android:id="@+id/btn_add_whitelist" android:layout_width="wrap_content" android:layout_height="40dp" android:text="ADD" android:textSize="12sp" android:minWidth="0dp" android:paddingHorizontal="@dimen/settings_horizontal_padding" android:insetTop="0dp" android:insetBottom="0dp"/>
                 </LinearLayout>
 
                 <View android:layout_width="match_parent" android:layout_height="1dp" android:background="#1AFFFFFF" android:layout_marginBottom="8dp"/>
@@ -143,5 +149,6 @@
                     android:id="@+id/switch_share_threat" android:layout_width="wrap_content" android:layout_height="wrap_content" />
             </LinearLayout>
         </FrameLayout>
+         </LinearLayout>
     </LinearLayout>
-</LinearLayout>
+</FrameLayout>
