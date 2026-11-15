@@ -24,6 +24,8 @@ import java.util.concurrent.Executors
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.withContext
 
 class DewVpnService : VpnService() {
 
@@ -38,6 +40,7 @@ class DewVpnService : VpnService() {
     private val executor = Executors.newSingleThreadExecutor()
     private var upstreamDns = "223.5.5.5"
     private var networkCallback: ConnectivityManager.NetworkCallback? = null
+    private var heartbeatJob: kotlinx.coroutines.Job? = null
 
     companion object {
         private const val TAG = "DewVpnService"
@@ -251,6 +254,9 @@ class DewVpnService : VpnService() {
             val res = EngineBridge.startMitmVpnEngine(fdInt, filesDir, ProtectorImpl())
             Log.i(TAG, "Rust VPN Engine 启动状态: $res")
 
+            // 🌟 启动后台心跳，防止试用期到期后继续白嫖
+            startHeartbeatCheck()
+
             // Kotlin 侧不再读取 TUN 数据，保持后台线程存活即可
             while (isRunning) {
                 Thread.sleep(1000)
@@ -270,6 +276,8 @@ class DewVpnService : VpnService() {
         Log.i(TAG, "🛑 [强杀] 收到停止命令，立即销毁 VPN")
         isRunning = false
         isRunningState = false
+        heartbeatJob?.cancel()
+        heartbeatJob = null
         TcpDnsRelay.removeAll()
 
         // 1. 通知 Rust 立即释放资源（异步）
@@ -336,4 +344,32 @@ class DewVpnService : VpnService() {
             getSystemService(NotificationManager::class.java).createNotificationChannel(channel)
         }
     }
-}
+
+    private fun startHeartbeatCheck() {
+        if (heartbeatJob != null) return
+        heartbeatJob = CoroutineScope(Dispatchers.IO).launch {
+            while (isRunning) {
+                delay(6 * 60 * 60 * 1000L) // 每 6 小时检测一次
+                if (!isRunning) break
+                
+                Log.i(TAG, "💓 后台心跳校验：正在拉取最新权限...")
+                val result = AuthManager.fetchUserProfile(this@DewVpnService)
+                
+                if (result.isSuccess) {
+                    val tier = result.getOrNull()
+                    if (tier == "free") {
+                        Log.w(TAG, "⏰ 试用期已到期或权限被降级，强制断开 VPN！")
+                        withContext(Dispatchers.Main) {
+                            stopVpn()
+                        }
+                    } else {
+                        Log.i(TAG, "💓 心跳校验通过，当前权限: $tier")
+                    }
+                } else {
+                    Log.e(TAG, "💓 心跳校验失败（网络问题），维持现状")
+                }
+            }
+        }
+    }
+} // 类的结尾大括号
+
