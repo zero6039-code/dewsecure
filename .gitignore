@@ -93,3 +93,5 @@ releases/
 # 迁移期备份（观察期后清理）
 *.bak_*
 *.udl.disabled
+keystore.properties
+*.jks

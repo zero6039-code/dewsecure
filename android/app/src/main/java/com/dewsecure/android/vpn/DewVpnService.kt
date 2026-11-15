@@ -1,8 +1,5 @@
 package com.dewsecure.android.vpn
 
-import android.app.Notification
-import android.app.NotificationChannel
-import android.app.NotificationManager
 import android.app.PendingIntent
 import android.content.Intent
 import android.net.ConnectivityManager
@@ -40,9 +37,9 @@ class DewVpnService : VpnService() {
     private val executor = Executors.newSingleThreadExecutor()
     private var upstreamDns = "223.5.5.5"
     private var networkCallback: ConnectivityManager.NetworkCallback? = null
-    private var heartbeatJob: kotlinx.coroutines.Job? = null
     private var isStopping = false
     private val restartHandler = android.os.Handler(android.os.Looper.getMainLooper())
+    private val heartbeatManager by lazy { VpnHeartbeatManager(this) { stopVpn() } }
 
     companion object {
         private const val TAG = "DewVpnService"
@@ -54,7 +51,7 @@ class DewVpnService : VpnService() {
 
     override fun onCreate() {
         super.onCreate()
-        createNotificationChannel()
+        VpnNotificationManager.createChannel(this)
     }
 
         override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -122,7 +119,7 @@ class DewVpnService : VpnService() {
         }
 
         if (isRunning) return START_STICKY
-        startForeground(NOTIFICATION_ID, buildNotification())
+        startForeground(VpnNotificationManager.NOTIFICATION_ID, VpnNotificationManager.buildNotification(this))
 
         val cm = getSystemService(ConnectivityManager::class.java)
         if (cm != null) {
@@ -267,8 +264,8 @@ class DewVpnService : VpnService() {
             val res = EngineBridge.startMitmVpnEngine(fdInt, filesDir, ProtectorImpl())
             Log.i(TAG, "Rust VPN Engine 启动状态: $res")
 
-            // 🌟 启动后台心跳，防止试用期到期后继续白嫖
-            startHeartbeatCheck()
+            // 🌟 启动后台心跳
+            heartbeatManager.start()
 
             // Kotlin 侧不再读取 TUN 数据，保持后台线程存活即可
             while (isRunning) {
@@ -294,8 +291,7 @@ class DewVpnService : VpnService() {
         restartHandler.removeCallbacksAndMessages(null)
         isRunning = false
         isRunningState = false
-        heartbeatJob?.cancel()
-        heartbeatJob = null
+        heartbeatManager.stop()
         TcpDnsRelay.removeAll()
 
         // 1. 通知 Rust 立即释放资源（异步）
@@ -341,54 +337,5 @@ class DewVpnService : VpnService() {
         super.onDestroy()
     }
 
-    private fun buildNotification(): Notification {
-        val pendingIntent = PendingIntent.getActivity(
-            this, 0, Intent(this, MainActivity::class.java),
-            PendingIntent.FLAG_IMMUTABLE
-        )
-        return Notification.Builder(this, CHANNEL_ID)
-            .setContentTitle("DewSecure 运行中")
-            .setContentText("正在拦截广告与追踪域名")
-            .setSmallIcon(android.R.drawable.ic_lock_lock)
-            .setContentIntent(pendingIntent)
-            .build()
-    }
-
-    private fun createNotificationChannel() {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            val channel = NotificationChannel(
-                CHANNEL_ID, "DewSecure VPN",
-                NotificationManager.IMPORTANCE_LOW
-            )
-            getSystemService(NotificationManager::class.java).createNotificationChannel(channel)
-        }
-    }
-
-    private fun startHeartbeatCheck() {
-        if (heartbeatJob != null) return
-        heartbeatJob = CoroutineScope(Dispatchers.IO).launch {
-            while (isRunning) {
-                delay(6 * 60 * 60 * 1000L) // 每 6 小时检测一次
-                if (!isRunning) break
-                
-                Log.i(TAG, "💓 后台心跳校验：正在拉取最新权限...")
-                val result = AuthManager.fetchUserProfile(this@DewVpnService)
-                
-                if (result.isSuccess) {
-                    val tier = result.getOrNull()
-                    if (tier == "free") {
-                        Log.w(TAG, "⏰ 试用期已到期或权限被降级，强制断开 VPN！")
-                        withContext(Dispatchers.Main) {
-                            stopVpn()
-                        }
-                    } else {
-                        Log.i(TAG, "💓 心跳校验通过，当前权限: $tier")
-                    }
-                } else {
-                    Log.e(TAG, "💓 心跳校验失败（网络问题），维持现状")
-                }
-            }
-        }
-    }
 } // 类的结尾大括号
 
