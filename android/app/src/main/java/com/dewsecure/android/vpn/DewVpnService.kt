@@ -41,6 +41,8 @@ class DewVpnService : VpnService() {
     private var upstreamDns = "223.5.5.5"
     private var networkCallback: ConnectivityManager.NetworkCallback? = null
     private var heartbeatJob: kotlinx.coroutines.Job? = null
+    private var isStopping = false
+    private val restartHandler = android.os.Handler(android.os.Looper.getMainLooper())
 
     companion object {
         private const val TAG = "DewVpnService"
@@ -64,15 +66,21 @@ class DewVpnService : VpnService() {
             stopVpn() // 清理旧 TUN 并彻底关闭当前服务
             
             // 延迟 2 秒，等系统彻底回收资源后再重新拉起
-            android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
-                val restartIntent = Intent(this@DewVpnService, DewVpnService::class.java)
-                androidx.core.content.ContextCompat.startForegroundService(this@DewVpnService, restartIntent)
+            restartHandler.postDelayed({
+                if (!isStopping) {
+                    isStopping = false // 重置状态准备新一次启动
+                    val restartIntent = Intent(this@DewVpnService, DewVpnService::class.java)
+                    androidx.core.content.ContextCompat.startForegroundService(this@DewVpnService, restartIntent)
+                }
             }, 2000)
             return START_NOT_STICKY
         }
 
         if (intent?.action == "ACTION_STOP_VPN" || intent?.action == "STOP_DEW_SECURE_VPN") {
             Log.i(TAG, "🛑 收到关闭指令，开始销毁 VPN")
+            // 🌟 强行重置所有标记，清空未执行的延迟任务，确保 TUN 必死无疑
+            isStopping = false 
+            restartHandler.removeCallbacksAndMessages(null)
             stopVpn()
             return START_NOT_STICKY
         }
@@ -104,8 +112,13 @@ class DewVpnService : VpnService() {
                     .remove("cloud_rules_version")
                     .apply()
             }
-            // 如果 VPN 已经在运行，直接返回，千万不要重新 establish() 建 TUN
-            if (isRunning) return START_STICKY
+            // 🌟 核心修复：如果收到刷新指令时 VPN 根本没在运行，更新完模型直接滚蛋，绝不建立 TUN！
+            if (!isRunning) {
+                Log.i(TAG, "🛑 VPN 未运行，处理完权限更新后自动销毁服务")
+                stopSelf()
+                return START_NOT_STICKY
+            }
+            return START_STICKY
         }
 
         if (isRunning) return START_STICKY
@@ -273,7 +286,12 @@ class DewVpnService : VpnService() {
 
 
     private fun stopVpn() {
+        if (isStopping) return
+        isStopping = true
         Log.i(TAG, "🛑 [强杀] 收到停止命令，立即销毁 VPN")
+        
+        // 核心：清除所有未执行的延迟任务（包括幽灵重启）
+        restartHandler.removeCallbacksAndMessages(null)
         isRunning = false
         isRunningState = false
         heartbeatJob?.cancel()
@@ -319,6 +337,7 @@ class DewVpnService : VpnService() {
 
     override fun onDestroy() {
         stopVpn()
+        isStopping = false // 重置
         super.onDestroy()
     }
 
