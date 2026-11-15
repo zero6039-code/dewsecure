@@ -11,6 +11,7 @@ import androidx.lifecycle.lifecycleScope
 import com.dewsecure.android.R
 import com.dewsecure.android.policy.AuthManager
 import com.dewsecure.android.policy.EngineBridge
+import com.dewsecure.android.policy.DeviceManager
 import com.dewsecure.android.vpn.DewVpnService
 import com.google.android.material.bottomnavigation.BottomNavigationView
 import kotlinx.coroutines.launch
@@ -122,6 +123,14 @@ class MainActivity : AppCompatActivity() {
         val isPro = tier in listOf("pro", "premium", "trial", "trial-pro", "family", "sub-family", "family_sub")
         
         if (token != null && isPro) {
+            // 🌟 触发设备静默上报
+            lifecycleScope.launch(kotlinx.coroutines.Dispatchers.IO) {
+                val result = DeviceManager.reportDeviceSilently(this@MainActivity, token)
+                if (result == "LIMIT_EXCEEDED") {
+                    Log.e("MainActivity", "设备超限，请前往 Web 端解绑！")
+                }
+            }
+
             val appPrefs = getSharedPreferences("app_settings", MODE_PRIVATE)
             val localVersion = appPrefs.getString("cloud_model_version", "")
             if (localVersion.isNullOrEmpty()) {
