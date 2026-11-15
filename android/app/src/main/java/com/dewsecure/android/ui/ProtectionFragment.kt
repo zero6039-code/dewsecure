@@ -16,7 +16,7 @@ import androidx.lifecycle.lifecycleScope
 import com.dewsecure.android.R
 import com.dewsecure.android.policy.AuthManager
 import com.dewsecure.android.policy.EngineBridge
-import com.dewsecure.android.policy.RootChecker
+import com.dewsecure.android.policy.RootUtils
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -93,16 +93,62 @@ class ProtectionFragment : Fragment() {
                 if (v.isEnabled) {
                     
 
-                    if (feature.id == "mitm_root" && isChecked) {
-                        if (!RootChecker.isDeviceRooted()) {
-                            (v as SwitchCompat).isChecked = false
-                            showCustomToast("检测到您的系统非root，无法开启此功能")
+                    if (feature.id == "mitm_root") {
+                        val prefs = requireContext().getSharedPreferences("app_settings", Context.MODE_PRIVATE)
+                        if (isChecked) {
+                            // 1. 检查 Root
+                            if (!RootUtils.isRooted(requireContext())) {
+                                (v as SwitchCompat).isChecked = false
+                                showCustomToast("检测到您的系统未 Root，无法开启此功能")
+                                return@setOnClickListener
+                            }
+                            
+                            // 2. 检查 Pro 权限
+                            val tier = requireContext().getSharedPreferences("user_session", Context.MODE_PRIVATE).getString("tier", "free") ?: "free"
+                            val isPro = tier in listOf("pro", "premium", "trial", "trial-pro", "family", "sub-family", "family_sub")
+                            if (!isPro) {
+                                (v as SwitchCompat).isChecked = false
+                                showCustomToast("此功能为 PRO 专属，请先升级账号")
+                                return@setOnClickListener
+                            }
+
+                            // 3. 风险提示与证书安装
+                            val dialog = android.app.AlertDialog.Builder(requireContext())
+                                .setTitle("⚠️ 高风险操作")
+                                .setMessage("开启后，DewSecure 将接管并解密所有 App 的 HTTPS 流量。\n\n请确保您的设备已 Root，且信任了 DewSecure 的 CA 证书。")
+                                .setPositiveButton("继续并安装证书") { _, _ ->
+                                    (v as SwitchCompat).isChecked = true
+                                    prefs.edit().putBoolean("pref_mitm_full_app", true).apply()
+                                    
+                                    // 获取 Rust 引擎生成的证书并弹窗
+                                    try {
+                                        val certPem = com.dewsecure.core.getMitmCaCert()
+                                        showCertInstallDialog(certPem)
+                                    } catch (e: Exception) {
+                                        showCustomToast("获取内置证书失败")
+                                    }
+                                    
+                                    // 触发 VPN 重启
+                                    triggerVpnRestart()
+                                }
+                                .setNegativeButton("取消") { _, _ ->
+                                    (v as SwitchCompat).isChecked = false
+                                }
+                                .setCancelable(false)
+                                .show()
+                            
                             return@setOnClickListener
+
                         } else {
-                            showCustomToast("系统已 Root，正在准备证书模块...")
+                            // 关闭 MitM
+                            prefs.edit().putBoolean("pref_mitm_full_app", false).apply()
+                            triggerVpnRestart()
+                            showCustomToast("MitM 已关闭，正在恢复普通拦截...")
+                            return@setOnClickListener
                         }
                     }
 
+                    // 其他普通开关的逻辑
                     val prefs = requireContext().getSharedPreferences("app_settings", Context.MODE_PRIVATE)
                     prefs.edit().putBoolean("pref_v5_${feature.id}", isChecked).apply()
                     updateEngineState(feature.id, isChecked)
@@ -148,7 +194,7 @@ class ProtectionFragment : Fragment() {
                 "mitm_root" -> false
                 else -> true
             }
-            val prefKey = "pref_v5_${feature.id}"
+            val prefKey = if (feature.id == "mitm_root") "pref_mitm_full_app" else "pref_v5_${feature.id}"
             val savedState = prefs.getBoolean(prefKey, defaultVal)
 
             if (!feature.isPro || isUserPro) {
@@ -184,7 +230,16 @@ class ProtectionFragment : Fragment() {
             "intel" -> EngineBridge.setEnableThreatIntel(isChecked)
             "ai_phishing" -> EngineBridge.setEnableAiPhishing(isChecked)
             "ai_zero_day" -> EngineBridge.setEnableAiZeroDay(isChecked)
-            "mitm_root" -> EngineBridge.setMitmEnabled(isChecked)
+            // "mitm_root" 状态由 VPN 重启接管，无需在此时调用
+        }
+    }
+
+    private fun triggerVpnRestart() {
+        if (com.dewsecure.android.vpn.DewVpnService.isRunningState) {
+            val intent = android.content.Intent(requireContext(), com.dewsecure.android.vpn.DewVpnService::class.java).apply {
+                action = "ACTION_RESTART_VPN"
+            }
+            requireContext().startService(intent)
         }
     }
 
