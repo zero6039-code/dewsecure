@@ -15,6 +15,9 @@ import java.net.URL
 
 object AuthManager {
     private const val TAG = "AuthManager"
+    
+    // 🌟 新增：记录上次拉取权限的时间戳（防抖专用）
+    private var lastProfileFetchTime = 0L
     const val SUPABASE_URL = "https://uvbaioqqjqseapcancvi.supabase.co"
     const val SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InV2YmFpb3FxanFzZWFwY2FuY3ZpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTI0OTIyODAsImV4cCI6MjEwODA2ODI4MH0.jhEaDHBvp702biC7oqM1oV5YO7rzhvmXFH5pTRF17kQ"
 
@@ -242,8 +245,16 @@ object AuthManager {
     }
 
     // 拉取用户 Profile 权限并保存到本地（带详细日志排查）
-    suspend fun fetchUserProfile(context: Context): Result<String> = withContext(Dispatchers.IO) {
+    suspend fun fetchUserProfile(context: Context, force: Boolean = false): Result<String> = withContext(Dispatchers.IO) {
         try {
+            // 🌟 核心防抖逻辑：如果距离上次拉取不足 30 秒，且不是强制刷新，直接返回本地缓存
+            if (!force && System.currentTimeMillis() - lastProfileFetchTime < 30_000) {
+                val cachedTier = context.getSharedPreferences("user_session", Context.MODE_PRIVATE).getString("tier", "free") ?: "free"
+                Log.d(TAG, "⏳ 30秒内已拉取过权限，跳过网络请求，使用缓存 Tier: $cachedTier")
+                return@withContext Result.success(cachedTier)
+            }
+            lastProfileFetchTime = System.currentTimeMillis()
+
             val prefs = context.getSharedPreferences("user_session", Context.MODE_PRIVATE)
             val token = prefs.getString("access_token", null) ?: return@withContext Result.failure(Exception("No token"))
             val userId = getUserIdFromToken(token) ?: return@withContext Result.failure(Exception("Invalid JWT"))
