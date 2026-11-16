@@ -1,0 +1,126 @@
+<resources>
+    <string name="app_name">DewSecure</string>
+    <string name="lang_switched">Langue changée en %1$s</string>
+    <string name="nav_home">Accueil</string>
+    <string name="nav_protection">Protéger</string>
+    <string name="nav_settings">Paramètres</string>
+    <string name="home_title">Ultra Purification · Confidentialité Débloquée</string>
+    <string name="home_main_title">Ultra Purification · Confidentialité Débloquée</string>
+    <string name="home_status_unprotected">NON PROTÉGÉ</string>
+    <string name="home_status_protected">PROTÉGÉ</string>
+    <string name="home_protected_on">Protection au niveau du système ACTIVÉE</string>
+    
+    <string name="home_blocked_today">"Bloqués Aujourd'hui"</string>
+    <string name="home_blocked_total">Total Bloqués</string>
+    <string name="home_saved_today">"Économisés Aujourd'hui"</string>
+    <string name="home_saved_total">Total Économisés</string>
+    <string name="home_btn_start">ACTIVER LE VPN</string>
+    <string name="home_btn_stop">DÉSACTIVER LE VPN</string>
+    <string name="home_help_improve">Aidez-nous à nous améliorer</string>
+    <string name="home_missed_ad">PUB MANQUÉE</string>
+    <string name="home_false_block">FAUX BLOCAGE</string>
+    <string name="home_login">Connexion / Tableau de bord</string>
+    <string name="home_login_btn">Connexion / Tableau de bord</string>
+    <string name="home_dashboard_btn">Tableau de bord</string>
+    
+    <string name="report_false_title">Rapport de Faux Positif</string>
+    <string name="report_false_hint">"Veuillez saisir le domaine qui a été bloqué par erreur.\n(Examen manuel requis)"</string>
+    <string name="report_missed_title">Rapport de Pub Manquée</string>
+    <string name="report_missed_hint">Veuillez saisir le domaine où les publicités ne sont toujours pas bloquées.</string>
+    <string name="report_submitting">Envoi en cours...</string>
+    <string name="report_success">Commentaires envoyés. Merci !</string>
+    <string name="report_fail">"Échec de l'envoi, veuillez vérifier le réseau."</string>
+    <string name="report_empty_domain">Le domaine ne peut pas être vide</string>
+    <string name="dialog_cancel">Annuler</string>
+    <string name="dialog_submit">Envoyer</string>
+    
+    <string name="protect_dnr_title">Blocage des Règles DNR</string>
+    <string name="protect_dnr_desc">Bloque les domaines malveillants connus, les publicités et les traqueurs</string>
+    <string name="protect_tracker_title">Bloquer les Traqueurs</string>
+    <string name="protect_tracker_desc">Intercepte les scripts de suivi et les pixels</string>
+    <string name="protect_social_title">Bloquer les Traqueurs Sociaux</string>
+    <string name="protect_social_desc">Bloque les boutons de suivi des médias sociaux</string>
+    <string name="protect_intel_title">Renseignement sur les Menaces en Temps Réel</string>
+    <string name="protect_intel_desc">"Bloque dynamiquement les domaines d'hameçonnage émergents"</string>
+    <string name="protect_ai_phishing_title">"Détection d'Hameçonnage par IA"</string>
+    <string name="protect_ai_phishing_desc">"Identifie les domaines malveillants et d'hameçonnage (Pro)"</string>
+    <string name="protect_ai_zero_day_title">Détection Intelligente en Temps Réel par IA</string>
+    <string name="protect_ai_zero_day_desc">Blocage dynamique par IA pour les publicités zero-day (Pro)</string>
+    <string name="protect_mitm_title">Filtrage MitM Toutes les Apps</string>
+    <string name="protect_mitm_desc">"Filtrage HTTPS pour toutes les applications (Installez le certificat et choisissez 'VPN et application', Nécessite Root)"</string>
+    
+    <string name="mitm_dialog_title">⚠️ Action à Haut Risque</string>
+    <string name="mitm_dialog_msg">"DewSecure va intercepter et déchiffrer tout le trafic HTTPS des applications.\n\nVeuillez vous assurer que votre appareil est rooté et que l'AC DewSecure est approuvé."</string>
+    <string name="mitm_dialog_btn_continue">Continuer et Installer le Cert.</string>
+    <string name="mitm_dialog_btn_cancel">Annuler</string>
+    <string name="mitm_cert_fail">"Échec de l'obtention du certificat intégré"</string>
+    <string name="mitm_cert_install_title">Installer le Certificat de Filtrage HTTPS</string>
+    <string name="mitm_cert_install_msg">"Pour intercepter les publicités HTTPS dans le navigateur, le système doit faire confiance au certificat local DewSecure.\n\nAprès avoir cliqué sur 'Installation en un clic', veuillez suivre les invites du système.\n\n⚠️ Important : Sur l'écran 'Utilisation des informations d'identification', assurez-vous de sélectionner [VPN et application], sinon le filtrage HTTPS ne fonctionnera pas !"</string>
+    <string name="mitm_cert_btn_install">Installation en un clic</string>
+    <string name="mitm_cert_install_fail">"Échec du déclenchement de l'installation : %1$s"</string>
+    <string name="common_cancel">Annuler</string>
+    
+    <string name="settings_routing_title">"Routage des Apps\n(Permettre le contournement)"</string>
+    <string name="settings_routing_desc">Les applications activées contourneront le VPN, adapté aux applications bancaires ou bureautiques.</string>
+    <string name="settings_search_app">"Rechercher un nom d'app..."</string>
+    <string name="settings_whitelist_title">Liste Blanche</string>
+    <string name="settings_whitelist_hint">Connexion requise pour la synchronisation cloud</string>
+    <string name="settings_whitelist_add">AJOUTER</string>
+    <string name="settings_whitelist_empty">Aucun domaine en liste blanche</string>
+    <string name="settings_whitelist_login_req">CONNEXION</string>
+    <string name="settings_privacy_title">Partager le Renseignement sur les Menaces (Anonyme)</string>
+    <string name="settings_privacy_desc">"Autoriser l'envoi de domaines suspects dépersonnalisés au cloud pour améliorer le blocage. Désactivé par défaut."</string>
+    
+    <string name="account_header_title">Tableau de Bord</string>
+    <string name="account_logged_in">Connecté</string>
+    <string name="account_sub_title">Abonnement</string>
+    <string name="account_expiry">Expiration</string>
+    <string name="account_group">Groupe</string>
+    <string name="account_manage_btn">Gérer le Compte</string>
+    <string name="account_logout_btn">Déconnexion</string>
+    
+    <string name="login_title">Connexion / Inscription</string>
+    <string name="login_subtitle">Compte créé automatiquement lors de la première utilisation</string>
+    <string name="login_email_hint">votre@email.com</string>
+    <string name="login_btn_send_otp">ENVOYER OTP</string>
+    <string name="login_btn_verify">VÉRIFIER</string>
+    <string name="login_or">ou</string>
+    <string name="login_google_btn">G</string>
+    <string name="login_otp_sent_to">Code envoyé à %1$s</string>
+    <string name="login_btn_back">Retour</string>
+    <string name="login_resend">Renvoyer le Code</string>
+    <string name="login_resend_in">%1$ds pour renvoyer</string>
+    
+    <string name="log_today_title">"Journaux Bloqués Aujourd'hui (%1$d total)"</string>
+    <string name="log_total_title">"Journaux Bloqués Totaux (%1$d total)"</string>
+    <string name="log_empty">Aucun enregistrement de blocage pour le moment</string>
+    <string name="log_empty_hint">Essayez de naviguer sur des sites Web chargés en publicités</string>
+    
+    <string name="notif_title">"DewSecure en Cours d'Exécution"</string>
+    <string name="notif_text">Blocage des publicités et des traqueurs</string>
+    <string name="notif_action_stop">Désactiver le VPN</string>
+    
+    <string name="toast_routing_saved_restart">Configuration enregistrée, redémarrage du VPN...</string>
+    <string name="toast_routing_saved">Configuration enregistrée, prendra effet au prochain démarrage du VPN</string>
+    <string name="toast_whitelist_sync">Synchronisé avec le cloud</string>
+    <string name="toast_privacy_on">Activé : Signalement anonyme des nouvelles menaces</string>
+    <string name="toast_privacy_off">Désactivé : Signalement anonyme arrêté</string>
+    <string name="toast_root_req">"Appareil non rooté, impossible d'activer cette fonctionnalité"</string>
+    <string name="toast_mitm_pro">Cette fonctionnalité est exclusive à PRO</string>
+    <string name="toast_mitm_on">MitM activé, redémarrage du VPN...</string>
+    <string name="toast_mitm_off">MitM désactivé</string>
+    <string name="toast_google_success">Connexion Google réussie !</string>
+    <string name="toast_google_fail_token">Échec de la connexion : jeton manquant</string>
+    <string name="toast_google_redirect">Redirection vers Google...</string>
+    <string name="toast_login_success">Connexion réussie !</string>
+    <string name="toast_getting_cred">"Obtention des informations d'identification de sécurité..."</string>
+    <string name="toast_cred_parse_fail">"Échec de l'analyse des informations d'identification, veuillez réessayer"</string>
+    <string name="toast_session_expired">Session expirée, retour à la connexion...</string>
+    <string name="toast_logout_cleaning">Nettoyage et déconnexion...</string>
+    <string name="toast_logout_success">"Déconnecté, modèle d'IA effacé"</string>
+    <string name="error_unknown_user">Utilisateur Inconnu</string>
+    <string name="error_invalid_email">Veuillez saisir une adresse e-mail valide</string>
+    <string name="error_send_fail">"Échec de l'envoi de l'OTP"</string>
+    <string name="error_invalid_otp">Veuillez saisir le code à 8 chiffres</string>
+    <string name="error_verify_fail">Échec de la vérification</string>
+</resources>
