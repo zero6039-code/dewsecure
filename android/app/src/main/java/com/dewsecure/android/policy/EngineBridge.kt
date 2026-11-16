@@ -7,6 +7,7 @@ import com.dewsecure.core.startMitmVpnEngine as rustStartMitmVpnEngine
 import org.json.JSONObject
 
 object EngineBridge {
+    
     private const val TAG = "EngineBridge"
     private var engine: HostEngine? = null
 

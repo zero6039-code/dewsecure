@@ -11,6 +11,8 @@ pub mod model;
 pub mod model_loader;
 pub mod rule_matcher;
 pub mod engine_host;
+pub mod rules;
+pub mod matcher;
 pub mod mitm_proxy;
 pub mod vpn;
 pub mod policy_rules;
