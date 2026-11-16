@@ -66,7 +66,7 @@ impl VpnEngine {
 
         let rx_queue = Arc::new(Mutex::new(VecDeque::new()));
         let fd_read = unsafe { libc::dup(self.tun_fd) };
-        let fd_write = self.tun_fd; // 写端直接用原始 fd，由 TunWriter 接管
+        let fd_write = unsafe { libc::dup(self.tun_fd) }; // A-04: 独立 dup 写端，由 TunWriter 独占所有权
         spawn_tun_reader(fd_read, rx_queue.clone(), Arc::new(AtomicBool::new(true)));
 
         let tx_writer = TunWriter::new(fd_write);
@@ -321,11 +321,9 @@ impl VpnEngine {
             }
         }
 
-        // 强制关闭所有 fd，让系统彻底释放 TUN
-        unsafe { 
-            libc::close(self.tun_fd); 
+        // A-04: 只关闭 Rust 侧 dup 出来的 fd_read；原始 fd 由 Kotlin 持有，fd_write 由 TunWriter 线程负责关闭
+        unsafe {
             libc::close(fd_read);
-            libc::close(fd_write);
         }
         info!("🛑 Rust 引擎主循环退出完毕，所有 FD 已彻底释放");
     }
