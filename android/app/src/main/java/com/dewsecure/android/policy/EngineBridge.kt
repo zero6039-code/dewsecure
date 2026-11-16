@@ -203,8 +203,13 @@ object EngineBridge {
     }
 
     fun verifyAndUpdateRules(payload: String, expectedSha256: String, msgStr: String, sigB64: String): Boolean {
+        // [A-01] 引擎未初始化时不得伪成功
+        val eng = engine ?: run {
+            Log.e(TAG, "引擎未初始化，拒绝规则更新")
+            return false
+        }
         return try {
-            engine?.verifyAndUpdateRules(payload, expectedSha256, msgStr, sigB64)
+            eng.verifyAndUpdateRules(payload, expectedSha256, msgStr, sigB64)
             Log.i(TAG, "✅ 云端规则热更新成功")
             true
         } catch (e: Throwable) {
