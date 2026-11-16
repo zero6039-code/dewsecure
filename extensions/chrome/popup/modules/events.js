@@ -95,14 +95,12 @@ export function bindMiscEvents() {
         }
     });
 
-    // Setting 独立页面跳转
-    document.getElementById('settingsLink')?.addEventListener('click', (e) => {
-        e.preventDefault();
+    // 底部导航栏切换事件
+    document.getElementById('navHome')?.addEventListener('click', () => switchView('mainView'));
+    document.getElementById('navProtect')?.addEventListener('click', () => switchView('protectView'));
+    document.getElementById('navSettings')?.addEventListener('click', () => {
         switchView('settingsView');
         renderWhitelist(); // 🚀 每次打开设置页时，强制拉取一次云端数据！
-    });
-    document.getElementById('backFromSettings')?.addEventListener('click', () => {
-        switchView('mainView');
     });
 
     // 侧边栏图标切换

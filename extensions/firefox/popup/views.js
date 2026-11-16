@@ -19,7 +19,6 @@ export function updateSiteSwitch(isProtected, host) {
 
     if (!switchEl || !statusEl) return;
 
-    // 🌟 修复：恢复被 disableSiteSwitch 禁用掉的 UI 状态
     switchEl.disabled = false;
     const wrap = document.getElementById('siteSwitchWrap');
     if (wrap) {
@@ -69,10 +68,18 @@ export function disableSiteSwitch() {
 }
 
 export function switchView(viewId) {
-    document.getElementById('mainView').classList.add('hidden');
-    document.getElementById('logsView').classList.add('hidden');
-    document.getElementById('statsView').classList.add('hidden');
-    document.getElementById('settingsView')?.classList.add('hidden');
+    const allViews = ['mainView', 'logsView', 'statsView', 'settingsView', 'protectView'];
+    allViews.forEach(id => document.getElementById(id)?.classList.add('hidden'));
+
     const target = document.getElementById(viewId);
     if (target) target.classList.remove('hidden');
+
+    document.querySelectorAll('.bottom-nav-item').forEach(el => el.classList.remove('active'));
+    
+    let activeNavId = '';
+    if (['mainView', 'logsView', 'statsView'].includes(viewId)) activeNavId = 'navHome';
+    else if (viewId === 'protectView') activeNavId = 'navProtect';
+    else if (viewId === 'settingsView') activeNavId = 'navSettings';
+
+    if (activeNavId) document.getElementById(activeNavId)?.classList.add('active');
 }

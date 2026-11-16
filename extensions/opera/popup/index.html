@@ -7,6 +7,8 @@
     <link rel="stylesheet" href="popup.css">
 </head>
 <body>
+
+    <!-- 1. 首页 (Home View) -->
     <div class="app" id="mainView">
         <header class="header glass">
             <a class="logo" href="https://dewsecure.com" target="_blank" style="text-decoration: none;">
@@ -36,9 +38,7 @@
                 <input type="checkbox" id="siteSwitch" checked>
                 <span class="switch-track">
                     <span class="switch-thumb">
-                        <svg class="icon-check" viewBox="0 0 24 24" fill="none">
-                            <path d="M5 13l4 4L19 7" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"/>
-                        </svg>
+                        <svg class="icon-check" viewBox="0 0 24 24" fill="none"><path d="M5 13l4 4L19 7" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
                         <span class="icon-ring"></span>
                     </span>
                 </span>
@@ -46,19 +46,12 @@
         </div>
 
         <div class="action-row">
-            <button class="btn-login glass" id="loginBtn">
-                <span class="btn-login-text" id="loginBtnText">登录</span>
-            </button>
-            <button class="btn-upgrade glass" id="upgradeBtn">
-                <span class="btn-upgrade-icon">⭐</span>
-                <span class="btn-upgrade-text">升级到高级版</span>
-            </button>
+            <button class="btn-login glass" id="loginBtn"><span class="btn-login-text" id="loginBtnText">登录</span></button>
+            <button class="btn-upgrade glass" id="upgradeBtn"><span class="btn-upgrade-icon">⭐</span><span class="btn-upgrade-text">升级到高级版</span></button>
         </div>
 
         <div class="trial-banner glass hidden" id="trialBanner">
-            <div class="trial-content" id="trialContent" data-i18n="trial_banner">
-                首次登录/注册，即可激活 30 天高级版。
-            </div>
+            <div class="trial-content" id="trialContent" data-i18n="trial_banner">首次登录/注册，即可激活 30 天高级版。</div>
             <button class="trial-close" id="trialClose">✕</button>
         </div>
 
@@ -71,132 +64,64 @@
             <div class="feedback-hint" id="feedbackHint" data-i18n="feedback_hint">您的反馈将匿名上传，帮助 AI 持续进化</div>
         </div>
 
-        
-          <div class="features-card glass">
-              <div class="features-header" data-i18n="feat_header">PROTECTION FEATURES</div>
-
-              <!-- ================= 免费功能 ================= -->
-              <div class="feature-row">
-                  <div class="feature-text">
-                      <div class="feature-name" data-i18n="feat_dnr">DNR Rule Blocking</div>
-                      <div class="feature-desc" data-i18n="feat_dnr_desc">Blocks known malicious domains, ads & trackers</div>
-                  </div>
-                  <label class="ios-switch mini">
-                      <input type="checkbox" id="dnrToggle" checked>
-                      <span class="switch-track"><span class="switch-thumb"><svg class="icon-check" viewBox="0 0 24 24" fill="none"><path d="M5 13l4 4L19 7" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"/></svg><span class="icon-ring"></span></span></span>
-                  </label>
-              </div>
-
-              <div class="feature-row">
-                  <div class="feature-text">
-                      <div class="feature-name" data-i18n="feat_clickjack">Anti-Clickjacking</div>
-                      <div class="feature-desc" data-i18n="feat_clickjack_desc">Prevents malicious transparent overlays</div>
-                  </div>
-                  <label class="ios-switch mini">
-                      <input type="checkbox" id="antiHijackToggle" checked>
-                      <span class="switch-track"><span class="switch-thumb"><svg class="icon-check" viewBox="0 0 24 24" fill="none"><path d="M5 13l4 4L19 7" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"/></svg><span class="icon-ring"></span></span></span>
-                  </label>
-              </div>
-
-              <div class="feature-row">
-                  <div class="feature-text">
-                      <div class="feature-name" data-i18n="feat_tracker">Block Trackers</div>
-                      <div class="feature-desc" data-i18n="feat_tracker_desc">Intercepts tracking scripts and pixels</div>
-                  </div>
-                  <label class="ios-switch mini">
-                      <input type="checkbox" id="trackerToggle" checked>
-                      <span class="switch-track"><span class="switch-thumb"><svg class="icon-check" viewBox="0 0 24 24" fill="none"><path d="M5 13l4 4L19 7" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"/></svg><span class="icon-ring"></span></span></span>
-                  </label>
-              </div>
-
-              <div class="feature-row">
-                  <div class="feature-text">
-                      <div class="feature-name" data-i18n="feat_antiblock">Anti-Adblock Protection</div>
-                      <div class="feature-desc" data-i18n="feat_antiblock_desc">Prevents sites from detecting the blocker</div>
-                  </div>
-                  <label class="ios-switch mini">
-                      <input type="checkbox" id="antiBypassToggle" checked>
-                      <span class="switch-track"><span class="switch-thumb"><svg class="icon-check" viewBox="0 0 24 24" fill="none"><path d="M5 13l4 4L19 7" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"/></svg><span class="icon-ring"></span></span></span>
-                  </label>
-              </div>
-
-              <div class="feature-row">
-                  <div class="feature-text">
-                      <div class="feature-name" data-i18n="feat_cookie">Hide Cookie Banners</div>
-                      <div class="feature-desc" data-i18n="feat_cookie_desc">Hides cookie consent banners</div>
-                  </div>
-                  <label class="ios-switch mini">
-                      <input type="checkbox" id="cookieToggle" checked>
-                      <span class="switch-track"><span class="switch-thumb"><svg class="icon-check" viewBox="0 0 24 24" fill="none"><path d="M5 13l4 4L19 7" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"/></svg><span class="icon-ring"></span></span></span>
-                  </label>
-              </div>
-
-              <div class="feature-row">
-                  <div class="feature-text">
-                      <div class="feature-name" data-i18n="feat_placeholder">Hide Ad Placeholders</div>
-                      <div class="feature-desc" data-i18n="feat_placeholder_desc">Removes blank spaces left by ads</div>
-                  </div>
-                  <label class="ios-switch mini">
-                      <input type="checkbox" id="placeholderToggle" checked>
-                      <span class="switch-track"><span class="switch-thumb"><svg class="icon-check" viewBox="0 0 24 24" fill="none"><path d="M5 13l4 4L19 7" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"/></svg><span class="icon-ring"></span></span></span>
-                  </label>
-              </div>
-
-              <div class="feature-row">
-                  <div class="feature-text">
-                      <div class="feature-name" data-i18n="feat_social">Block Social Trackers</div>
-                      <div class="feature-desc" data-i18n="feat_social_desc">Blocks social media tracking buttons</div>
-                  </div>
-                  <label class="ios-switch mini">
-                      <input type="checkbox" id="socialToggle" checked>
-                      <span class="switch-track"><span class="switch-thumb"><svg class="icon-check" viewBox="0 0 24 24" fill="none"><path d="M5 13l4 4L19 7" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"/></svg><span class="icon-ring"></span></span></span>
-                  </label>
-              </div>
-
-              <!-- ================= 无字分割线 ================= -->
-              <div style="margin: 20px 16px 10px 16px; height: 1px; background: rgba(0,0,0,0.06);"></div>
-
-              <!-- ================= PRO 功能 ================= -->
-              <div class="feature-row" data-requires="premium">
-                  <div class="feature-text">
-                      <div class="feature-name"><span data-i18n="feat_phishing">AI Phishing Detection</span> <span class="pro-badge">PRO</span></div>
-                      <div class="feature-desc" data-i18n="feat_phishing_desc">Identifies malicious and phishing pages</div>
-                  </div>
-                  <label class="ios-switch mini">
-                      <input type="checkbox" id="phishingToggle" checked>
-                      <span class="switch-track"><span class="switch-thumb"><svg class="icon-check" viewBox="0 0 24 24" fill="none"><path d="M5 13l4 4L19 7" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"/></svg><span class="icon-ring"></span></span></span>
-                  </label>
-              </div>
-
-              <div class="feature-row" data-requires="premium">
-                  <div class="feature-text">
-                      <div class="feature-name"><span data-i18n="feat_intel">Real-time Threat Intel</span> <span class="pro-badge">PRO</span></div>
-                      <div class="feature-desc" data-i18n="feat_intel_desc">Dynamically blocks newly emerged phishing domains (PRO)</div>
-                  </div>
-                  <label class="ios-switch mini">
-                      <input type="checkbox" id="intelToggle" checked>
-                      <span class="switch-track"><span class="switch-thumb"><svg class="icon-check" viewBox="0 0 24 24" fill="none"><path d="M5 13l4 4L19 7" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"/></svg><span class="icon-ring"></span></span></span>
-                  </label>
-              </div>
-
-              <div class="feature-row" data-requires="premium">
-                  <div class="feature-text">
-                      <div class="feature-name"><span data-i18n="feat_ai">AI Smart Real-time Detection</span> <span class="pro-badge">PRO</span></div>
-                      <div class="feature-desc" data-i18n="feat_ai_desc">Identifies uncaptured ads and threats</div>
-                  </div>
-                  <label class="ios-switch mini">
-                      <input type="checkbox" id="aiFourToggle" checked>
-                      <span class="switch-track"><span class="switch-thumb"><svg class="icon-check" viewBox="0 0 24 24" fill="none"><path d="M5 13l4 4L19 7" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"/></svg><span class="icon-ring"></span></span></span>
-                  </label>
-              </div>
-          </div>
-
-          <footer class="footer">
-            <span id="appVersion"></span>
-            <a href="#" id="settingsLink" data-i18n="footer_settings">设置</a>
-        </footer>
+        <div class="glass" style="padding: 16px; display: flex; align-items: center; justify-content: space-between;">
+            <div>
+                <div style="font-size: 13px; font-weight: 700; color: #1c1c1e;">流量节省</div>
+                <div style="font-size: 11px; color: #6b7280; margin-top: 2px;">拦截广告为您节省的带宽</div>
+            </div>
+            <div style="font-size: 18px; font-weight: 700; color: #10b981;">0 KB</div>
+        </div>
     </div>
 
+    <!-- 2. 保护页面 (Protect View) -->
+    <div class="app hidden" id="protectView">
+        <div class="features-card glass">
+            <div class="features-header" data-i18n="feat_header">PROTECTION FEATURES</div>
+            <div class="feature-row">
+                <div class="feature-text"><div class="feature-name" data-i18n="feat_dnr">DNR Rule Blocking</div><div class="feature-desc" data-i18n="feat_dnr_desc">Blocks known malicious domains, ads & trackers</div></div>
+                <label class="ios-switch mini"><input type="checkbox" id="dnrToggle" checked><span class="switch-track"><span class="switch-thumb"><svg class="icon-check" viewBox="0 0 24 24" fill="none"><path d="M5 13l4 4L19 7" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"/></svg><span class="icon-ring"></span></span></span></label>
+            </div>
+            <div class="feature-row">
+                <div class="feature-text"><div class="feature-name" data-i18n="feat_clickjack">Anti-Clickjacking</div><div class="feature-desc" data-i18n="feat_clickjack_desc">Prevents malicious transparent overlays</div></div>
+                <label class="ios-switch mini"><input type="checkbox" id="antiHijackToggle" checked><span class="switch-track"><span class="switch-thumb"><svg class="icon-check" viewBox="0 0 24 24" fill="none"><path d="M5 13l4 4L19 7" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"/></svg><span class="icon-ring"></span></span></span></label>
+            </div>
+            <div class="feature-row">
+                <div class="feature-text"><div class="feature-name" data-i18n="feat_tracker">Block Trackers</div><div class="feature-desc" data-i18n="feat_tracker_desc">Intercepts tracking scripts and pixels</div></div>
+                <label class="ios-switch mini"><input type="checkbox" id="trackerToggle" checked><span class="switch-track"><span class="switch-thumb"><svg class="icon-check" viewBox="0 0 24 24" fill="none"><path d="M5 13l4 4L19 7" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"/></svg><span class="icon-ring"></span></span></span></label>
+            </div>
+            <div class="feature-row">
+                <div class="feature-text"><div class="feature-name" data-i18n="feat_antiblock">Anti-Adblock Protection</div><div class="feature-desc" data-i18n="feat_antiblock_desc">Prevents sites from detecting the blocker</div></div>
+                <label class="ios-switch mini"><input type="checkbox" id="antiBypassToggle" checked><span class="switch-track"><span class="switch-thumb"><svg class="icon-check" viewBox="0 0 24 24" fill="none"><path d="M5 13l4 4L19 7" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"/></svg><span class="icon-ring"></span></span></span></label>
+            </div>
+            <div class="feature-row">
+                <div class="feature-text"><div class="feature-name" data-i18n="feat_cookie">Hide Cookie Banners</div><div class="feature-desc" data-i18n="feat_cookie_desc">Hides cookie consent banners</div></div>
+                <label class="ios-switch mini"><input type="checkbox" id="cookieToggle" checked><span class="switch-track"><span class="switch-thumb"><svg class="icon-check" viewBox="0 0 24 24" fill="none"><path d="M5 13l4 4L19 7" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"/></svg><span class="icon-ring"></span></span></span></label>
+            </div>
+            <div class="feature-row">
+                <div class="feature-text"><div class="feature-name" data-i18n="feat_placeholder">Hide Ad Placeholders</div><div class="feature-desc" data-i18n="feat_placeholder_desc">Removes blank spaces left by ads</div></div>
+                <label class="ios-switch mini"><input type="checkbox" id="placeholderToggle" checked><span class="switch-track"><span class="switch-thumb"><svg class="icon-check" viewBox="0 0 24 24" fill="none"><path d="M5 13l4 4L19 7" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"/></svg><span class="icon-ring"></span></span></span></label>
+            </div>
+            <div class="feature-row">
+                <div class="feature-text"><div class="feature-name" data-i18n="feat_social">Block Social Trackers</div><div class="feature-desc" data-i18n="feat_social_desc">Blocks social media tracking buttons</div></div>
+                <label class="ios-switch mini"><input type="checkbox" id="socialToggle" checked><span class="switch-track"><span class="switch-thumb"><svg class="icon-check" viewBox="0 0 24 24" fill="none"><path d="M5 13l4 4L19 7" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"/></svg><span class="icon-ring"></span></span></span></label>
+            </div>
+            <div style="margin: 20px 16px 10px 16px; height: 1px; background: rgba(0,0,0,0.06);"></div>
+            <div class="feature-row" data-requires="premium">
+                <div class="feature-text"><div class="feature-name"><span data-i18n="feat_phishing">AI Phishing Detection</span> <span class="pro-badge">PRO</span></div><div class="feature-desc" data-i18n="feat_phishing_desc">Identifies malicious and phishing pages</div></div>
+                <label class="ios-switch mini"><input type="checkbox" id="phishingToggle" checked><span class="switch-track"><span class="switch-thumb"><svg class="icon-check" viewBox="0 0 24 24" fill="none"><path d="M5 13l4 4L19 7" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"/></svg><span class="icon-ring"></span></span></span></label>
+            </div>
+            <div class="feature-row" data-requires="premium">
+                <div class="feature-text"><div class="feature-name"><span data-i18n="feat_intel">Real-time Threat Intel</span> <span class="pro-badge">PRO</span></div><div class="feature-desc" data-i18n="feat_intel_desc">Dynamically blocks newly emerged phishing domains (PRO)</div></div>
+                <label class="ios-switch mini"><input type="checkbox" id="intelToggle" checked><span class="switch-track"><span class="switch-thumb"><svg class="icon-check" viewBox="0 0 24 24" fill="none"><path d="M5 13l4 4L19 7" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"/></svg><span class="icon-ring"></span></span></span></label>
+            </div>
+            <div class="feature-row" data-requires="premium">
+                <div class="feature-text"><div class="feature-name"><span data-i18n="feat_ai">AI Smart Real-time Detection</span> <span class="pro-badge">PRO</span></div><div class="feature-desc" data-i18n="feat_ai_desc">Identifies uncaptured ads and threats</div></div>
+                <label class="ios-switch mini"><input type="checkbox" id="aiFourToggle" checked><span class="switch-track"><span class="switch-thumb"><svg class="icon-check" viewBox="0 0 24 24" fill="none"><path d="M5 13l4 4L19 7" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"/></svg><span class="icon-ring"></span></span></span></label>
+            </div>
+        </div>
+    </div>
+
+    <!-- 3. 日志页面 (Logs View) -->
     <div class="app hidden" id="logsView">
         <div class="sub-view-nav glass">
             <button class="btn-back" id="backFromLogs" data-i18n="logs_back">返回</button>
@@ -204,12 +129,11 @@
             <div class="status-badge active" id="logCountBadge">0 条</div>
         </div>
         <div class="glass" style="padding: 12px; flex: 1; overflow-y: auto; height: calc(100vh - 120px);">
-            <div id="logsList" style="display: flex; flex-direction: column; gap: 8px;">
-                <div style="text-align: center; color: #9ca3af; font-size: 12px; padding: 20px;" data-i18n="logs_empty">暂无拦截记录</div>
-            </div>
+            <div id="logsList" style="display: flex; flex-direction: column; gap: 8px;"><div style="text-align: center; color: #9ca3af; font-size: 12px; padding: 20px;" data-i18n="logs_empty">暂无拦截记录</div></div>
         </div>
     </div>
 
+    <!-- 4. 统计页面 (Stats View) -->
     <div class="app hidden" id="statsView">
         <div class="sub-view-nav glass">
             <button class="btn-back" id="backFromStats" data-i18n="logs_back">返回</button>
@@ -226,155 +150,17 @@
         </div>
     </div>
 
-    <div class="modal-overlay hidden" id="authModal">
-        <div class="modal-card glass">
-            <button class="modal-close" id="modalClose" aria-label="关闭">✕</button>
-            <div class="auth-step" data-step="email">
-                <div class="auth-icon">🛡️</div>
-                <h2 class="auth-title" data-i18n="auth_title">登录 / 注册</h2>
-                <p class="auth-subtitle" data-i18n="auth_subtitle">首次使用将自动创建账号</p>
-                <input type="email" class="auth-input" id="authEmail" placeholder="your@email.com" autocomplete="email">
-                <button class="auth-primary-btn" id="sendOtpBtn" data-i18n="auth_send_otp">发送验证码</button>
-                
-                <div class="auth-divider" style="margin: 16px 0; display: flex; align-items: center; color: #8b949e; font-size: 11px;">
-                    <div style="flex: 1; height: 1px; background: rgba(255,255,255,0.1);"></div>
-                    <span style="padding: 0 10px;">OR</span>
-                    <div style="flex: 1; height: 1px; background: rgba(255,255,255,0.1);"></div>
-                </div>
-
-                <button class="auth-primary-btn" id="googleLoginBtn" style="background: #fff; color: #333; display: flex; align-items: center; justify-content: center; gap: 8px; border: 1px solid #ddd;">
-                    <svg style="width: 16px; height: 16px;" viewBox="0 0 24 24">
-                        <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
-                        <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
-                        <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/>
-                        <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
-                    </svg>
-                    Google
-                </button>
-
-                <p class="auth-hint" id="emailHint"></p>
-            </div>
-            <div class="auth-step hidden" data-step="otp">
-                <div class="auth-icon">📧</div>
-                <h2 class="auth-title" data-i18n="auth_otp_title">输入验证码</h2>
-                <p class="auth-subtitle"><span data-i18n="auth_otp_sent">验证码已发送至</span><br><strong id="sentEmail" class="auth-email-highlight"></strong></p>
-                <div id="otpHint" style="display:none; color:#f85149; font-size:12px; margin-top:5px; text-align:left;"></div>
-                <input type="text" class="auth-input otp-input" id="otpInput" maxlength="8" placeholder="00000000" inputmode="numeric" autocomplete="one-time-code">
-                <button class="auth-primary-btn" id="verifyOtpBtn" data-i18n="auth_verify">验证</button>
-                
-<div id="spamTip" style="display:none; font-size: 11px; color: #8b949e; margin-top: -10px; margin-bottom: 15px;">
-    没收到邮件？请检查垃圾邮件箱。
-</div>
-
-                <button class="auth-link-btn" id="resendOtpBtn" data-i18n="auth_resend">重新发送验证码</button>
-                <button class="auth-link-btn" id="backToEmailBtn" data-i18n="auth_back_email">← 返回修改邮箱</button>
-            </div>
-            <div class="auth-step hidden" data-step="logged-in">
-                <div class="auth-icon success">✅</div>
-                <h2 class="auth-title" data-i18n="auth_logged_in">已登录</h2>
-                <p class="auth-subtitle auth-email-highlight" id="loggedInEmail"></p>
-                <div class="account-info">
-                    <div class="account-row"><span class="account-label" data-i18n="auth_tier">订阅状态</span><span class="account-value tier-badge" id="accountTier" data-i18n="auth_free">免费版</span></div>
-                    <div class="account-row"><span class="account-label" data-i18n="auth_expiry">到期时间</span><span class="account-value" id="accountExpiry">—</span></div>
-                    <div class="account-row"><span class="account-label" data-i18n="auth_devices">设备</span><span class="account-value" id="accountDevices">1 / 3</span></div>
-                </div>
-                <button class="auth-primary-btn" id="activateTrialBtn" style="background: linear-gradient(135deg, #FFD966, #FFC107); color: #8a5a00; margin-bottom: 8px;" data-i18n="auth_activate_trial">点击激活 30 天高级版</button>
-                <button class="auth-primary-btn" id="manageAccountBtn" data-i18n="auth_manage">管理账号</button>
-                <button class="auth-link-btn danger" id="logoutBtn" data-i18n="auth_logout">退出登录</button>
-            </div>
-        </div>
-    </div>
-
-    <div class="modal-overlay hidden" id="confirmModal">
-        <div class="modal-card glass confirm-card">
-            <div class="auth-step">
-                <div class="auth-icon warn">⚠️</div>
-                <h2 class="auth-title" data-i18n="confirm_logout_title">退出登录？</h2>
-                <p class="auth-subtitle" data-i18n="confirm_logout_desc">退出后将回到免费版，<br>高级功能将不可用。</p>
-                <button class="auth-primary-btn danger" id="confirmLogoutBtn" data-i18n="confirm_logout_btn">确认退出</button>
-                <button class="auth-link-btn" id="cancelLogoutBtn" data-i18n="confirm_cancel">取消</button>
-            </div>
-        </div>
-    </div>
-
-    
-    <!-- 🚀 设置独立页面 -->
-    
-        </div>
-    </div>
-
-    <div class="modal-overlay hidden" id="trialActivateModal">
-        <div class="modal-card glass confirm-card">
-            <div class="auth-step">
-                <div class="auth-icon" style="filter: drop-shadow(0 4px 8px rgba(255, 193, 7, 0.4));">🎁</div>
-                <h2 class="auth-title" data-i18n="trial_modal_title">激活 30 天高级版</h2>
-                <p class="auth-subtitle" data-i18n="trial_modal_desc">您将被引导至官网 Pricing 页面，<br>激活成功后插件会自动更新状态。<br>是否继续？</p>
-                <button class="auth-primary-btn" id="confirmActivateBtn" style="background: linear-gradient(135deg, #FFD966, #FFC107); color: #8a5a00;" data-i18n="trial_modal_btn">前往激活</button>
-                <button class="auth-link-btn" id="cancelActivateBtn" data-i18n="confirm_cancel">取消</button>
-            </div>
-        </div>
-    </div>
-
-    <div class="modal-overlay hidden" id="pauseConfirmModal">
-        <div class="modal-card glass confirm-card">
-            <div class="auth-step">
-                <div class="auth-icon warn">⚠️</div>
-                <h2 class="auth-title" data-i18n="pause_title">暂停保护？</h2>
-                <p class="auth-subtitle" data-i18n="pause_desc">关闭后，当前网站将完全暴露在广告、追踪器和钓鱼威胁之下。此操作仅对当前网站生效。</p>
-                <button class="auth-primary-btn danger" id="confirmPauseBtn" data-i18n="pause_confirm">确认暂停</button>
-                <button class="auth-link-btn" id="cancelPauseBtn" data-i18n="confirm_cancel">取消</button>
-            </div>
-        </div>
-    </div>
-
-    <script type="module" src="popup.js"></script>
-        <script src="i18n.js"></script>
-
-<!-- 🌟 毛玻璃设备超限弹窗 -->
-<div id="glassLimitModal" class="glass-modal hidden" style="position: fixed; inset: 0; z-index: 9999; display: flex; align-items: center; justify-content: center; background: rgba(0,0,0,0.4); backdrop-filter: blur(12px); transition: opacity 0.3s ease;">
-    <div style="background: rgba(255, 255, 255, 0.85); border-radius: 16px; padding: 24px; width: 320px; box-shadow: 0 10px 30px rgba(0,0,0,0.2); text-align: center; border: 1px solid rgba(255,255,255,0.5);">
-        <div style="font-size: 40px; margin-bottom: 12px;">🚫</div>
-        <h3 style="margin: 0 0 10px 0; color: #1c1c1e; font-size: 18px;">Device Limit Reached</h3>
-        <p style="margin: 0 0 20px 0; color: #3a3a3c; font-size: 13px; line-height: 1.4;">
-            您的设备数已达上限 (3/3)。请前往 Dashboard 解绑其他设备后重试。
-        </p>
-        <button id="btnGoDashboard" style="width: 100%; padding: 12px; margin-bottom: 10px; border: none; border-radius: 10px; background: #10b981; color: white; font-weight: 600; font-size: 14px; cursor: pointer; box-shadow: 0 4px 12px rgba(16,185,129,0.3);">
-            去 Dashboard 解绑
-        </button>
-        <button id="btnCloseLimitModal" style="width: 100%; padding: 12px; border: none; border-radius: 10px; background: rgba(0,0,0,0.05); color: #8b949e; font-weight: 600; font-size: 14px; cursor: pointer;">
-            关闭
-        </button>
-    </div>
-</div>
-
-
-    <!-- 🚀 设置独立页面 (全新重构版) -->
-    
-
-
-    <!-- 🚀 设置独立页面 (最终完美版) -->
+    <!-- 5. 设置页面 (Settings View) - 修复版 -->
     <div class="app hidden" id="settingsView">
-        <div class="sub-view-nav glass" style="display: flex; align-items: center; justify-content: center; position: relative;">
-            <button id="backFromSettings" style="position: absolute; left: 12px; width: 32px; height: 32px; padding: 0; display: flex; align-items: center; justify-content: center; background: transparent; border: none; cursor: pointer; color: #1c1c1e;">
-                <svg viewBox="0 0 24 24" width="24" height="24" stroke="currentColor" stroke-width="2.5" fill="none" stroke-linecap="round" stroke-linejoin="round">
-                    <polyline points="15 18 9 12 15 6"></polyline>
-                </svg>
-            </button>
-            <div class="sub-view-title" data-i18n="settings_title">设置</div>
-        </div>
-
-        <div class="glass" style="padding: 12px; flex: 1; display: flex; gap: 12px; height: calc(100vh - 120px);">
-            <!-- 左侧导航 (纯图标) -->
+        <!-- 直接顶满高度的卡片，没有多余标题栏 -->
+        <div class="glass" style="padding: 12px; display: flex; gap: 12px; height: 100%; box-sizing: border-box;">
             <div class="settings-sidebar" style="display: flex; flex-direction: column; gap: 10px; width: 48px; flex-shrink: 0;">
                 <button class="settings-tab active" data-target="tabLang" style="font-size: 22px; padding: 10px 0; border-radius: 10px; background: rgba(255,255,255,0.8); border: 1px solid rgba(0,0,0,0.05); cursor: pointer;">🌐</button>
                 <button class="settings-tab" data-target="tabWhitelist" style="font-size: 22px; padding: 10px 0; border-radius: 10px; background: rgba(255,255,255,0.3); border: 1px solid rgba(0,0,0,0.05); cursor: pointer;">🛡️</button>
                 <button class="settings-tab" data-target="tabPrivacy" style="font-size: 22px; padding: 10px 0; border-radius: 10px; background: rgba(255,255,255,0.3); border: 1px solid rgba(0,0,0,0.05); cursor: pointer;">🔒</button>
             </div>
 
-            <!-- 右侧内容区 (无背景，与左侧完美融合在同一大卡片内) -->
             <div class="settings-content" style="flex: 1; overflow-y: auto; padding: 4px;">
-                
-                <!-- 语言选项卡 (3x3) -->
                 <div class="settings-pane active" id="tabLang">
                     <div class="lang-options" style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px;">
                         <button class="lang-option active" data-lang="en">English</button>
@@ -388,8 +174,6 @@
                         <button class="lang-option" data-lang="fr">Français</button>
                     </div>
                 </div>
-
-                <!-- 白名单选项卡 -->
                 <div class="settings-pane" id="tabWhitelist">
                     <div class="whitelist-header" data-i18n="settings_wl_list" style="font-weight: bold; margin-bottom: 8px; color: #1c1c1e; font-size: 13px;">白名单列表</div>
                     <p class="settings-hint" style="text-align:left; margin-bottom: 8px; font-size: 11px; color: #6b7280;" data-i18n="settings_wl_desc">在此列表中的域名将 <strong>停止所有保护</strong>。</p>
@@ -402,8 +186,6 @@
                         <div data-i18n="settings_wl_empty" style="text-align:center;color:#9ca3af;font-size:12px;padding: 20px 0;">暂无白名单</div>
                     </div>
                 </div>
-
-                <!-- 隐私选项卡 (开关在文字下方) -->
                 <div class="settings-pane" id="tabPrivacy">
                     <div style="padding: 10px 0; display: flex; flex-direction: column; gap: 12px;">
                         <div class="feature-text">
@@ -411,26 +193,89 @@
                             <div class="feature-desc" data-i18n="feat_share_intel_desc" style="font-size: 11px; color: #6b7280; line-height: 1.4;">允许将脱敏后的可疑域名发送到云端，帮助改进拦截模型。默认关闭。</div>
                         </div>
                         <div>
-                            <label class="ios-switch mini">
-                                <input type="checkbox" id="shareThreatCandidatesToggle">
-                                <span class="switch-track"><span class="switch-thumb"><svg class="icon-check" viewBox="0 0 24 24" fill="none"><path d="M5 13l4 4L19 7" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"/></svg><span class="icon-ring"></span></span></span>
-                            </label>
+                            <label class="ios-switch mini"><input type="checkbox" id="shareThreatCandidatesToggle"><span class="switch-track"><span class="switch-thumb"><svg class="icon-check" viewBox="0 0 24 24" fill="none"><path d="M5 13l4 4L19 7" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"/></svg><span class="icon-ring"></span></span></span></label>
                         </div>
                     </div>
                 </div>
-
             </div>
         </div>
-        
-        <style>
-            .lang-option { padding: 10px; font-size: 12px; text-align: center; border-radius: 8px; border: 1px solid #ddd; background: rgba(255,255,255,0.8); cursor: pointer; transition: all 0.2s; color: #333; }
-            .lang-option:hover { background: #fff; }
-            .lang-option.active { border-color: #10b981; background: #ecfdf5; color: #065f46; font-weight: bold; box-shadow: 0 2px 6px rgba(16,185,129,0.2); }
-            .settings-tab.active { background: rgba(255,255,255,0.95) !important; box-shadow: 0 2px 8px rgba(0,0,0,0.08); border-color: #10b981 !important; }
-            /* 修复 CSS 冲突，确保没有 active 的 pane 被正确隐藏 */
-            .settings-pane { display: none; }
-            .settings-pane.active { display: block; }
-        </style>
+    </div>
+
+    <!-- 底部导航栏 -->
+    <nav class="bottom-nav glass" style="position: fixed; bottom: 0; left: 0; width: 100%; display: flex; justify-content: space-around; align-items: center; height: 60px; z-index: 999;">
+        <div class="bottom-nav-item active" id="navHome" style="display: flex; flex-direction: column; align-items: center; gap: 4px; cursor: pointer; color: #10b981;">
+            <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path><polyline points="9 22 9 12 15 12 15 22"></polyline></svg>
+            <span style="font-size: 10px; font-weight: 600;">Home</span>
+        </div>
+        <div class="bottom-nav-item" id="navProtect" style="display: flex; flex-direction: column; align-items: center; gap: 4px; cursor: pointer; color: #9ca3af;">
+            <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path></svg>
+            <span style="font-size: 10px; font-weight: 600;">Protect</span>
+        </div>
+        <div class="bottom-nav-item" id="navSettings" style="display: flex; flex-direction: column; align-items: center; gap: 4px; cursor: pointer; color: #9ca3af;">
+            <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
+            <span style="font-size: 10px; font-weight: 600;">Settings</span>
+        </div>
+    </nav>
+
+    <!-- 弹窗组件保持不变 -->
+    <div class="modal-overlay hidden" id="authModal">
+        <div class="modal-card glass">
+            <button class="modal-close" id="modalClose" aria-label="关闭">✕</button>
+            <div class="auth-step" data-step="email">
+                <div class="auth-icon">🛡️</div><h2 class="auth-title" data-i18n="auth_title">登录 / 注册</h2><p class="auth-subtitle" data-i18n="auth_subtitle">首次使用将自动创建账号</p>
+                <input type="email" class="auth-input" id="authEmail" placeholder="your@email.com" autocomplete="email"><button class="auth-primary-btn" id="sendOtpBtn" data-i18n="auth_send_otp">发送验证码</button>
+                <div class="auth-divider" style="margin: 16px 0; display: flex; align-items: center; color: #8b949e; font-size: 11px;"><div style="flex: 1; height: 1px; background: rgba(255,255,255,0.1);"></div><span style="padding: 0 10px;">OR</span><div style="flex: 1; height: 1px; background: rgba(255,255,255,0.1);"></div></div>
+                <button class="auth-primary-btn" id="googleLoginBtn" style="background: #fff; color: #333; display: flex; align-items: center; justify-content: center; gap: 8px; border: 1px solid #ddd;"><svg style="width: 16px; height: 16px;" viewBox="0 0 24 24"><path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/><path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/><path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/><path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/></svg>Google</button>
+                <p class="auth-hint" id="emailHint"></p>
+            </div>
+            <div class="auth-step hidden" data-step="otp">
+                <div class="auth-icon">📧</div><h2 class="auth-title" data-i18n="auth_otp_title">输入验证码</h2><p class="auth-subtitle"><span data-i18n="auth_otp_sent">验证码已发送至</span><br><strong id="sentEmail" class="auth-email-highlight"></strong></p>
+                <div id="otpHint" style="display:none; color:#f85149; font-size:12px; margin-top:5px; text-align:left;"></div><input type="text" class="auth-input otp-input" id="otpInput" maxlength="8" placeholder="00000000" inputmode="numeric" autocomplete="one-time-code"><button class="auth-primary-btn" id="verifyOtpBtn" data-i18n="auth_verify">验证</button>
+                <div id="spamTip" style="display:none; font-size: 11px; color: #8b949e; margin-top: -10px; margin-bottom: 15px;">没收到邮件？请检查垃圾邮件箱。</div><button class="auth-link-btn" id="resendOtpBtn" data-i18n="auth_resend">重新发送验证码</button><button class="auth-link-btn" id="backToEmailBtn" data-i18n="auth_back_email">← 返回修改邮箱</button>
+            </div>
+            <div class="auth-step hidden" data-step="logged-in">
+                <div class="auth-icon success">✅</div><h2 class="auth-title" data-i18n="auth_logged_in">已登录</h2><p class="auth-subtitle auth-email-highlight" id="loggedInEmail"></p>
+                <div class="account-info"><div class="account-row"><span class="account-label" data-i18n="auth_tier">订阅状态</span><span class="account-value tier-badge" id="accountTier" data-i18n="auth_free">免费版</span></div><div class="account-row"><span class="account-label" data-i18n="auth_expiry">到期时间</span><span class="account-value" id="accountExpiry">—</span></div><div class="account-row"><span class="account-label" data-i18n="auth_devices">设备</span><span class="account-value" id="accountDevices">1 / 3</span></div></div>
+                <button class="auth-primary-btn" id="activateTrialBtn" style="background: linear-gradient(135deg, #FFD966, #FFC107); color: #8a5a00; margin-bottom: 8px;" data-i18n="auth_activate_trial">点击激活 30 天高级版</button><button class="auth-primary-btn" id="manageAccountBtn" data-i18n="auth_manage">管理账号</button><button class="auth-link-btn danger" id="logoutBtn" data-i18n="auth_logout">退出登录</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal-overlay hidden" id="confirmModal">
+        <div class="modal-card glass confirm-card">
+            <div class="auth-step">
+                <div class="auth-icon warn">⚠️</div><h2 class="auth-title" data-i18n="confirm_logout_title">退出登录？</h2><p class="auth-subtitle" data-i18n="confirm_logout_desc">退出后将回到免费版，<br>高级功能将不可用。</p>
+                <button class="auth-primary-btn danger" id="confirmLogoutBtn" data-i18n="confirm_logout_btn">确认退出</button><button class="auth-link-btn" id="cancelLogoutBtn" data-i18n="confirm_cancel">取消</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal-overlay hidden" id="trialActivateModal">
+        <div class="modal-card glass confirm-card">
+            <div class="auth-step">
+                <div class="auth-icon" style="filter: drop-shadow(0 4px 8px rgba(255, 193, 7, 0.4));">🎁</div><h2 class="auth-title" data-i18n="trial_modal_title">激活 30 天高级版</h2><p class="auth-subtitle" data-i18n="trial_modal_desc">您将被引导至官网 Pricing 页面，<br>激活成功后插件会自动更新状态。<br>是否继续？</p>
+                <button class="auth-primary-btn" id="confirmActivateBtn" style="background: linear-gradient(135deg, #FFD966, #FFC107); color: #8a5a00;" data-i18n="trial_modal_btn">前往激活</button><button class="auth-link-btn" id="cancelActivateBtn" data-i18n="confirm_cancel">取消</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal-overlay hidden" id="pauseConfirmModal">
+        <div class="modal-card glass confirm-card">
+            <div class="auth-step">
+                <div class="auth-icon warn">⚠️</div><h2 class="auth-title" data-i18n="pause_title">暂停保护？</h2><p class="auth-subtitle" data-i18n="pause_desc">关闭后，当前网站将完全暴露在广告、追踪器和钓鱼威胁之下。此操作仅对当前网站生效。</p>
+                <button class="auth-primary-btn danger" id="confirmPauseBtn" data-i18n="pause_confirm">确认暂停</button><button class="auth-link-btn" id="cancelPauseBtn" data-i18n="confirm_cancel">取消</button>
+            </div>
+        </div>
+    </div>
+
+    <script type="module" src="popup.js"></script>
+    <script src="i18n.js"></script>
+
+    <div id="glassLimitModal" class="glass-modal hidden" style="position: fixed; inset: 0; z-index: 9999; display: flex; align-items: center; justify-content: center; background: rgba(0,0,0,0.4); backdrop-filter: blur(12px); transition: opacity 0.3s ease;">
+        <div style="background: rgba(255, 255, 255, 0.85); border-radius: 16px; padding: 24px; width: 320px; box-shadow: 0 10px 30px rgba(0,0,0,0.2); text-align: center; border: 1px solid rgba(255,255,255,0.5);">
+            <div style="font-size: 40px; margin-bottom: 12px;">🚫</div><h3 style="margin: 0 0 10px 0; color: #1c1c1e; font-size: 18px;">Device Limit Reached</h3><p style="margin: 0 0 20px 0; color: #3a3a3c; font-size: 13px; line-height: 1.4;">您的设备数已达上限 (3/3)。请前往 Dashboard 解绑其他设备后重试。</p>
+            <button id="btnGoDashboard" style="width: 100%; padding: 12px; margin-bottom: 10px; border: none; border-radius: 10px; background: #10b981; color: white; font-weight: 600; font-size: 14px; cursor: pointer; box-shadow: 0 4px 12px rgba(16,185,129,0.3);">去 Dashboard 解绑</button><button id="btnCloseLimitModal" style="width: 100%; padding: 12px; border: none; border-radius: 10px; background: rgba(0,0,0,0.05); color: #8b949e; font-weight: 600; font-size: 14px; cursor: pointer;">关闭</button>
+        </div>
     </div>
 
 </body>
