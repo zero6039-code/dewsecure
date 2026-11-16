@@ -208,21 +208,30 @@ pub fn start_mitm_vpn_engine(tun_fd: i32, base_dir: String, protector: std::sync
     // 设置 base_dir
     mitm_proxy::set_base_dir(base_dir.clone());
     
-    let (tx, rx) = std::sync::mpsc::channel();
+    let (tx, rx) = std::sync::mpsc::sync_channel::<Result<(), String>>(1);
 
     std::thread::spawn(move || {
-        let rt = tokio::runtime::Runtime::new().unwrap();
-        // 发送启动成功信号
-        let _ = tx.send(Ok::<(), String>(()));
-
-        let engine = vpn::VpnEngine::new(tun_fd, protector);
-        rt.block_on(engine.start());
+        let rt = match tokio::runtime::Runtime::new() {
+            Ok(rt) => rt,
+            Err(e) => {
+                let _ = tx.try_send(Err(format!("Runtime 初始化失败: {}", e)));
+                return;
+            }
+        };
+        let tx_clone = tx.clone();
+        let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            let engine = vpn::VpnEngine::new(tun_fd, protector);
+            rt.block_on(engine.start(Some(tx_clone)));
+        }));
+        if result.is_err() {
+            let _ = tx.try_send(Err("引擎线程 panic".into()));
+        }
     });
 
-    // 只要线程起来了就返回 OK
     match rx.recv_timeout(std::time::Duration::from_secs(3)) {
-        Ok(Ok(_)) => "OK".to_string(),
-        _ => "TIMEOUT".to_string(),
+        Ok(Ok(()))  => "OK".to_string(),
+        Ok(Err(e))  => format!("ERR: {}", e),
+        Err(_)      => "ERR: 启动超时".to_string(),
     }
 }
 
