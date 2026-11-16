@@ -8,6 +8,7 @@ import android.widget.Toast
 import androidx.appcompat.widget.SwitchCompat
 import androidx.fragment.app.Fragment
 import com.dewsecure.android.R
+import com.dewsecure.android.BuildConfig
 
 class PrivacySettingsController(
     private val fragment: Fragment,

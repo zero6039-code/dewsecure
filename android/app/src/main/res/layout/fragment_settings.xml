@@ -141,12 +141,29 @@
 
             <!-- 隐私页面 -->
             <LinearLayout
-                android:id="@+id/pane_privacy" android:layout_width="match_parent" android:layout_height="wrap_content"
+                android:id="@+id/pane_privacy" android:layout_width="match_parent" android:layout_height="match_parent"
                 android:orientation="vertical" android:visibility="gone">
                 <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="@string/settings_privacy_title" android:textColor="@color/text_primary" android:textStyle="bold" android:textSize="16sp" android:layout_marginBottom="8dp"/>
                 <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="@string/settings_privacy_desc" android:textColor="@color/text_secondary" android:textSize="12sp" android:layout_marginBottom="16dp"/>
                 <androidx.appcompat.widget.SwitchCompat
                     android:id="@+id/switch_share_threat" android:layout_width="wrap_content" android:layout_height="wrap_content" />
+                
+                <!-- 动态占位，将版本号推向底部 -->
+                <Space
+                    android:layout_width="match_parent"
+                    android:layout_height="0dp"
+                    android:layout_weight="1" />
+
+                <!-- 版本号展示 -->
+                <TextView
+                    android:id="@+id/tv_privacy_version"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginBottom="24dp"
+                    android:gravity="center"
+                    android:text="V 1.2.9"
+                    android:textColor="@color/text_secondary"
+                    android:textSize="12sp" />
             </LinearLayout>
         </FrameLayout>
          </LinearLayout>
