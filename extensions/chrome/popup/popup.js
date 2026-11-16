@@ -92,6 +92,28 @@ async function init() {
     updateStats(stats);
     await updateSiteInfo();
     
+
+    // 🌗 主题切换逻辑
+    const themeToggleBtn = document.getElementById('themeToggleBtn');
+    const htmlEl = document.documentElement;
+
+    // 加载保存的主题
+    chrome.storage.local.get('theme', (res) => {
+        const savedTheme = res.theme || 'light';
+        htmlEl.setAttribute('data-theme', savedTheme);
+        if (themeToggleBtn) themeToggleBtn.textContent = savedTheme === 'dark' ? '☀️' : '🌙';
+    });
+
+    if (themeToggleBtn) {
+        themeToggleBtn.addEventListener('click', () => {
+            const current = htmlEl.getAttribute('data-theme');
+            const next = current === 'dark' ? 'light' : 'dark';
+            htmlEl.setAttribute('data-theme', next);
+            themeToggleBtn.textContent = next === 'dark' ? '☀️' : '🌙';
+            chrome.storage.local.set({ theme: next });
+        });
+    }
+
     if (window.applyI18n) window.applyI18n();
     
     // 🛡️ N-9 修复：绑定隐私设置开关
