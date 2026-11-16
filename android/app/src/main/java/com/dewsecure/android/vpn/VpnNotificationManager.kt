@@ -9,6 +9,7 @@ import android.content.Intent
 import android.os.Build
 import androidx.core.app.NotificationCompat
 import com.dewsecure.android.ui.MainActivity
+import com.dewsecure.android.R
 
 object VpnNotificationManager {
     private const val CHANNEL_ID = "dewsecure_vpn"
@@ -38,12 +39,12 @@ object VpnNotificationManager {
         )
 
         return NotificationCompat.Builder(context, CHANNEL_ID)
-            .setContentTitle("DewSecure 运行中")
-            .setContentText("正在拦截广告与追踪域名")
+            .setContentTitle(context.getString(R.string.notif_title))
+            .setContentText(context.getString(R.string.notif_text))
             .setSmallIcon(android.R.drawable.ic_lock_lock)
             .setContentIntent(contentIntent)
             .setOngoing(true)
-            .addAction(android.R.drawable.ic_menu_close_clear_cancel, "关闭 VPN", stopPendingIntent)
+            .addAction(android.R.drawable.ic_menu_close_clear_cancel, context.getString(R.string.notif_action_stop), stopPendingIntent)
             .setPriority(NotificationCompat.PRIORITY_LOW)
             .build()
     }

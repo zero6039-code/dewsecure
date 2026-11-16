@@ -14,6 +14,8 @@ import com.dewsecure.android.ui.controller.WhitelistSettingsController
 
 class SettingsFragment : Fragment() {
 
+    private var currentTabId = "lang"
+
     private lateinit var tabLang: LinearLayout
     private lateinit var tabWhitelist: LinearLayout
     private lateinit var tabPrivacy: LinearLayout
@@ -68,6 +70,7 @@ class SettingsFragment : Fragment() {
     }
 
     private fun switchTab(tab: String) {
+        currentTabId = tab
         tabLang.setBackgroundResource(R.drawable.bg_glass_tab_inactive)
         tabWhitelist.setBackgroundResource(R.drawable.bg_glass_tab_inactive)
         tabPrivacy.setBackgroundResource(R.drawable.bg_glass_tab_inactive)
@@ -98,4 +101,5 @@ class SettingsFragment : Fragment() {
             }
         }
     }
+
 }

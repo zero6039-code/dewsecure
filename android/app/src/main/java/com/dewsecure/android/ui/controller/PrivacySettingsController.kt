@@ -31,7 +31,7 @@ class PrivacySettingsController(
 
         switchShareThreat.setOnCheckedChangeListener { _, isChecked ->
             prefs.edit().putBoolean("pref_share_threat_intel", isChecked).apply()
-            val msg = if (isChecked) "已开启：将匿名上报新型威胁" else "已关闭：停止匿名上报"
+            val msg = if (isChecked) R.string.toast_privacy_on else R.string.toast_privacy_off
             Toast.makeText(context, msg, Toast.LENGTH_SHORT).show()
         }
     }

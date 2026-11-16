@@ -2,6 +2,7 @@ package com.dewsecure.android.ui
 
 import android.content.Context
 import android.content.Intent
+import android.content.res.Configuration
 import android.net.Uri
 import android.os.Bundle
 import android.os.CountDownTimer
@@ -44,14 +45,33 @@ class LoginActivity : AppCompatActivity() {
 
         initViews()
         setupListeners()
+        updateUI()
 
-        // 处理如果 App 被杀死后，由浏览器直接冷启动的情况
         handleDeepLink(intent)
+    }
+
+    override fun onConfigurationChanged(newConfig: Configuration) {
+        super.onConfigurationChanged(newConfig)
+        // 🌟 语言变化时，手动刷新所有 UI 文本
+        updateUI()
+    }
+
+    private fun updateUI() {
+        // 🌟 因为缺失 activity_login.xml 的 ID 支持，我们暂时只刷新代码里已经绑定好的 View
+        // 等你把 activity_login.xml 发给我，我再把标题、副标题等硬编码加上 ID 并完美刷新
+        etEmail.hint = getString(R.string.login_email_hint)
+        btnSendOtp.text = getString(R.string.login_btn_send_otp)
+        btnVerifyOtp.text = getString(R.string.login_btn_verify)
+        btnBackEmail.text = getString(R.string.login_btn_back)
+        btnResendOtp.text = getString(R.string.login_resend)
+        
+        if (tvSentEmail.text.isNotEmpty()) {
+            tvSentEmail.text = getString(R.string.login_otp_sent_to, currentEmail)
+        }
     }
 
     override fun onNewIntent(intent: Intent?) {
         super.onNewIntent(intent)
-        // 处理 App 在后台时，浏览器唤起的回调
         handleDeepLink(intent)
     }
 
@@ -69,28 +89,27 @@ class LoginActivity : AppCompatActivity() {
             val refreshToken = params["refresh_token"]
 
             if (!accessToken.isNullOrEmpty()) {
-                // 异步获取真实的 Google 用户邮箱
                 lifecycleScope.launch {
                     val userResult = AuthManager.getUserInfo(accessToken)
-                    var realEmail = "未知用户"
+                    var realEmail = getString(R.string.error_unknown_user)
                     if (userResult.isSuccess) {
-                        realEmail = userResult.getOrNull()?.optString("email") ?: "未知用户"
+                        realEmail = userResult.getOrNull()?.optString("email") ?: getString(R.string.error_unknown_user)
                     }
 
                     val prefs = getSharedPreferences("user_session", Context.MODE_PRIVATE)
                     prefs.edit()
                         .putString("access_token", accessToken)
-                        .putString("refresh_token", refreshToken) // 保存 refresh_token 用于自动续期
+                        .putString("refresh_token", refreshToken)
                         .putString("email", realEmail)
                         .apply()
 
-                    Toast.makeText(this@LoginActivity, "Google 登录成功！", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(this@LoginActivity, getString(R.string.toast_google_success), Toast.LENGTH_SHORT).show()
                     startActivity(Intent(this@LoginActivity, AccountActivity::class.java))
                     finish()
                 }
             } else {
                 Log.e(TAG, "回调中未找到 access_token")
-                Toast.makeText(this, "登录失败：缺少 Token", Toast.LENGTH_LONG).show()
+                Toast.makeText(this, getString(R.string.toast_google_fail_token), Toast.LENGTH_LONG).show()
             }
         }
     }
@@ -133,29 +152,26 @@ class LoginActivity : AppCompatActivity() {
             override fun afterTextChanged(s: android.text.Editable?) {}
         })
 
-        // Google 登录跳转
         findViewById<View>(R.id.btn_google_login).setOnClickListener {
             val supabaseUrl = "https://uvbaioqqjqseapcancvi.supabase.co"
             val redirectUrl = "$DEEP_LINK_SCHEME://$DEEP_LINK_HOST"
             val authUrl = "$supabaseUrl/auth/v1/authorize?provider=google&redirect_to=$redirectUrl&response_type=token"
 
-            // 🌟 核心修复：使用 CustomTabsIntent 打开，自带半屏和自动关闭
             try {
                 val customTabsIntent = CustomTabsIntent.Builder().build()
                 customTabsIntent.launchUrl(this, Uri.parse(authUrl))
             } catch (e: Exception) {
-                // 如果设备不支持 Custom Tabs，则降级为普通浏览器
                 val intent = Intent(Intent.ACTION_VIEW, Uri.parse(authUrl))
                 startActivity(intent)
             }
-            Toast.makeText(this, "正在跳转 Google 登录...", Toast.LENGTH_SHORT).show()
+            Toast.makeText(this, getString(R.string.toast_google_redirect), Toast.LENGTH_SHORT).show()
         }
     }
 
     private fun doSendOtp() {
         val email = etEmail.text.toString().trim()
         if (!email.contains("@")) {
-            showError(tvEmailError, "请输入有效的邮箱地址")
+            showError(tvEmailError, getString(R.string.error_invalid_email))
             return
         }
 
@@ -169,13 +185,13 @@ class LoginActivity : AppCompatActivity() {
             if (result.isSuccess) {
                 stepEmail.visibility = View.GONE
                 stepOtp.visibility = View.VISIBLE
-                tvSentEmail.text = email
+                tvSentEmail.text = getString(R.string.login_otp_sent_to, email)
                 etOtp.text.clear()
                 startCooldown()
             } else {
-                showError(tvEmailError, result.exceptionOrNull()?.message ?: "发送失败")
+                showError(tvEmailError, result.exceptionOrNull()?.message ?: getString(R.string.error_send_fail))
                 btnSendOtp.isEnabled = true
-                btnSendOtp.text = "Send OTP"
+                btnSendOtp.text = getString(R.string.login_btn_send_otp)
             }
         }
     }
@@ -183,53 +199,52 @@ class LoginActivity : AppCompatActivity() {
     private fun doVerifyOtp() {
         val otp = etOtp.text.toString().trim()
         if (otp.length != 8) {
-            showError(tvOtpError, "请输入 8 位验证码")
+            showError(tvOtpError, getString(R.string.error_invalid_otp))
             return
         }
 
         btnVerifyOtp.isEnabled = false
-        btnVerifyOtp.text = "验证中..."
+        btnVerifyOtp.text = "..."
         tvOtpError.visibility = View.GONE
 
         lifecycleScope.launch {
-            // 现在 verifyOTP 返回的是 Pair<access_token, refresh_token>
             val result = AuthManager.verifyOTP(currentEmail, otp)
             if (result.isSuccess) {
                 val (accessToken, refreshToken) = result.getOrNull()!!
-                
-                Toast.makeText(this@LoginActivity, "登录成功！", Toast.LENGTH_SHORT).show()
+
+                Toast.makeText(this@LoginActivity, getString(R.string.toast_login_success), Toast.LENGTH_SHORT).show()
 
                 val prefs = getSharedPreferences("user_session", Context.MODE_PRIVATE)
                 prefs.edit()
                     .putString("access_token", accessToken)
-                    .putString("refresh_token", refreshToken) // 保存 refresh_token
+                    .putString("refresh_token", refreshToken)
                     .putString("email", currentEmail)
                     .apply()
 
                 startActivity(Intent(this@LoginActivity, AccountActivity::class.java))
                 finish()
             } else {
-                showError(tvOtpError, result.exceptionOrNull()?.message ?: "验证失败")
+                showError(tvOtpError, result.exceptionOrNull()?.message ?: getString(R.string.error_verify_fail))
                 btnVerifyOtp.isEnabled = true
-                btnVerifyOtp.text = "Verify"
+                btnVerifyOtp.text = getString(R.string.login_btn_verify)
             }
         }
     }
 
     private fun startCooldown() {
         btnSendOtp.isEnabled = true
-        btnSendOtp.text = "Send OTP"
+        btnSendOtp.text = getString(R.string.login_btn_send_otp)
 
         btnResendOtp.isEnabled = false
         countDownTimer?.cancel()
         countDownTimer = object : CountDownTimer(60000, 1000) {
             override fun onTick(millisUntilFinished: Long) {
-                btnResendOtp.text = "${millisUntilFinished / 1000}s 后可重发"
+                btnResendOtp.text = getString(R.string.login_resend_in, (millisUntilFinished / 1000).toInt())
                 btnResendOtp.setTextColor(getColor(R.color.text_secondary))
             }
             override fun onFinish() {
                 btnResendOtp.isEnabled = true
-                btnResendOtp.text = "重新发送验证码"
+                btnResendOtp.text = getString(R.string.login_resend)
                 btnResendOtp.setTextColor(getColor(R.color.accent_blue))
             }
         }.start()
@@ -238,7 +253,7 @@ class LoginActivity : AppCompatActivity() {
     private fun cancelTimer() {
         countDownTimer?.cancel()
         btnResendOtp.isEnabled = true
-        btnResendOtp.text = "重新发送验证码"
+        btnResendOtp.text = getString(R.string.login_resend)
     }
 
     private fun showError(textView: TextView, msg: String) {

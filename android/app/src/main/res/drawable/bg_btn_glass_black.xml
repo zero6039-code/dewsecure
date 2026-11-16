@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<shape xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- 玻璃质感半透明底色 -->
+    <solid android:color="#33FFFFFF" />
+    <!-- 圆角设置 -->
+    <corners android:radius="16dp" />
+    <!-- 科技感细边框 -->
+    <stroke android:width="1dp" android:color="#66FFFFFF" />
+</shape>

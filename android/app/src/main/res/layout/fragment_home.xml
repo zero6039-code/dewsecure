@@ -35,13 +35,13 @@
                     android:gravity="center_vertical"
                     android:orientation="horizontal"
                     android:layout_marginBottom="32dp">
-                    
+
                     <ImageView
                         android:id="@+id/iv_logo"
                         android:layout_width="28dp"
                         android:layout_height="28dp"
                         android:src="@drawable/dewsecure_icon" />
-                    
+
                     <TextView
                         android:layout_width="0dp"
                         android:layout_height="wrap_content"
@@ -56,7 +56,7 @@
                         android:id="@+id/btn_login"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:text="登录 / 控制台"
+                        android:text="@string/home_login"
                         android:textColor="@color/text_primary"
                         android:textSize="12sp"
                         android:background="@drawable/bg_glass_card"
@@ -68,83 +68,86 @@
                 <TextView
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:text="未保护"
+                    android:text="@string/home_status_unprotected"
                     android:id="@+id/tv_main_status"
                     android:textColor="@color/text_secondary"
                     android:textSize="14sp"
                     android:layout_marginBottom="8dp"/>
-                    
+
                 <TextView
+                    android:id="@+id/tv_main_title"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:text="极速净化 · 隐私无忧"
+                    android:text="@string/home_main_title"
                     android:textColor="@color/text_primary"
                     android:textSize="28sp"
                     android:textStyle="bold"
                     android:layout_marginBottom="32dp"/>
 
                 <!-- 数据卡片 (今日/总拦截 - 左字右数版) -->
-                  <LinearLayout
-                      android:layout_width="match_parent"
-                      android:layout_height="wrap_content"
-                      android:orientation="vertical"
-                      android:layout_marginBottom="16dp">
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:layout_marginBottom="16dp">
 
-                      <!-- 今日拦截 -->
-                      <LinearLayout
-                          android:layout_width="match_parent"
-                          android:layout_height="wrap_content"
-                          android:layout_marginBottom="8dp"
-                          android:background="@drawable/bg_glass_card"
-                          android:gravity="center_vertical"
-                          android:paddingHorizontal="20dp"
-                          android:paddingVertical="12dp"
-                          android:orientation="horizontal">
-                          <TextView 
-                              android:layout_width="0dp"
-                              android:layout_height="wrap_content"
-                              android:layout_weight="1"
-                              android:text="今日拦截" 
-                              android:textColor="@color/text_secondary" 
-                              android:textSize="14sp"/>
-                          <TextView 
-                              android:id="@+id/tv_blocked_today" 
-                              android:layout_width="wrap_content" 
-                              android:layout_height="wrap_content" 
-                              android:text="0" 
-                              android:textSize="24sp" 
-                              android:textStyle="bold" 
-                              android:textColor="@color/text_primary"/>
-                      </LinearLayout>
+                    <!-- 今日拦截 -->
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginBottom="8dp"
+                        android:background="@drawable/bg_glass_card"
+                        android:gravity="center_vertical"
+                        android:paddingHorizontal="20dp"
+                        android:paddingVertical="12dp"
+                        android:orientation="horizontal">
+                        <TextView
+                            android:id="@+id/tv_blocked_today_label"
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:text="@string/home_blocked_today"
+                            android:textColor="@color/text_secondary"
+                            android:textSize="14sp"/>
+                        <TextView
+                            android:id="@+id/tv_blocked_today"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="0"
+                            android:textSize="24sp"
+                            android:textStyle="bold"
+                            android:textColor="@color/text_primary"/>
+                    </LinearLayout>
 
-                      <!-- 总拦截 -->
-                      <LinearLayout
-                          android:layout_width="match_parent"
-                          android:layout_height="wrap_content"
-                          android:background="@drawable/bg_glass_card"
-                          android:gravity="center_vertical"
-                          android:paddingHorizontal="20dp"
-                          android:paddingVertical="12dp"
-                          android:orientation="horizontal">
-                          <TextView 
-                              android:layout_width="0dp"
-                              android:layout_height="wrap_content"
-                              android:layout_weight="1"
-                              android:text="总拦截" 
-                              android:textColor="@color/text_secondary" 
-                              android:textSize="14sp"/>
-                          <TextView 
-                              android:id="@+id/tv_blocked_total" 
-                              android:layout_width="wrap_content" 
-                              android:layout_height="wrap_content" 
-                              android:text="0" 
-                              android:textSize="24sp" 
-                              android:textStyle="bold" 
-                              android:textColor="@color/text_primary"/>
-                      </LinearLayout>
-                  </LinearLayout>
+                    <!-- 总拦截 -->
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:background="@drawable/bg_glass_card"
+                        android:gravity="center_vertical"
+                        android:paddingHorizontal="20dp"
+                        android:paddingVertical="12dp"
+                        android:orientation="horizontal">
+                        <TextView
+                            android:id="@+id/tv_blocked_total_label"
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:text="@string/home_blocked_total"
+                            android:textColor="@color/text_secondary"
+                            android:textSize="14sp"/>
+                        <TextView
+                            android:id="@+id/tv_blocked_total"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="0"
+                            android:textSize="24sp"
+                            android:textStyle="bold"
+                            android:textColor="@color/text_primary"/>
+                    </LinearLayout>
+                </LinearLayout>
 
-                  <!-- 流量统计：合并为一个框 -->
+                <!-- 流量统计：合并为一个框 -->
                 <LinearLayout
                     android:id="@+id/card_traffic"
                     android:layout_width="match_parent"
@@ -161,20 +164,27 @@
                         android:layout_weight="1"
                         android:gravity="center"
                         android:orientation="vertical">
-                        <TextView 
-                            android:id="@+id/tv_traffic_today" 
-                            android:layout_width="match_parent" 
-                            android:layout_height="wrap_content" 
-                            android:text="0 KB" 
-                            android:textSize="24sp" 
-                            android:textStyle="bold" 
+                        <TextView
+                            android:id="@+id/tv_traffic_today"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:text="0 KB"
+                            android:textSize="24sp"
+                            android:textStyle="bold"
                             android:textColor="@color/accent_blue"
                             android:gravity="center"
                             android:maxLines="1"
                             app:autoSizeTextType="uniform"
                             app:autoSizeMinTextSize="14sp"
                             app:autoSizeMaxTextSize="24sp"/>
-                        <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="大约为您节省（今日）" android:textColor="@color/text_secondary" android:textSize="11sp" android:layout_marginTop="4dp"/>
+                        <TextView
+                            android:id="@+id/tv_saved_today_label"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="@string/home_saved_today"
+                            android:textColor="@color/text_secondary"
+                            android:textSize="11sp"
+                            android:layout_marginTop="4dp"/>
                     </LinearLayout>
 
                     <!-- 竖线分割 -->
@@ -191,20 +201,27 @@
                         android:layout_weight="1"
                         android:gravity="center"
                         android:orientation="vertical">
-                        <TextView 
-                            android:id="@+id/tv_traffic_total" 
-                            android:layout_width="match_parent" 
-                            android:layout_height="wrap_content" 
-                            android:text="0 KB" 
-                            android:textSize="24sp" 
-                            android:textStyle="bold" 
+                        <TextView
+                            android:id="@+id/tv_traffic_total"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:text="0 KB"
+                            android:textSize="24sp"
+                            android:textStyle="bold"
                             android:textColor="@color/accent_blue"
                             android:gravity="center"
                             android:maxLines="1"
                             app:autoSizeTextType="uniform"
                             app:autoSizeMinTextSize="14sp"
                             app:autoSizeMaxTextSize="24sp"/>
-                        <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="大约为您节省（总计）" android:textColor="@color/text_secondary" android:textSize="11sp" android:layout_marginTop="4dp"/>
+                        <TextView
+                            android:id="@+id/tv_saved_total_label"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="@string/home_saved_total"
+                            android:textColor="@color/text_secondary"
+                            android:textSize="11sp"
+                            android:layout_marginTop="4dp"/>
                     </LinearLayout>
                 </LinearLayout>
 
@@ -213,7 +230,7 @@
                     android:id="@+id/btn_toggle_vpn"
                     android:layout_width="match_parent"
                     android:layout_height="60dp"
-                    android:text="开启网络净化"
+                    android:text="@string/home_btn_start"
                     android:layout_marginBottom="32dp"/>
 
                 <!-- 反馈 -->
@@ -223,10 +240,38 @@
                     android:background="@drawable/bg_glass_card"
                     android:padding="20dp"
                     android:orientation="vertical">
-                    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="帮助我们改进" android:textColor="@color/text_secondary" android:textSize="12sp" android:layout_marginBottom="12dp"/>
-                    <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal">
-                        <Button android:id="@+id/btn_missed_ad" android:layout_width="0dp" android:layout_weight="1" android:layout_height="40dp" android:text="Missed Ad" android:backgroundTint="@color/glass_stroke" android:textColor="@color/text_primary" android:textSize="12sp" android:layout_marginEnd="8dp"/>
-                        <Button android:id="@+id/btn_false_block" android:layout_width="0dp" android:layout_weight="1" android:layout_height="40dp" android:text="False Block" android:backgroundTint="@color/glass_stroke" android:textColor="@color/text_primary" android:textSize="12sp" android:layout_marginStart="8dp"/>
+                    <TextView
+                        android:id="@+id/tv_help_improve"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="@string/home_help_improve"
+                        android:textColor="@color/text_secondary"
+                        android:textSize="12sp"
+                        android:layout_marginBottom="12dp"/>
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="horizontal">
+                        <Button
+                            android:id="@+id/btn_missed_ad"
+                            android:layout_width="0dp"
+                            android:layout_weight="1"
+                            android:layout_height="40dp"
+                            android:text="@string/home_missed_ad"
+                            android:backgroundTint="@color/glass_stroke"
+                            android:textColor="@color/text_primary"
+                            android:textSize="12sp"
+                            android:layout_marginEnd="8dp"/>
+                        <Button
+                            android:id="@+id/btn_false_block"
+                            android:layout_width="0dp"
+                            android:layout_weight="1"
+                            android:layout_height="40dp"
+                            android:text="@string/home_false_block"
+                            android:backgroundTint="@color/glass_stroke"
+                            android:textColor="@color/text_primary"
+                            android:textSize="12sp"
+                            android:layout_marginStart="8dp"/>
                     </LinearLayout>
                 </LinearLayout>
             </LinearLayout>

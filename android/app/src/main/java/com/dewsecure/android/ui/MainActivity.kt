@@ -18,12 +18,60 @@ import kotlinx.coroutines.launch
 
 class MainActivity : AppCompatActivity() {
 
-    private val homeFragment = HomeFragment()
-    private val protectionFragment = ProtectionFragment()
-    private val settingsFragment = SettingsFragment()
+    private lateinit var homeFragment: HomeFragment
+    private lateinit var protectionFragment: ProtectionFragment
+    private lateinit var settingsFragment: SettingsFragment
+
+    private fun recreateBottomNavIfNeeded() {
+        // BottomNavigationView 的文字会自动从新资源加载，无需额外操作
+    }
+
+    override fun onConfigurationChanged(newConfig: android.content.res.Configuration) {
+        super.onConfigurationChanged(newConfig)
+        Log.i("LocaleEngine", "Configuration changed: ${newConfig.locales.toLanguageTags()}")
+
+        // 获取当前显示的 Tab
+        val bottomNav = findViewById<BottomNavigationView>(R.id.bottom_navigation)
+        val selectedId = bottomNav.selectedItemId
+
+        // 🌟 核心修复：彻底销毁并重建所有 Fragment，保证 100% 语言刷新，杜绝 View 重叠
+        supportFragmentManager.beginTransaction().apply {
+            supportFragmentManager.fragments.forEach { remove(it) }
+            commitAllowingStateLoss()
+        }
+
+        homeFragment = HomeFragment()
+        protectionFragment = ProtectionFragment()
+        settingsFragment = SettingsFragment()
+
+        supportFragmentManager.beginTransaction().apply {
+            add(R.id.fragment_container, homeFragment, "HOME")
+            add(R.id.fragment_container, protectionFragment, "PROTECTION")
+            add(R.id.fragment_container, settingsFragment, "SETTINGS")
+
+            when (selectedId) {
+                R.id.nav_home -> { show(homeFragment); hide(protectionFragment); hide(settingsFragment) }
+                R.id.nav_protection -> { hide(homeFragment); show(protectionFragment); hide(settingsFragment) }
+                R.id.nav_settings -> { hide(homeFragment); hide(protectionFragment); show(settingsFragment) }
+            }
+            commitAllowingStateLoss()
+        }
+
+        refreshBottomNavigation()
+    }
+
+    private fun refreshBottomNavigation() {
+        val bottomNav = findViewById<BottomNavigationView>(R.id.bottom_navigation) ?: return
+        val menu = bottomNav.menu
+        // 🌟 绝对不重新 inflate，只精准修改文本，保证状态和监听器不死锁
+        menu.findItem(R.id.nav_home)?.title = getString(R.string.nav_home)
+        menu.findItem(R.id.nav_protection)?.title = getString(R.string.nav_protection)
+        menu.findItem(R.id.nav_settings)?.title = getString(R.string.nav_settings)
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        
         val prefs = getSharedPreferences("app_settings", MODE_PRIVATE)
         if (!prefs.contains("install_date")) {
             val sdf = java.text.SimpleDateFormat("d/M/yyyy", java.util.Locale.getDefault())
@@ -35,12 +83,20 @@ class MainActivity : AppCompatActivity() {
         
         // 首次初始化，把三个 Fragment 都 add 进去，但只显示 Home
         if (savedInstanceState == null) {
+            homeFragment = HomeFragment()
+            protectionFragment = ProtectionFragment()
+            settingsFragment = SettingsFragment()
             supportFragmentManager.beginTransaction().apply {
                 add(R.id.fragment_container, homeFragment, "HOME")
                 add(R.id.fragment_container, protectionFragment, "PROTECTION").hide(protectionFragment)
                 add(R.id.fragment_container, settingsFragment, "SETTINGS").hide(settingsFragment)
                 commit()
             }
+        } else {
+            // 🌟 核心修复：当发生语言切换重建时，从 FragmentManager 里找回旧实例，防止黑屏
+            homeFragment = supportFragmentManager.findFragmentByTag("HOME") as HomeFragment
+            protectionFragment = supportFragmentManager.findFragmentByTag("PROTECTION") as ProtectionFragment
+            settingsFragment = supportFragmentManager.findFragmentByTag("SETTINGS") as SettingsFragment
         }
 
         bottomNav.setOnItemSelectedListener { item ->
@@ -52,8 +108,14 @@ class MainActivity : AppCompatActivity() {
             }
         }
 
-        // 🌟 启动时立即初始化引擎并恢复缓存，防止首页显示为 0
-        EngineBridge.init(this, aiEnabled = true)
+        // 🌟 启动时初始化引擎（加入幂等保护，防止语言重建时重复初始化）
+        val enginePrefs = getSharedPreferences("engine_state", MODE_PRIVATE)
+        if (!enginePrefs.getBoolean("is_engine_initialized", false)) {
+            EngineBridge.init(this, aiEnabled = true)
+            enginePrefs.edit().putBoolean("is_engine_initialized", true).apply()
+        } else {
+            Log.i("MainActivity", "引擎已初始化，跳过重复调用")
+        }
         val statsPrefs = getSharedPreferences("stats_cache", MODE_PRIVATE)
         val savedTotal = statsPrefs.getLong("total", 0)
         val savedToday = statsPrefs.getLong("today", 0)

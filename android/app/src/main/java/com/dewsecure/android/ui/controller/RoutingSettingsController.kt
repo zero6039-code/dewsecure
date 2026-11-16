@@ -101,14 +101,14 @@ class RoutingSettingsController(
         prefs.edit().putBoolean("routing_$packageName", isBypassed).apply()
 
         if (DewVpnService.isRunningState) {
-            Toast.makeText(context, "配置已保存，正在重启 VPN...", Toast.LENGTH_SHORT).show()
+            Toast.makeText(context, R.string.toast_routing_saved_restart, Toast.LENGTH_SHORT).show()
             // 🌟 核心修复：发送带有明确 Action 的指令，让 Service 内部安全重启
             val restartIntent = Intent(context, DewVpnService::class.java).apply {
                 action = "ACTION_RESTART_VPN"
             }
             context.startService(restartIntent)
         } else {
-            Toast.makeText(context, "配置已保存，将在下次启动 VPN 时生效", Toast.LENGTH_SHORT).show()
+            Toast.makeText(context, R.string.toast_routing_saved, Toast.LENGTH_SHORT).show()
         }
     }
 }
