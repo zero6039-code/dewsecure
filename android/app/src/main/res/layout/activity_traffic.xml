@@ -26,7 +26,8 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_marginStart="16dp"
-            android:text="流量节省详情"
+            android:id="@+id/tv_traffic_title"
+              android:text="@string/traffic_title"
             android:textColor="@color/text_primary"
             android:textSize="20sp"
             android:textStyle="bold"/>
@@ -63,7 +64,7 @@
                 app:autoSizeTextType="uniform"
                 app:autoSizeMinTextSize="14sp"
                 app:autoSizeMaxTextSize="24sp"/>
-            <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="大约为您节省（今日）" android:textColor="@color/text_secondary" android:textSize="11sp" android:layout_marginTop="4dp"/>
+            <TextView android:id="@+id/tv_today_saved_label" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="@string/traffic_saved_today" android:textColor="@color/text_secondary" android:textSize="11sp" android:layout_marginTop="4dp"/>
             <TextView android:id="@+id/tv_today_date" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="1/1/2026" android:textColor="@color/text_secondary" android:textSize="10sp" android:layout_marginTop="2dp"/>
         </LinearLayout>
 
@@ -94,7 +95,7 @@
                 app:autoSizeTextType="uniform"
                 app:autoSizeMinTextSize="14sp"
                 app:autoSizeMaxTextSize="24sp"/>
-            <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="大约为您节省（总计）" android:textColor="@color/text_secondary" android:textSize="11sp" android:layout_marginTop="4dp"/>
+            <TextView android:id="@+id/tv_total_saved_label" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="@string/traffic_saved_total" android:textColor="@color/text_secondary" android:textSize="11sp" android:layout_marginTop="4dp"/>
             <TextView android:id="@+id/tv_total_date" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="从 1/1/2026 到目前为止" android:textColor="@color/text_secondary" android:textSize="10sp" android:layout_marginTop="2dp"/>
         </LinearLayout>
     </LinearLayout>
@@ -115,7 +116,7 @@
         android:layout_height="match_parent"
         android:layout_below="@id/traffic_stats_layout"
         android:gravity="center"
-        android:text="今日暂无流量节省记录\n去刷几个广告网页试试吧"
+        android:text="@string/traffic_empty_text"
         android:textColor="@color/text_secondary"
         android:textSize="14sp"
         android:visibility="gone"/>

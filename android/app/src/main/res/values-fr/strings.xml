@@ -31,8 +31,8 @@
     <string name="report_success">Commentaires envoyés. Merci !</string>
     <string name="report_fail">"Échec de l'envoi, veuillez vérifier le réseau."</string>
     <string name="report_empty_domain">Le domaine ne peut pas être vide</string>
-    <string name="dialog_cancel">Annuler</string>
-    <string name="dialog_submit">Envoyer</string>
+    
+    
     
     <string name="protect_dnr_title">Blocage des Règles DNR</string>
     <string name="protect_dnr_desc">Bloque les domaines malveillants connus, les publicités et les traqueurs</string>
@@ -91,8 +91,8 @@
     <string name="login_resend">Renvoyer le Code</string>
     <string name="login_resend_in">%1$ds pour renvoyer</string>
     
-    <string name="log_today_title">"Journaux Bloqués Aujourd'hui (%1$d total)"</string>
-    <string name="log_total_title">"Journaux Bloqués Totaux (%1$d total)"</string>
+    
+    
     <string name="log_empty">Aucun enregistrement de blocage pour le moment</string>
     <string name="log_empty_hint">Essayez de naviguer sur des sites Web chargés en publicités</string>
     
@@ -123,4 +123,27 @@
     <string name="error_send_fail">"Échec de l'envoi de l'OTP"</string>
     <string name="error_invalid_otp">Veuillez saisir le code à 8 chiffres</string>
     <string name="error_verify_fail">Échec de la vérification</string>
+
+    
+    
+    
+    
+    
+    
+
+    <string name="traffic_title">"Détails des Économies de Données"</string>
+    <string name="traffic_saved_today">"Économisés Aujourd'hui"</string>
+    <string name="traffic_saved_total">"Total Économisés"</string>
+    <string name="traffic_from_date">"De %1$s à maintenant"</string>
+    <string name="traffic_unknown_date">"Inconnu"</string>
+    <string name="traffic_empty_text">"Pas encore d'économies de données.\nEssayez de naviguer sur des sites chargés en publicités."</string>
+    <string name="log_today_title">"Journaux Bloqués Aujourd'hui (%1$d total)"</string>
+    <string name="log_total_title">"Journaux Bloqués Totaux (%1$d total)"</string>
+    <string name="log_empty_text">"Aucun enregistrement de blocage.\nEssayez de naviguer sur des sites chargés en publicités."</string>
+    <string name="report_hint">"ex : example.com"</string>
+    <string name="dialog_cancel">"Annuler"</string>
+    <string name="dialog_submit">"Envoyer"</string>
+    <string name="login_otp_title">"Entrer l'OTP"</string>
+    <string name="login_otp_subtitle">"Code de vérification envoyé à"</string>
+    <string name="login_otp_hint">"Code à 8 chiffres"</string>
 </resources>

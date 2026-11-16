@@ -38,9 +38,9 @@ class LogActivity : AppCompatActivity() {
         }
         
         if (isToday) {
-            tvTitle.text = "今日拦截记录 (聚合后 $displayCount 次)"
+            tvTitle.text = getString(R.string.log_today_title, displayCount)
         } else {
-            tvTitle.text = "总拦截记录 (聚合后 $displayCount 次)"
+            tvTitle.text = getString(R.string.log_total_title, displayCount)
         }
 
         if (displayLogs.isEmpty()) {

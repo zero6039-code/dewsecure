@@ -29,7 +29,7 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_marginStart="16dp"
-            android:text="总拦截记录"
+            android:text="@string/log_total_title"
             android:textColor="@color/text_primary"
             android:textSize="20sp"
             android:textStyle="bold"/>
@@ -51,7 +51,7 @@
         android:layout_height="match_parent"
         android:layout_below="@id/header"
         android:gravity="center"
-        android:text="暂无拦截记录\n去刷几个广告网页试试吧"
+        android:text="@string/log_empty_text"
         android:textColor="@color/text_secondary"
         android:textSize="14sp"
         android:visibility="gone"/>

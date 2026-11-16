@@ -29,8 +29,8 @@
     <string name="report_success">피드백이 제출되었습니다. 감사합니다!</string>
     <string name="report_fail">제출 실패, 네트워크를 확인하세요.</string>
     <string name="report_empty_domain">도메인을 입력해야 합니다</string>
-    <string name="dialog_cancel">취소</string>
-    <string name="dialog_submit">제출</string>
+    
+    
     <string name="protect_dnr_title">DNR 규칙 차단</string>
     <string name="protect_dnr_desc">알려진 악성 도메인, 광고 및 추적기를 차단합니다</string>
     <string name="protect_tracker_title">추적기 차단</string>
@@ -83,8 +83,8 @@
     <string name="login_btn_back">뒤로</string>
     <string name="login_resend">코드 재전송</string>
     <string name="login_resend_in">%1$d초 후 재전송</string>
-    <string name="log_today_title">"오늘 차단된 로그 (총 %1$d개)"</string>
-    <string name="log_total_title">"총 차단된 로그 (총 %1$d개)"</string>
+    
+    
     <string name="log_empty">차단 기록이 없습니다</string>
     <string name="log_empty_hint">광고가 많은 웹사이트를 방문해 보세요</string>
     <string name="notif_title">DewSecure 실행 중</string>
@@ -113,4 +113,27 @@
     <string name="error_send_fail">OTP 전송 실패</string>
     <string name="error_invalid_otp">8자리 코드를 입력하세요</string>
     <string name="error_verify_fail">확인 실패</string>
+
+    
+    
+    
+    
+    
+    
+
+    <string name="traffic_title">"트래픽 절감 세부 정보"</string>
+    <string name="traffic_saved_today">"오늘 절약된 양"</string>
+    <string name="traffic_saved_total">"총 절약된 양"</string>
+    <string name="traffic_from_date">"%1$s 부터 현재까지"</string>
+    <string name="traffic_unknown_date">"알 수 없음"</string>
+    <string name="traffic_empty_text">"아직 트래픽 절감 기록이 없습니다.\n광고가 많은 웹사이트를 방문해 보세요."</string>
+    <string name="log_today_title">"오늘 차단된 로그 (총 %1$d개)"</string>
+    <string name="log_total_title">"총 차단된 로그 (총 %1$d개)"</string>
+    <string name="log_empty_text">"차단 기록이 없습니다.\n광고가 많은 웹사이트를 방문해 보세요."</string>
+    <string name="report_hint">"예: example.com"</string>
+    <string name="dialog_cancel">"취소"</string>
+    <string name="dialog_submit">"제출"</string>
+    <string name="login_otp_title">"OTP 입력"</string>
+    <string name="login_otp_subtitle">"인증 코드 전송됨"</string>
+    <string name="login_otp_hint">"8자리 코드"</string>
 </resources>

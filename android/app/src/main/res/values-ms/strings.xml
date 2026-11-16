@@ -29,8 +29,8 @@
     <string name="report_success">Maklum balas dihantar. Terima kasih!</string>
     <string name="report_fail">Penghantaran gagal, sila semak rangkaian.</string>
     <string name="report_empty_domain">Domain tidak boleh kosong</string>
-    <string name="dialog_cancel">Batal</string>
-    <string name="dialog_submit">Hantar</string>
+    
+    
     <string name="protect_dnr_title">Sekatan Peraturan DNR</string>
     <string name="protect_dnr_desc">Menyekat domain berniat jahat, iklan &amp; penjejak yang diketahui</string>
     <string name="protect_tracker_title">Sekat Penjejak</string>
@@ -83,8 +83,8 @@
     <string name="login_btn_back">Kembali</string>
     <string name="login_resend">Hantar Semula Kod</string>
     <string name="login_resend_in">%1$ds untuk hantar semula</string>
-    <string name="log_today_title">"Log Disekat Hari Ini (%1$d jumlah)"</string>
-    <string name="log_total_title">"Jumlah Log Disekat (%1$d jumlah)"</string>
+    
+    
     <string name="log_empty">Tiada rekod sekatan lagi</string>
     <string name="log_empty_hint">Cuba layari beberapa laman web yang banyak iklan</string>
     <string name="notif_title">DewSecure Berjalan</string>
@@ -113,4 +113,27 @@
     <string name="error_send_fail">Gagal menghantar OTP</string>
     <string name="error_invalid_otp">Sila masukkan kod 8 digit</string>
     <string name="error_verify_fail">Pengesahan gagal</string>
+
+    
+    
+    
+    
+    
+    
+
+    <string name="traffic_title">"Butiran Penjimatan Trafik"</string>
+    <string name="traffic_saved_today">"Disimpan Hari Ini"</string>
+    <string name="traffic_saved_total">"Jumlah Disimpan"</string>
+    <string name="traffic_from_date">"Dari %1$s sehingga sekarang"</string>
+    <string name="traffic_unknown_date">"Tidak Diketahui"</string>
+    <string name="traffic_empty_text">"Tiada rekod penjimatan trafik lagi.\nCuba layari beberapa laman web yang banyak iklan."</string>
+    <string name="log_today_title">"Log Disekat Hari Ini (%1$d jumlah)"</string>
+    <string name="log_total_title">"Jumlah Log Disekat (%1$d jumlah)"</string>
+    <string name="log_empty_text">"Tiada rekod sekatan lagi.\nCuba layari beberapa laman web yang banyak iklan."</string>
+    <string name="report_hint">"cth: example.com"</string>
+    <string name="dialog_cancel">"Batal"</string>
+    <string name="dialog_submit">"Hantar"</string>
+    <string name="login_otp_title">"Masukkan OTP"</string>
+    <string name="login_otp_subtitle">"Kod pengesahan dihantar ke"</string>
+    <string name="login_otp_hint">"Kod 8 digit"</string>
 </resources>

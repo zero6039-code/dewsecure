@@ -14,4 +14,5 @@
     <color name="green_on">#3FB950</color>
     <color name="pro_yellow">#D29922</color>
     <color name="btn_white">#FFFFFF</color>
+    <color name="glass_bg_solid">#1A1C22</color>
 </resources>

@@ -1,5 +1,6 @@
 package com.dewsecure.android.ui
 
+import android.content.res.Configuration
 import android.os.Bundle
 import android.view.View
 import android.widget.TextView
@@ -16,22 +17,44 @@ import java.util.Locale
 
 class TrafficActivity : AppCompatActivity() {
 
+    private lateinit var tvTodayDetail: TextView
+    private lateinit var tvTotalDetail: TextView
+    private lateinit var tvTodayDate: TextView
+    private lateinit var tvTotalDate: TextView
+    private lateinit var recycler: RecyclerView
+    private lateinit var tvEmpty: TextView
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_traffic)
 
         findViewById<View>(R.id.btn_back).setOnClickListener { finish() }
+        
+        tvTodayDetail = findViewById(R.id.tv_traffic_today_detail)
+        tvTotalDetail = findViewById(R.id.tv_traffic_total_detail)
+        tvTodayDate = findViewById(R.id.tv_today_date)
+        tvTotalDate = findViewById(R.id.tv_total_date)
+        recycler = findViewById(R.id.recycler_traffic)
+        tvEmpty = findViewById(R.id.tv_empty_traffic)
 
-        val tvTodayDetail = findViewById<TextView>(R.id.tv_traffic_today_detail)
-        val tvTotalDetail = findViewById<TextView>(R.id.tv_traffic_total_detail)
-        val tvTodayDate = findViewById<TextView>(R.id.tv_today_date)
-        val tvTotalDate = findViewById<TextView>(R.id.tv_total_date)
-        val recycler = findViewById<RecyclerView>(R.id.recycler_traffic)
-        val tvEmpty = findViewById<TextView>(R.id.tv_empty_traffic)
+        updateUI()
+    }
+
+    override fun onConfigurationChanged(newConfig: Configuration) {
+        super.onConfigurationChanged(newConfig)
+        // 🌟 核心：当语言切换时，手动刷新 UI 文本
+        updateUI()
+    }
+
+    private fun updateUI() {
+        // 刷新 XML 里的静态文本
+        findViewById<TextView>(R.id.tv_traffic_title)?.text = getString(R.string.traffic_title)
+        findViewById<TextView>(R.id.tv_today_saved_label)?.text = getString(R.string.traffic_saved_today)
+        findViewById<TextView>(R.id.tv_total_saved_label)?.text = getString(R.string.traffic_saved_total)
 
         // 获取安装日期
         val prefs = getSharedPreferences("app_settings", MODE_PRIVATE)
-        val installDate = prefs.getString("install_date", "未知") ?: "未知"
+        val installDate = prefs.getString("install_date", getString(R.string.traffic_unknown_date)) ?: getString(R.string.traffic_unknown_date)
 
         // 获取今天日期
         val sdf = SimpleDateFormat("d/M/yyyy", Locale.getDefault())
@@ -39,7 +62,7 @@ class TrafficActivity : AppCompatActivity() {
 
         // 设置日期文本
         tvTodayDate.text = todayDate
-        tvTotalDate.text = "从 $installDate 到目前为止"
+        tvTotalDate.text = getString(R.string.traffic_from_date, installDate)
 
         // 获取数据
         val jsonStr = EngineBridge.getStatsJson(this)

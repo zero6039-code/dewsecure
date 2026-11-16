@@ -29,8 +29,8 @@
     <string name="report_success">Feedback gesendet. Vielen Dank!</string>
     <string name="report_fail">Senden fehlgeschlagen, bitte Netzwerk prüfen.</string>
     <string name="report_empty_domain">Domain darf nicht leer sein</string>
-    <string name="dialog_cancel">Abbrechen</string>
-    <string name="dialog_submit">Senden</string>
+    
+    
     <string name="protect_dnr_title">DNR-Regelblockierung</string>
     <string name="protect_dnr_desc">Blockiert bekannte bösartige Domains, Werbung und Tracker</string>
     <string name="protect_tracker_title">Tracker blockieren</string>
@@ -83,8 +83,8 @@
     <string name="login_btn_back">Zurück</string>
     <string name="login_resend">Code erneut senden</string>
     <string name="login_resend_in">%1$ds bis zum erneuten Senden</string>
-    <string name="log_today_title">"Heute blockierte Protokolle (%1$d insgesamt)"</string>
-    <string name="log_total_title">"Insgesamt blockierte Protokolle (%1$d insgesamt)"</string>
+    
+    
     <string name="log_empty">Noch keine Blockierungsdatensätze</string>
     <string name="log_empty_hint">Versuchen Sie, einige werbelastige Websites zu durchsuchen</string>
     <string name="notif_title">DewSecure läuft</string>
@@ -113,4 +113,27 @@
     <string name="error_send_fail">OTP konnte nicht gesendet werden</string>
     <string name="error_invalid_otp">Bitte geben Sie den 8-stelligen Code ein</string>
     <string name="error_verify_fail">Überprüfung fehlgeschlagen</string>
+
+    
+    
+    
+    
+    
+    
+
+    <string name="traffic_title">"Details zur Datenersparnis"</string>
+    <string name="traffic_saved_today">"Heute gespart"</string>
+    <string name="traffic_saved_total">"Insgesamt gespart"</string>
+    <string name="traffic_from_date">"Von %1$s bis jetzt"</string>
+    <string name="traffic_unknown_date">"Unbekannt"</string>
+    <string name="traffic_empty_text">"Noch keine Datenersparnis.\nVersuchen Sie, einige werbelastige Websites zu durchsuchen."</string>
+    <string name="log_today_title">"Heute blockierte Protokolle (%1$d insgesamt)"</string>
+    <string name="log_total_title">"Insgesamt blockierte Protokolle (%1$d insgesamt)"</string>
+    <string name="log_empty_text">"Noch keine Blockierungsdatensätze.\nVersuchen Sie, einige werbelastige Websites zu durchsuchen."</string>
+    <string name="report_hint">"z.B. example.com"</string>
+    <string name="dialog_cancel">"Abbrechen"</string>
+    <string name="dialog_submit">"Senden"</string>
+    <string name="login_otp_title">"OTP eingeben"</string>
+    <string name="login_otp_subtitle">"Bestätigungscode gesendet an"</string>
+    <string name="login_otp_hint">"8-stelliger Code"</string>
 </resources>

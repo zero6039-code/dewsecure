@@ -29,8 +29,8 @@
     <string name="report_success">フィードバックを送信しました。ありがとうございます！</string>
     <string name="report_fail">送信に失敗しました。ネットワークを確認してください。</string>
     <string name="report_empty_domain">ドメインを入力してください</string>
-    <string name="dialog_cancel">キャンセル</string>
-    <string name="dialog_submit">送信</string>
+    
+    
     <string name="protect_dnr_title">DNRルールブロック</string>
     <string name="protect_dnr_desc">既知の悪意のあるドメイン、広告、トラッカーをブロックします</string>
     <string name="protect_tracker_title">トラッカーのブロック</string>
@@ -83,8 +83,8 @@
     <string name="login_btn_back">戻る</string>
     <string name="login_resend">コードを再送信</string>
     <string name="login_resend_in">再送信まで %1$d 秒</string>
-    <string name="log_today_title">"今日のブロックログ (%1$d 件)"</string>
-    <string name="log_total_title">"総ブロックログ (%1$d 件)"</string>
+    
+    
     <string name="log_empty">ブロック記録はまだありません</string>
     <string name="log_empty_hint">広告の多いウェブサイトを閲覧してみてください</string>
     <string name="notif_title">DewSecure 実行中</string>
@@ -113,4 +113,27 @@
     <string name="error_send_fail">OTPの送信に失敗しました</string>
     <string name="error_invalid_otp">8桁のコードを入力してください</string>
     <string name="error_verify_fail">検証に失敗しました</string>
+
+    
+    
+    
+    
+    
+    
+
+    <string name="traffic_title">"通信量削減の詳細"</string>
+    <string name="traffic_saved_today">"今日の節約量"</string>
+    <string name="traffic_saved_total">"総節約量"</string>
+    <string name="traffic_from_date">"%1$s から現在まで"</string>
+    <string name="traffic_unknown_date">"不明"</string>
+    <string name="traffic_empty_text">"まだ通信量の節約記録はありません。\n広告の多いウェブサイトを閲覧してみてください。"</string>
+    <string name="log_today_title">"今日のブロックログ (合計 %1$d 件)"</string>
+    <string name="log_total_title">"総ブロックログ (合計 %1$d 件)"</string>
+    <string name="log_empty_text">"ブロック記録はまだありません。\n広告の多いウェブサイトを閲覧してみてください。"</string>
+    <string name="report_hint">"例: example.com"</string>
+    <string name="dialog_cancel">"キャンセル"</string>
+    <string name="dialog_submit">"送信"</string>
+    <string name="login_otp_title">"OTPを入力"</string>
+    <string name="login_otp_subtitle">"確認コードを送信しました"</string>
+    <string name="login_otp_hint">"8桁のコード"</string>
 </resources>

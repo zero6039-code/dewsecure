@@ -82,7 +82,7 @@
                     android:textColor="@color/text_primary"
                     android:textSize="28sp"
                     android:textStyle="bold"
-                    android:layout_marginBottom="32dp"/>
+                    android:layout_marginBottom="16dp"/>
 
                 <!-- 数据卡片 (今日/总拦截 - 左字右数版) -->
                 <LinearLayout
@@ -93,6 +93,7 @@
 
                     <!-- 今日拦截 -->
                     <LinearLayout
+                        android:id="@+id/card_blocked_today"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:layout_marginBottom="8dp"
@@ -121,6 +122,7 @@
 
                     <!-- 总拦截 -->
                     <LinearLayout
+                        android:id="@+id/card_blocked_total"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:background="@drawable/bg_glass_card"
@@ -155,7 +157,7 @@
                     android:background="@drawable/bg_glass_card"
                     android:orientation="horizontal"
                     android:paddingVertical="16dp"
-                    android:layout_marginBottom="32dp">
+                    android:layout_marginBottom="16dp">
 
                     <!-- 今日节省 -->
                     <LinearLayout
@@ -231,7 +233,7 @@
                     android:layout_width="match_parent"
                     android:layout_height="60dp"
                     android:text="@string/home_btn_start"
-                    android:layout_marginBottom="32dp"/>
+                    android:layout_marginBottom="16dp"/>
 
                 <!-- 反馈 -->
                 <LinearLayout
@@ -252,25 +254,33 @@
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:orientation="horizontal">
-                        <Button
+                        <androidx.appcompat.widget.AppCompatButton
                             android:id="@+id/btn_missed_ad"
                             android:layout_width="0dp"
                             android:layout_weight="1"
                             android:layout_height="40dp"
                             android:text="@string/home_missed_ad"
-                            android:backgroundTint="@color/glass_stroke"
+                            android:background="@drawable/bg_btn_glass"
                             android:textColor="@color/text_primary"
-                            android:textSize="12sp"
+                            android:maxLines="1"
+                            android:paddingHorizontal="4dp"
+                            app:autoSizeTextType="uniform"
+                            app:autoSizeMinTextSize="10sp"
+                            app:autoSizeMaxTextSize="12sp"
                             android:layout_marginEnd="8dp"/>
-                        <Button
+                        <androidx.appcompat.widget.AppCompatButton
                             android:id="@+id/btn_false_block"
                             android:layout_width="0dp"
                             android:layout_weight="1"
                             android:layout_height="40dp"
                             android:text="@string/home_false_block"
-                            android:backgroundTint="@color/glass_stroke"
+                            android:background="@drawable/bg_btn_glass"
                             android:textColor="@color/text_primary"
-                            android:textSize="12sp"
+                            android:maxLines="1"
+                            android:paddingHorizontal="4dp"
+                            app:autoSizeTextType="uniform"
+                            app:autoSizeMinTextSize="10sp"
+                            app:autoSizeMaxTextSize="12sp"
                             android:layout_marginStart="8dp"/>
                     </LinearLayout>
                 </LinearLayout>
