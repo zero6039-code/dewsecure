@@ -58,16 +58,14 @@ class AccountActivity : AppCompatActivity() {
                 val refreshResult = com.dewsecure.android.policy.AuthManager.refreshToken(this@AccountActivity)
 
                 if (refreshResult.isSuccess) {
-                    val latestPrefs = getSharedPreferences("user_session", Context.MODE_PRIVATE)
-                    val token = latestPrefs.getString("access_token", null)
-                    val refreshToken = latestPrefs.getString("refresh_token", null)
-
-                    if (token != null && refreshToken != null) {
-                        val url = "https://dewsecure.com/dashboard#token=$token&refresh=$refreshToken&source=app"
+                    val codeResult = com.dewsecure.android.policy.AuthManager.getHandoffCode(this@AccountActivity)
+                    if (codeResult.isSuccess) {
+                        val code = codeResult.getOrNull()!!
+                        val url = "https://dewsecure.com/dashboard?code=$code"
                         val intent = Intent(Intent.ACTION_VIEW, Uri.parse(url))
                         startActivity(intent)
                     } else {
-                        Toast.makeText(this@AccountActivity, getString(R.string.toast_cred_parse_fail), Toast.LENGTH_SHORT).show()
+                        Toast.makeText(this@AccountActivity, "获取交接码失败，请稍后重试", Toast.LENGTH_SHORT).show()
                     }
                 } else {
                     Toast.makeText(this@AccountActivity, getString(R.string.toast_session_expired), Toast.LENGTH_SHORT).show()
@@ -83,20 +81,31 @@ class AccountActivity : AppCompatActivity() {
 
         btnLogout.setOnClickListener {
             Toast.makeText(this, getString(R.string.toast_logout_cleaning), Toast.LENGTH_SHORT).show()
-            prefs.edit().clear().apply()
-            com.dewsecure.android.policy.EngineBridge.unloadAdblockModel()
-            val appPrefs = getSharedPreferences("app_settings", Context.MODE_PRIVATE)
-            appPrefs.edit().remove("cloud_model_version").remove("cloud_rules_version").apply()
+            lifecycleScope.launch {
+                // 1. 吊销服务端 Token
+                runCatching { com.dewsecure.android.policy.AuthManager.logout(this@AccountActivity) }
+                // 2. 清理 Session
+                prefs.edit().clear().apply()
+                // 3. 清理模型引擎
+                com.dewsecure.android.policy.EngineBridge.unloadAdblockModel()
+                // 4. 清理本地配置和模型文件
+                val appPrefs = getSharedPreferences("app_settings", Context.MODE_PRIVATE)
+                appPrefs.edit().remove("cloud_model_version").remove("cloud_rules_version").apply()
 
-            val weightsFile = java.io.File(filesDir, "cloud_weights.json")
-            if (weightsFile.exists()) weightsFile.delete()
-            val fstFile = java.io.File(filesDir, "cloud_rules.fst")
-            if (fstFile.exists()) fstFile.delete()
-            val jsonFile = java.io.File(filesDir, "cloud_rules.json")
-            if (jsonFile.exists()) jsonFile.delete()
+                val weightsFile = java.io.File(filesDir, "cloud_weights.json")
+                if (weightsFile.exists()) weightsFile.delete()
+                val fstFile = java.io.File(filesDir, "cloud_rules.fst")
+                if (fstFile.exists()) fstFile.delete()
+                val jsonFile = java.io.File(filesDir, "cloud_rules.json")
+                if (jsonFile.exists()) jsonFile.delete()
 
-            Toast.makeText(this, getString(R.string.toast_logout_success), Toast.LENGTH_SHORT).show()
-            finish()
+                // 5. 清理本地白名单与统计数据
+                getSharedPreferences("local_whitelist", Context.MODE_PRIVATE).edit().clear().apply()
+                getSharedPreferences("stats_cache", Context.MODE_PRIVATE).edit().clear().apply()
+
+                Toast.makeText(this@AccountActivity, getString(R.string.toast_logout_success), Toast.LENGTH_SHORT).show()
+                finish()
+            }
         }
     }
 
