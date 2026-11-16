@@ -32,3 +32,10 @@
     public static int d(...);
     public static int v(...);
 }
+
+
+# A-05 修复：移除 Log.i 与 Log.w 防止 Token 泄漏
+-assumenosideeffects class android.util.Log {
+    public static int i(...);
+    public static int w(...);
+}

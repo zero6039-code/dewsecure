@@ -71,6 +71,30 @@ object AuthManager {
         } catch (e: Exception) { Result.failure(e) }
     }
 
+    // 验证 Code 并换取 Token (A-05 修复)
+    suspend fun exchangeCodeForSession(code: String, verifier: String): Result<Pair<String, String>> = withContext(Dispatchers.IO) {
+        try {
+            val url = URL("$SUPABASE_URL/auth/v1/token?grant_type=pkce")
+            val conn = url.openConnection() as HttpURLConnection
+            conn.requestMethod = "POST"
+            conn.setRequestProperty("apikey", SUPABASE_KEY)
+            conn.setRequestProperty("Content-Type", "application/json")
+            conn.doOutput = true
+            val body = JSONObject().apply { 
+                put("auth_code", code)
+                put("code_verifier", verifier)
+            }.toString()
+            val os = OutputStreamWriter(conn.outputStream); os.write(body); os.flush(); os.close()
+            if (conn.responseCode in 200..299) {
+                val json = JSONObject(BufferedReader(InputStreamReader(conn.inputStream)).readText())
+                Result.success(Pair(json.optString("access_token"), json.optString("refresh_token")))
+            } else {
+                val msg = try { JSONObject(BufferedReader(InputStreamReader(conn.errorStream)).readText()).optString("msg", "验证失败") } catch (e: Exception) { "验证失败" }
+                Result.failure(Exception(msg))
+            }
+        } catch (e: Exception) { Result.failure(Exception("网络异常，请稍后重试")) }
+    }
+
     // 发送 OTP
     suspend fun sendOTP(email: String): Result<Unit> = withContext(Dispatchers.IO) {
         try {
