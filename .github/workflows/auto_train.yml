@@ -58,7 +58,7 @@ jobs:
         working-directory: models
         run: |
           MACRO_F1=$(python -c "import json; print(round(json.load(open('weights/model_meta.json'))['macroF1'], 4))")
-          VERSION="V${{ github.run_number }}.$(date -u +%Y%m%d)"
+          VERSION="${{ github.run_number }}.$(date -u +%Y%m%d).0"
           echo "macro_f1=$MACRO_F1" >> $GITHUB_OUTPUT
           echo "version=$VERSION" >> $GITHUB_OUTPUT
 
@@ -104,7 +104,7 @@ jobs:
         env:
           ED25519_PRIVATE_KEY: ${{ secrets.ED25519_MODEL_KEY }}
         run: |
-          export VERSION="V${{ github.run_number }}.$(date -u +%Y%m%d)"
+          export VERSION="${{ github.run_number }}.$(date -u +%Y%m%d).0"
           echo "正在签名的版本: $VERSION"
           echo "VERSION=$VERSION" >> $GITHUB_ENV
           python training/sign_model.py
