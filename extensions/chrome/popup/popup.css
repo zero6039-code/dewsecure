@@ -2017,3 +2017,103 @@ html, body {
 #savingsListContainer {
     padding: 4px 0 !important;
 }
+
+/* ==========================================
+   🌗 官方风格深浅色主题 (基于官方 data-theme 规范)
+   ========================================== */
+
+/* 🌞 浅色主题 (默认，保留现有视觉) */
+html[data-theme="light"] {
+    /* 无需覆盖，沿用现有 */
+}
+
+/* 🌙 深色主题 (对齐官方网页) */
+html[data-theme="dark"] body {
+    background:
+        radial-gradient(circle at 0% 0%, rgba(20, 30, 60, 0.8), transparent 45%),
+        radial-gradient(circle at 100% 10%, rgba(50, 20, 80, 0.6), transparent 45%),
+        linear-gradient(160deg, #0d1117 0%, #161b22 100%) !important;
+    color: #c9d1d9 !important;
+}
+
+/* 卡片玻璃效果适配 */
+html[data-theme="dark"] .glass {
+    background: rgba(22, 27, 34, 0.75) !important;
+    border: 1px solid rgba(255, 255, 255, 0.08) !important;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.05) !important;
+}
+
+/* 文本颜色覆盖 */
+html[data-theme="dark"] .logo-text,
+html[data-theme="dark"] .stat-value,
+html[data-theme="dark"] .site-domain,
+html[data-theme="dark"] .feedback-title,
+html[data-theme="dark"] .feature-name,
+html[data-theme="dark"] .sub-view-title,
+html[data-theme="dark"] h2, html[data-theme="dark"] h3,
+html[data-theme="dark"] .settings-header,
+html[data-theme="dark"] .account-label,
+html[data-theme="dark"] .account-value {
+    color: #e6edf3 !important;
+}
+
+/* 次要文本颜色 */
+html[data-theme="dark"] .stat-label,
+html[data-theme="dark"] .site-label,
+html[data-theme="dark"] .feature-desc,
+html[data-theme="dark"] .feedback-hint,
+html[data-theme="dark"] .settings-hint,
+html[data-theme="dark"] .text-gray-500 {
+    color: #8b949e !important;
+}
+
+/* 底部导航栏 */
+html[data-theme="dark"] .bottom-nav {
+    background: rgba(13, 17, 23, 0.85) !important;
+    border-top: 1px solid rgba(255, 255, 255, 0.05) !important;
+}
+html[data-theme="dark"] .bottom-nav-item {
+    color: #8b949e !important;
+}
+html[data-theme="dark"] .bottom-nav-item.active {
+    color: #3fb950 !important;
+}
+
+/* 登录按钮 */
+html[data-theme="dark"] .btn-login {
+    background: rgba(255, 255, 255, 0.1) !important;
+    color: #e6edf3 !important;
+    border-color: rgba(255, 255, 255, 0.15) !important;
+}
+
+/* 列表项、开关背景等 */
+html[data-theme="dark"] .savings-list-item,
+html[data-theme="dark"] .lang-option,
+html[data-theme="dark"] .whitelist-item,
+html[data-theme="dark"] .settings-link-btn {
+    background: rgba(255, 255, 255, 0.05) !important;
+    border-color: rgba(255, 255, 255, 0.05) !important;
+    color: #e6edf3 !important;
+}
+html[data-theme="dark"] .lang-option.active {
+    background: rgba(46, 160, 67, 0.15) !important;
+    border-color: #3fb950 !important;
+    color: #3fb950 !important;
+}
+
+/* 输入框 */
+html[data-theme="dark"] .auth-input {
+    background: rgba(0, 0, 0, 0.3) !important;
+    border-color: rgba(255, 255, 255, 0.1) !important;
+    color: #e6edf3 !important;
+}
+
+/* 流量卡片特殊背景色调整 */
+html[data-theme="dark"] #savingsListContainer .savings-list-item:hover {
+    background: rgba(255, 255, 255, 0.1) !important;
+}
+
+/* 主题切换按钮微动效 */
+#themeToggleBtn:hover {
+    transform: scale(1.15) rotate(15deg);
+}
