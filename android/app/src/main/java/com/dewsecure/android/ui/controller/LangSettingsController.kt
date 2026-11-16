@@ -8,6 +8,8 @@ import android.widget.GridLayout
 import android.widget.TextView
 import android.widget.Toast
 import androidx.core.content.ContextCompat
+import androidx.appcompat.app.AppCompatDelegate
+import androidx.core.os.LocaleListCompat
 import androidx.fragment.app.Fragment
 import com.dewsecure.android.R
 
@@ -25,7 +27,13 @@ class LangSettingsController(
         val grid = rootView.findViewById<GridLayout>(R.id.grid_language) ?: return
         val context = fragment.requireContext()
         val prefs = context.getSharedPreferences("app_settings", Context.MODE_PRIVATE)
-        val currentLang = prefs.getString("language", "en") ?: "en"
+        // 🌟 核心修复：读取 AppCompatDelegate 当前真实生效的语言
+        val appLocales = AppCompatDelegate.getApplicationLocales()
+        val currentLang = if (appLocales.isEmpty) {
+            prefs.getString("language", "en") ?: "en"
+        } else {
+            appLocales.toLanguageTags().split(",")[0]
+        }
 
         for ((name, code) in languages) {
             val btn = TextView(context)
@@ -69,8 +77,18 @@ class LangSettingsController(
                         child.setTypeface(null, Typeface.NORMAL)
                     }
                 }
+
+                // 保存到本地
                 prefs.edit().putString("language", code).apply()
-                Toast.makeText(context, "Language switched to $name", Toast.LENGTH_SHORT).show()
+                
+                // 🌟 核心：真正触发 Android 系统级别的语言切换
+                val localeList = LocaleListCompat.forLanguageTags(code)
+                // 🌟 触发系统级重建
+                AppCompatDelegate.setApplicationLocales(localeList)
+                                
+                // 使用动态字符串资源提示
+                val msg = context.getString(R.string.lang_switched, name)
+                Toast.makeText(context, msg, Toast.LENGTH_SHORT).show()
             }
             grid.addView(btn)
         }

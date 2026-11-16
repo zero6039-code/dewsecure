@@ -1,3 +1,138 @@
 <resources>
     <string name="app_name">DewSecure</string>
+    <string name="lang_switched">Language switched to %1$s</string>
+    
+    <!-- 底部导航 -->
+    <string name="nav_home">Home</string>
+    <string name="nav_protection">Protect</string>
+    <string name="nav_settings">Settings</string>
+
+    <!-- 首页 -->
+    <string name="home_title">Ultra Purification · Privacy Unlocked</string>
+    <string name="home_main_title">Ultra Purification · Privacy Unlocked</string>
+    <string name="home_status_unprotected">UNPROTECTED</string>
+    <string name="home_status_protected">PROTECTED</string>
+    <string name="home_protected_on">System-level protection is ON</string>
+    <string name="home_blocked_today">Blocked Today</string>
+    <string name="home_blocked_total">Total Blocked</string>
+    <string name="home_saved_today">Saved Today</string>
+    <string name="home_saved_total">Saved Total</string>
+    <string name="home_btn_start">TURN ON VPN</string>
+    <string name="home_btn_stop">TURN OFF VPN</string>
+    <string name="home_help_improve">Help us improve</string>
+    <string name="home_missed_ad">MISSED AD</string>
+    <string name="home_false_block">FALSE BLOCK</string>
+    <string name="home_login">Login / Dashboard</string>
+    <string name="home_login_btn">Login / Dashboard</string>
+    <string name="home_dashboard_btn">Dashboard</string>
+
+    <!-- 举报弹窗 -->
+    <string name="report_false_title">False Positive Report</string>
+    <string name="report_false_hint">Please enter the domain that was wrongly blocked.\n(Manual review required)</string>
+    <string name="report_missed_title">Missed Ad Report</string>
+    <string name="report_missed_hint">Please enter the domain where ads are still not blocked.</string>
+    <string name="report_submitting">Submitting...</string>
+    <string name="report_success">Feedback submitted. Thank you!</string>
+    <string name="report_fail">Submission failed, please check network.</string>
+    <string name="report_empty_domain">Domain cannot be empty</string>
+    <string name="dialog_cancel">Cancel</string>
+    <string name="dialog_submit">Submit</string>
+
+    <!-- 保护页 -->
+    <string name="protect_dnr_title">DNR Rule Blocking</string>
+    <string name="protect_dnr_desc">Blocks known malicious domains, ads &amp; trackers</string>
+    <string name="protect_tracker_title">Block Trackers</string>
+    <string name="protect_tracker_desc">Intercepts tracking scripts and pixels</string>
+    <string name="protect_social_title">Block Social Trackers</string>
+    <string name="protect_social_desc">Blocks social media tracking buttons</string>
+    <string name="protect_intel_title">Real-time Threat Intel</string>
+    <string name="protect_intel_desc">Dynamically blocks newly emerged phishing domains</string>
+    <string name="protect_ai_phishing_title">AI Phishing Detection</string>
+    <string name="protect_ai_phishing_desc">Identifies malicious and phishing domains (Pro)</string>
+    <string name="protect_ai_zero_day_title">AI Smart Real-time Detection</string>
+    <string name="protect_ai_zero_day_desc">AI dynamic blocking for zero-day ads (Pro)</string>
+    <string name="protect_mitm_title">MitM Full-App Filtering</string>
+    <string name="protect_mitm_desc">"HTTPS filtering for all apps (Install cert &amp; choose 'VPN and app', Requires Root)"</string>
+
+    <!-- MitM 弹窗 -->
+    <string name="mitm_dialog_title">⚠️ High Risk Action</string>
+    <string name="mitm_dialog_msg">"DewSecure will intercept and decrypt all App HTTPS traffic.\n\nPlease ensure your device is Rooted and the DewSecure CA is trusted."</string>
+    <string name="mitm_dialog_btn_continue">Continue &amp; Install Cert</string>
+    <string name="mitm_dialog_btn_cancel">Cancel</string>
+    <string name="mitm_cert_fail">Failed to get built-in certificate</string>
+    <string name="mitm_cert_install_title">Install HTTPS Filtering Certificate</string>
+    <string name="mitm_cert_install_msg">"To intercept HTTPS ads in the browser, the system needs to trust the DewSecure local certificate.\n\nAfter clicking 'One-click Install', please follow the system prompts.\n\n⚠️ Important: On the 'Credential use' screen, please be sure to select [VPN and app], otherwise HTTPS filtering will not work!"</string>
+    <string name="mitm_cert_btn_install">One-click Install</string>
+    <string name="mitm_cert_install_fail">Failed to trigger install: %1$s</string>
+    <string name="common_cancel">Cancel</string>
+
+    <!-- 设置页 -->
+    <string name="settings_routing_title">"App Routing\n(Allow bypass)"</string>
+    <string name="settings_routing_desc">Enabled apps will bypass the VPN, suitable for banking or office apps.</string>
+    <string name="settings_search_app">Search app name...</string>
+    <string name="settings_whitelist_title">Whitelist</string>
+    <string name="settings_whitelist_hint">Login required for cloud sync</string>
+    <string name="settings_whitelist_add">ADD</string>
+    <string name="settings_whitelist_empty">No whitelist domains</string>
+    <string name="settings_whitelist_login_req">LOGIN</string>
+    <string name="settings_privacy_title">Share Threat Intel (Anonymous)</string>
+    <string name="settings_privacy_desc">Allow sending desensitized suspicious domains to the cloud to improve blocking. Default off.</string>
+
+    <!-- 控制台页 -->
+    <string name="account_header_title">Dashboard</string>
+    <string name="account_logged_in">Logged In</string>
+    <string name="account_sub_title">Subscription</string>
+    <string name="account_expiry">Expiry</string>
+    <string name="account_group">Group</string>
+    <string name="account_manage_btn">Manage Account</string>
+    <string name="account_logout_btn">Log Out</string>
+
+    <!-- 登录页 -->
+    <string name="login_title">Login / Register</string>
+    <string name="login_subtitle">Account auto-created on first use</string>
+    <string name="login_email_hint">your@email.com</string>
+    <string name="login_btn_send_otp">SEND OTP</string>
+    <string name="login_btn_verify">VERIFY</string>
+    <string name="login_or">or</string>
+    <string name="login_google_btn">G</string>
+    <string name="login_otp_sent_to">Code sent to %1$s</string>
+    <string name="login_btn_back">Back</string>
+    <string name="login_resend">Resend Code</string>
+    <string name="login_resend_in">%1$ds to resend</string>
+
+    <!-- 日志页 -->
+    <string name="log_today_title">"Today's Blocked Logs (%1$d total)"</string>
+    <string name="log_total_title">"Total Blocked Logs (%1$d total)"</string>
+    <string name="log_empty">No block records yet</string>
+    <string name="log_empty_hint">Try browsing some ad-heavy websites</string>
+
+    <!-- 通知栏 -->
+    <string name="notif_title">DewSecure Running</string>
+    <string name="notif_text">Blocking ads and trackers</string>
+    <string name="notif_action_stop">Turn Off VPN</string>
+
+    <!-- Toast 提示 -->
+    <string name="toast_routing_saved_restart">Configuration saved, restarting VPN...</string>
+    <string name="toast_routing_saved">Configuration saved, will take effect next time VPN starts</string>
+    <string name="toast_whitelist_sync">Synced to cloud</string>
+    <string name="toast_privacy_on">Enabled: Anonymously reporting new threats</string>
+    <string name="toast_privacy_off">Disabled: Stopped anonymous reporting</string>
+    <string name="toast_root_req">Device not rooted, cannot enable this feature</string>
+    <string name="toast_mitm_pro">This feature is PRO exclusive</string>
+    <string name="toast_mitm_on">MitM enabled, restarting VPN...</string>
+    <string name="toast_mitm_off">MitM disabled</string>
+    <string name="toast_google_success">Google login successful!</string>
+    <string name="toast_google_fail_token">Login failed: missing token</string>
+    <string name="toast_google_redirect">Redirecting to Google...</string>
+    <string name="toast_login_success">Login successful!</string>
+    <string name="toast_getting_cred">Getting security credentials...</string>
+    <string name="toast_cred_parse_fail">Credential parsing failed, please try again</string>
+    <string name="toast_session_expired">Login expired, returning to login...</string>
+    <string name="toast_logout_cleaning">Cleaning up and logging out...</string>
+    <string name="toast_logout_success">Logged out, AI model cleared</string>
+    <string name="error_unknown_user">Unknown User</string>
+    <string name="error_invalid_email">Please enter a valid email address</string>
+    <string name="error_send_fail">Failed to send OTP</string>
+    <string name="error_invalid_otp">Please enter the 8-digit code</string>
+    <string name="error_verify_fail">Verification failed</string>
 </resources>

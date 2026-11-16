@@ -30,6 +30,8 @@ class WhitelistSettingsController(
 
     fun setup(rootView: View) {
         etDomain = rootView.findViewById(R.id.et_whitelist_domain)
+        // 🌟 强制锁定字体大小，防止被 XML 覆盖
+        etDomain.setTextSize(android.util.TypedValue.COMPLEX_UNIT_SP, 14f)
         btnAdd = rootView.findViewById(R.id.btn_add_whitelist)
         containerWhitelist = rootView.findViewById(R.id.container_whitelist)
         tvEmpty = rootView.findViewById(R.id.tv_whitelist_empty)
@@ -42,11 +44,14 @@ class WhitelistSettingsController(
         val userPrefs = context.getSharedPreferences("user_session", Context.MODE_PRIVATE)
         val token = userPrefs.getString("access_token", null)
 
+        // 🌟 强制修改字体大小
+        etDomain.setTextSize(android.util.TypedValue.COMPLEX_UNIT_SP, 14f)
+        
         if (token == null) {
             etDomain.isEnabled = false
-            etDomain.hint = "请先登录账号以使用云端同步"
+            etDomain.hint = context.getString(R.string.settings_whitelist_hint)
             btnAdd.isEnabled = false
-            btnAdd.text = "需登录"
+            btnAdd.text = context.getString(R.string.settings_whitelist_login_req)
             btnAdd.backgroundTintList = ColorStateList.valueOf(Color.GRAY)
             etDomain.setOnClickListener {
                 fragment.startActivity(Intent(context, LoginActivity::class.java))
@@ -55,7 +60,7 @@ class WhitelistSettingsController(
             etDomain.isEnabled = true
             etDomain.hint = "example.com"
             btnAdd.isEnabled = true
-            btnAdd.text = "Add"
+            btnAdd.text = context.getString(R.string.settings_whitelist_add)
             btnAdd.backgroundTintList = ColorStateList.valueOf(ContextCompat.getColor(context, R.color.green_on))
             btnAdd.setOnClickListener {
                 val domain = etDomain.text.toString().trim().lowercase()

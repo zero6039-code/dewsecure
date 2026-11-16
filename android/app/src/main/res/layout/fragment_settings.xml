@@ -99,14 +99,14 @@
                 android:id="@+id/pane_routing" android:layout_width="match_parent" android:layout_height="match_parent"
                 android:orientation="vertical" android:visibility="gone">
 
-                <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="分应用路由设置\n(让部分APP 直连)" android:textColor="@color/text_primary" android:textStyle="bold" android:textSize="16sp" android:layout_marginBottom="12dp"/>
-                <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="开启开关的应用将不走 VPN，适合银行、办公类应用。" android:textColor="@color/text_secondary" android:textSize="12sp" android:layout_marginBottom="16dp"/>
+                <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="@string/settings_routing_title" android:textColor="@color/text_primary" android:textStyle="bold" android:textSize="16sp" android:layout_marginBottom="12dp"/>
+                <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="@string/settings_routing_desc" android:textColor="@color/text_secondary" android:textSize="12sp" android:layout_marginBottom="16dp"/>
 
                 <EditText
                     android:id="@+id/et_search_app"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:hint="搜索应用名称..."
+                    android:hint="@string/settings_search_app"
                     android:textColor="@color/text_primary"
                     android:textColorHint="@color/text_secondary"
                     android:backgroundTint="@color/text_secondary"
@@ -126,16 +126,16 @@
                 android:id="@+id/pane_whitelist" android:layout_width="match_parent" android:layout_height="wrap_content"
                 android:orientation="vertical" android:visibility="gone">
 
-                <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Whitelist" android:textColor="@color/text_primary" android:textStyle="bold" android:textSize="18sp" android:layout_marginBottom="16dp"/>
+                <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="@string/settings_whitelist_title" android:textColor="@color/text_primary" android:textStyle="bold" android:textSize="18sp" android:layout_marginBottom="16dp"/>
 
                 <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal" android:layout_marginBottom="16dp" android:gravity="center_vertical">
                     <EditText android:id="@+id/et_whitelist_domain" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:hint="example.com" android:textColor="@color/text_primary" android:textColorHint="@color/text_secondary" android:inputType="textUri" android:backgroundTint="@color/text_secondary" android:layout_marginEnd="8dp"/>
-                    <Button android:id="@+id/btn_add_whitelist" android:layout_width="wrap_content" android:layout_height="40dp" android:text="ADD" android:textSize="12sp" android:minWidth="0dp" android:paddingHorizontal="@dimen/settings_horizontal_padding" android:insetTop="0dp" android:insetBottom="0dp"/>
+                    <Button android:id="@+id/btn_add_whitelist" android:layout_width="wrap_content" android:layout_height="40dp" android:text="@string/settings_whitelist_add" android:textSize="12sp" android:minWidth="0dp" android:paddingHorizontal="@dimen/settings_horizontal_padding" android:insetTop="0dp" android:insetBottom="0dp"/>
                 </LinearLayout>
 
                 <View android:layout_width="match_parent" android:layout_height="1dp" android:background="#1AFFFFFF" android:layout_marginBottom="8dp"/>
 
-                <TextView android:id="@+id/tv_whitelist_empty" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="暂无白名单" android:textColor="@color/text_secondary" android:gravity="center" android:layout_marginTop="20dp" android:visibility="gone"/>
+                <TextView android:id="@+id/tv_whitelist_empty" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="@string/settings_whitelist_empty" android:textColor="@color/text_secondary" android:gravity="center" android:layout_marginTop="20dp" android:visibility="gone"/>
                 <LinearLayout android:id="@+id/container_whitelist" android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical"/>
             </LinearLayout>
 
@@ -143,8 +143,8 @@
             <LinearLayout
                 android:id="@+id/pane_privacy" android:layout_width="match_parent" android:layout_height="wrap_content"
                 android:orientation="vertical" android:visibility="gone">
-                <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Share Threat Intel (Anonymous)" android:textColor="@color/text_primary" android:textStyle="bold" android:textSize="16sp" android:layout_marginBottom="8dp"/>
-                <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Allow sending desensitized suspicious domains to the cloud to improve blocking. Default off." android:textColor="@color/text_secondary" android:textSize="12sp" android:layout_marginBottom="16dp"/>
+                <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="@string/settings_privacy_title" android:textColor="@color/text_primary" android:textStyle="bold" android:textSize="16sp" android:layout_marginBottom="8dp"/>
+                <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="@string/settings_privacy_desc" android:textColor="@color/text_secondary" android:textSize="12sp" android:layout_marginBottom="16dp"/>
                 <androidx.appcompat.widget.SwitchCompat
                     android:id="@+id/switch_share_threat" android:layout_width="wrap_content" android:layout_height="wrap_content" />
             </LinearLayout>

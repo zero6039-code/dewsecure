@@ -9,6 +9,7 @@ import android.net.Uri
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
+import android.util.Log
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
@@ -36,6 +37,7 @@ class HomeFragment : Fragment() {
     private lateinit var tvTrafficTotal: TextView
     private lateinit var btnLogin: TextView
 
+
     private val handler = Handler(Looper.getMainLooper())
     private val updateRunnable = object : Runnable {
         override fun run() {
@@ -50,7 +52,8 @@ class HomeFragment : Fragment() {
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
-        
+        Log.e("LocaleDebug", "HomeFragment onViewCreated 执行")
+
         btnToggleVpn = view.findViewById(R.id.btn_toggle_vpn)
         tvStatus = view.findViewById(R.id.tv_main_status)
         tvBlockedToday = view.findViewById(R.id.tv_blocked_today)
@@ -58,13 +61,18 @@ class HomeFragment : Fragment() {
         tvTrafficToday = view.findViewById(R.id.tv_traffic_today)
         tvTrafficTotal = view.findViewById(R.id.tv_traffic_total)
         btnLogin = view.findViewById(R.id.btn_login)
+        
 
         val prefs = requireContext().getSharedPreferences("vpn_state", Context.MODE_PRIVATE)
         val isVpnOn = prefs.getBoolean("is_running", false)
-        
+
         btnToggleVpn.setInitialState(isVpnOn)
         updateUiState(isVpnOn)
+        setListeners(view)
+    }
 
+    private fun setListeners(view: View) {
+        val prefs = requireContext().getSharedPreferences("vpn_state", Context.MODE_PRIVATE)
         btnToggleVpn.setOnClickListener {
             btnToggleVpn.toggle()
             val nowOn = btnToggleVpn.isOn
@@ -72,7 +80,6 @@ class HomeFragment : Fragment() {
                 (activity as MainActivity).startVpn()
                 prefs.edit().putBoolean("is_running", true).apply()
             } else {
-                // 🌟 核心修复：发送明确的停止指令，唤醒 Service 内部去真正 close() TUN
                 val stopIntent = Intent(requireContext(), DewVpnService::class.java).apply {
                     action = "ACTION_STOP_VPN"
                 }
@@ -113,14 +120,12 @@ class HomeFragment : Fragment() {
             startActivity(Intent(requireContext(), TrafficActivity::class.java))
         }
 
-        // 误报反馈
         view.findViewById<View>(R.id.btn_false_block).setOnClickListener {
-            showReportDialog("误报反馈", "请填写被误拦截导致无法访问的网站域名。\n(提交后需人工审核)", "false_positive")
+            showReportDialog(getString(R.string.report_false_title), getString(R.string.report_false_hint), "false_positive")
         }
 
-        // 漏报反馈
         view.findViewById<View>(R.id.btn_missed_ad).setOnClickListener {
-            showReportDialog("漏报反馈", "请填写仍有广告未被拦截的网站域名。", "false_negative")
+            showReportDialog(getString(R.string.report_missed_title), getString(R.string.report_missed_hint), "false_negative")
         }
     }
 
@@ -139,26 +144,27 @@ class HomeFragment : Fragment() {
 
         tvTitle.text = title
         tvHint.text = hint
+        btnCancel.text = getString(R.string.dialog_cancel)
+        btnSubmit.text = getString(R.string.dialog_submit)
 
         btnCancel.setOnClickListener { dialog.dismiss() }
-        
-        // 核心：这里的真实网络请求
+
         btnSubmit.setOnClickListener {
             val domain = etDomain.text.toString().trim().lowercase()
             if (domain.isNotEmpty()) {
                 dialog.dismiss()
-                Toast.makeText(requireContext(), "正在提交...", Toast.LENGTH_SHORT).show()
-                
+                Toast.makeText(requireContext(), getString(R.string.report_submitting), Toast.LENGTH_SHORT).show()
+
                 lifecycleScope.launch {
                     val result = AuthManager.submitReport(requireContext(), reportType, domain)
                     if (result.isSuccess) {
-                        Toast.makeText(requireContext(), "反馈已提交，感谢您的帮助！", Toast.LENGTH_LONG).show()
+                        Toast.makeText(requireContext(), getString(R.string.report_success), Toast.LENGTH_LONG).show()
                     } else {
-                        Toast.makeText(requireContext(), "提交失败，请检查网络", Toast.LENGTH_LONG).show()
+                        Toast.makeText(requireContext(), getString(R.string.report_fail), Toast.LENGTH_LONG).show()
                     }
                 }
             } else {
-                Toast.makeText(requireContext(), "域名不能为空", Toast.LENGTH_SHORT).show()
+                Toast.makeText(requireContext(), getString(R.string.report_empty_domain), Toast.LENGTH_SHORT).show()
             }
         }
         dialog.show()
@@ -175,9 +181,9 @@ class HomeFragment : Fragment() {
 
         val userPrefs = requireContext().getSharedPreferences("user_session", Context.MODE_PRIVATE)
         if (userPrefs.getString("email", null) != null) {
-            btnLogin.text = "控制台"
+            btnLogin.text = getString(R.string.home_dashboard_btn)
         } else {
-            btnLogin.text = "登录 / 控制台"
+            btnLogin.text = getString(R.string.home_login_btn)
         }
 
         handler.post(updateRunnable)
@@ -191,16 +197,13 @@ class HomeFragment : Fragment() {
     override fun onHiddenChanged(hidden: Boolean) {
         super.onHiddenChanged(hidden)
         if (hidden) {
-            // 当被隐藏时（切到其他 Tab），停止定时器刷新，节省性能
             handler.removeCallbacks(updateRunnable)
         } else {
-            // 当重新显示时，立刻刷新一次数据，然后启动定时器
             updateStats()
             handler.post(updateRunnable)
         }
     }
 
-    
     private fun formatNumber(num: Int): String {
         return String.format(java.util.Locale.US, "%,d", num)
     }
@@ -211,8 +214,7 @@ class HomeFragment : Fragment() {
             val json = JSONObject(jsonStr)
             val today = json.optInt("today_blocked", 0)
             val total = json.optInt("total_blocked", 0)
-            
-            // 只有当数字变化时才更新 UI，防止 TextView 频繁闪烁
+
             val todayStr = formatNumber(today)
             val totalStr = formatNumber(total)
 
@@ -242,14 +244,16 @@ class HomeFragment : Fragment() {
     }
 
     private fun updateUiState(isOn: Boolean) {
+        val act = activity ?: return
         if (isOn) {
-            tvStatus.text = "已开启系统级保护"
+            tvStatus.text = act.getString(R.string.home_protected_on)
             tvStatus.setTextColor(requireContext().getColor(R.color.green_on))
-            btnToggleVpn.text = "关闭网络净化"
+            btnToggleVpn.text = act.getString(R.string.home_btn_stop)
         } else {
-            tvStatus.text = "未保护"
+            tvStatus.text = act.getString(R.string.home_status_unprotected)
             tvStatus.setTextColor(requireContext().getColor(R.color.text_secondary))
-            btnToggleVpn.text = "开启网络净化"
+            btnToggleVpn.text = act.getString(R.string.home_btn_start)
         }
     }
+
 }
