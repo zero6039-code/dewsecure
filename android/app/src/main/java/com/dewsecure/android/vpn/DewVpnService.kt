@@ -28,6 +28,11 @@ class DewVpnService : VpnService() {
 
     inner class ProtectorImpl : VpnProtector {
         override fun protectFd(fd: Int): Boolean {
+            if (fd == -1) {
+                Log.e(TAG, "🚨 收到 Rust 引擎死亡信号，正在紧急停止 VPN...")
+                CoroutineScope(Dispatchers.IO).launch { stopVpn() }
+                return true
+            }
             return this@DewVpnService.protect(fd)
         }
     }
@@ -221,16 +226,20 @@ class DewVpnService : VpnService() {
             val builder = Builder()
                 .addAddress("10.0.0.2", 24)
                 .addAddress("fd00::2", 120)
-                // 暂时注释掉 DNS 接管，让系统使用底层网络的 DNS，以验证 MitM 主链路
                 .addDnsServer("10.0.0.1")
                 .addDnsServer("fd00::1")
-                .addRoute("0.0.0.0", 0) // 接管所有 IPv4 流量
-                // .addRoute("::", 0)      // 接管所有 IPv6 流量
                 .setMtu(1400)
                 .setBlocking(false)
 
-            // 🌟 核心：读取分应用路由配置，踢出勾选直连的 App
             val appPrefs = getSharedPreferences("app_settings", MODE_PRIVATE)
+            val isDnsOnlyMode = appPrefs.getBoolean("pref_v3_dns_only", false)
+            // A-02: 全隧道 vs DNS-only
+            if (isDnsOnlyMode) {
+                builder.addRoute("10.0.0.1", 32)
+            } else {
+                builder.addRoute("0.0.0.0", 0)
+            }
+            // 🌟 核心：读取分应用路由配置，踢出勾选直连的 App
             val allKeys = appPrefs.all
             var bypassCount = 0
             
@@ -263,6 +272,13 @@ class DewVpnService : VpnService() {
             val filesDir = applicationContext.filesDir.absolutePath
             val res = EngineBridge.startMitmVpnEngine(fdInt, filesDir, ProtectorImpl())
             Log.i(TAG, "Rust VPN Engine 启动状态: $res")
+
+              // A-03: 校验启动结果，防止 UI 虚报已保护
+              if (res != "OK") {
+                  Log.e(TAG, "❌ Rust VPN 引擎启动失败，强制停止服务: $res")
+                  stopVpn()
+                  return
+              }
 
             // 🌟 启动后台心跳
             heartbeatManager.start()
