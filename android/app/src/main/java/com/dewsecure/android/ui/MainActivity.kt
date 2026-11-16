@@ -8,6 +8,7 @@ import android.util.Log
 import androidx.appcompat.app.AppCompatActivity
 import androidx.fragment.app.Fragment
 import androidx.lifecycle.lifecycleScope
+import com.dewsecure.android.BuildConfig
 import com.dewsecure.android.R
 import com.dewsecure.android.policy.AuthManager
 import com.dewsecure.android.policy.EngineBridge
@@ -71,6 +72,11 @@ class MainActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        
+        // 🌟 核心：如果当前是 Release 包，立即执行签名校验
+        if (!BuildConfig.DEBUG) {
+            checkSignature()
+        }
         
         val prefs = getSharedPreferences("app_settings", MODE_PRIVATE)
         if (!prefs.contains("install_date")) {
@@ -154,6 +160,51 @@ class MainActivity : AppCompatActivity() {
                 .remove("cloud_rules_version")
                 .apply()
         }
+    }
+
+
+
+    private fun checkSignature() {
+        val expectedSha256 = "466148368e4ac99e726c4cfdbef150a88df78370c5a846b14c9ab017ff22761c"
+        
+        try {
+            val pm = packageManager
+            val packageInfo = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.P) {
+                pm.getPackageInfo(packageName, android.content.pm.PackageManager.GET_SIGNING_CERTIFICATES)
+            } else {
+                @Suppress("DEPRECATION")
+                pm.getPackageInfo(packageName, android.content.pm.PackageManager.GET_SIGNATURES)
+            }
+            
+            val signatures = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.P) {
+                packageInfo.signingInfo?.apkContentsSigners
+            } else {
+                @Suppress("DEPRECATION")
+                packageInfo.signatures
+            }
+            
+            if (signatures.isNullOrEmpty()) {
+                killApp()
+                return
+            }
+
+            // 计算当前 APK 的 SHA-256
+            val md = java.security.MessageDigest.getInstance("SHA-256")
+            val publicKey = md.digest(signatures[0].toByteArray())
+            val actualSha256 = publicKey.joinToString("") { "%02x".format(it) }
+            
+            if (actualSha256 != expectedSha256) {
+                killApp()
+            }
+        } catch (e: Exception) {
+            killApp()
+        }
+    }
+    
+    private fun killApp() {
+        Log.e("Security", "🚨 签名校验失败，检测到二次打包！App 即将退出。")
+        android.os.Process.killProcess(android.os.Process.myPid())
+        System.exit(0)
     }
 
     private fun switchFragment(targetFragment: Fragment) {
