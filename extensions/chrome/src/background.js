@@ -18,6 +18,7 @@ import { initSettings, getSettings, SETTINGS_KEY } from './background/settings.j
 import { updateDNRRulesets } from './background/messageHandler.js';
 import { initSecurityListeners } from './background/security.js';
 import { initStatsListener } from './background/stats.js';
+import { initSavings } from './background/savings.js';
 import { purgeExpiredTempAllow } from './background/tempWhitelistManager.js';
 import { restoreSessionRules } from './background/dnr.js';
 import { initThreatFilter } from './background/threatIntel.js';
@@ -62,6 +63,7 @@ initSettings().then(async () => {
 chrome.action.setBadgeText({ text: '' });
 initSecurityListeners();
 initStatsListener();
+initSavings();
 restoreSessionRules();
 initThreatFilter(); // 🚀 启动时从 IndexedDB 恢复过滤器
 initIntelReporter(); // 🚀 启动静默情报上报服务

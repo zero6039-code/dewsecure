@@ -1,4 +1,5 @@
 import { STATS_KEY, LOG_KEY } from './settings.js';
+import { addSavings } from './savings.js';
 
 let memoryStats = { totalBlocked: 0, todayBlocked: 0, date: '' };
 let memoryLogs = [];
@@ -87,6 +88,7 @@ export function initStatsListener() {
                     memoryStats.totalBlocked += count;
                     memoryStats.todayBlocked += count;
                     scheduleSave();
+                        addSavings(count).catch(e => console.warn('Savings error:', e));
                 }
                 lastFetchTime = now;
             } catch (e) {

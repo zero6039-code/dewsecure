@@ -25,7 +25,7 @@
   "auth_title": "Entrar / Registrar",
   "auth_verify": "Verificar",
   "auth_verifying": "Verificando...",
-  "btn_login": "Entrar",
+  "btn_login": "Entrar / Registrar",
   "btn_status": "Ver status",
   "clipboard_btn": "Tenho certeza que é seguro, continuar",
   "clipboard_desc": "Este conteúdo contém comandos suspeitos (por exemplo, PowerShell/CMD). Não o cole na janela de execução.",

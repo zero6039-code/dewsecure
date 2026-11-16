@@ -249,3 +249,111 @@ export async function updateUserUI(user) {
     }
 
 }
+
+
+// ==========================================
+// 📊 流量节省数据渲染 (V4 域名聚合版)
+// ==========================================
+export function formatBytes(bytes) {
+    if (!bytes || bytes <= 0) return '0 KB';
+    const k = 1024;
+    const sizes = ['B', 'KB', 'MB', 'GB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
+}
+
+function formatDate(dateStr) {
+    if (!dateStr) return '';
+    const [y, m, d] = dateStr.split('-');
+    return `${d}/${m}/${y.slice(2)}`;
+}
+
+function getLocalDateStr() {
+    const d = new Date();
+    return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+}
+
+export async function renderSavings() {
+    try {
+        const today = getLocalDateStr();
+        const { savings = {}, savingsLogs = {} } = await chrome.storage.local.get(['savings', 'savingsLogs']);
+        
+        const todayData = savings[today] || { req: 0, bytes: 0 };
+        let totalBytes = 0;
+        Object.values(savings).forEach(d => totalBytes += (d.bytes || 0));
+
+        const todayStr = formatBytes(todayData.bytes);
+        const totalStr = formatBytes(totalBytes);
+
+        // 1. 更新首页卡片
+        const todayEl = document.getElementById('todaySaved');
+        const totalEl = document.getElementById('totalSaved');
+        if (todayEl) todayEl.textContent = todayStr;
+        if (totalEl) totalEl.textContent = totalStr;
+
+        // 2. 更新详情页卡片
+        const dTodayEl = document.getElementById('detailsTodaySaved');
+        const dTotalEl = document.getElementById('detailsTotalSaved');
+        const dTodayDate = document.getElementById('detailsTodayDate');
+        const dTotalDate = document.getElementById('detailsTotalDate');
+
+        if (dTodayEl) dTodayEl.textContent = todayStr;
+        if (dTotalEl) dTotalEl.textContent = totalStr;
+        
+        if (dTodayDate) dTodayDate.textContent = formatDate(today);
+        
+        const sortedDates = Object.keys(savings).sort();
+        if (dTotalDate) {
+            if (sortedDates.length > 0) {
+                dTotalDate.textContent = `From ${formatDate(sortedDates[0])} to now`;
+            } else {
+                dTotalDate.textContent = `From ${formatDate(today)} to now`;
+            }
+        }
+
+        // 3. 渲染明细列表 (聚合逻辑)
+        const listContainer = document.getElementById('savingsListContainer');
+        if (!listContainer) return;
+
+        const logs = savingsLogs[today] || [];
+        if (logs.length === 0) {
+            listContainer.innerHTML = `
+                <div style="text-align: center; color: #9ca3af; font-size: 13px; padding: 40px 20px; line-height: 1.6;">
+                    <div data-i18n="savings_no_data_title">${window.t('savings_no_data_title') || 'No traffic savings yet.'}</div>
+                    <div data-i18n="savings_no_data_desc" style="font-size: 12px;">${window.t('savings_no_data_desc') || 'Try browsing some ad-heavy websites.'}</div>
+                </div>`;
+            return;
+        }
+
+        // 🌟 聚合相同域名
+        const grouped = {};
+        logs.forEach(item => {
+            if (!grouped[item.domain]) {
+                grouped[item.domain] = { domain: item.domain, bytes: 0, count: 0, latestTime: item.time };
+            }
+            grouped[item.domain].bytes += item.bytes;
+            grouped[item.domain].count += 1;
+            // 因为 logs 是按时间顺序推入的，最新的在数组末尾
+            grouped[item.domain].latestTime = item.time; 
+        });
+
+        // 转为数组并反转顺序（最新拦截的在上面）
+        const groupedList = Object.values(grouped).reverse();
+
+        listContainer.innerHTML = groupedList.map(item => `
+            <div class="savings-list-item" style="display: flex; justify-content: space-between; align-items: center; padding: 12px; background: rgba(255,255,255,0.4); border-radius: 12px; margin: 0 4px 8px 4px;">
+                <div style="flex: 1; overflow: hidden;">
+                    <div style="font-weight: 600; font-size: 13px; color: #1c1c1e; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${item.domain}</div>
+                    <div style="font-size: 11px; color: #6b7280; margin-top: 2px;">${item.latestTime} · ${item.count} ${window.t('log_times') || 'times'}</div>
+                </div>
+                <div style="font-size: 13px; font-weight: 700; color: #10b981; margin-left: 10px;">
+                    - ${formatBytes(item.bytes)}
+                </div>
+            </div>
+        `).join('');
+        
+        if (window.applyI18n) window.applyI18n();
+    } catch (e) {
+        console.warn('⚠️ [UI] 渲染流量节省失败:', e);
+    }
+}

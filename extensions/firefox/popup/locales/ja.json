@@ -25,7 +25,7 @@
   "auth_title": "ログイン / 登録",
   "auth_verify": "認証",
   "auth_verifying": "確認中...",
-  "btn_login": "ログイン",
+  "btn_login": "ログイン / 登録",
   "btn_status": "ステータス表示",
   "clipboard_btn": "安全だと確信しています、続行",
   "clipboard_desc": "このコンテンツには不審なコマンド（PowerShell/CMDなど）が含まれています。実行ウィンドウに貼り付けないでください。",

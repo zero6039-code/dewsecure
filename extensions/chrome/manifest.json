@@ -13,7 +13,8 @@
     "downloads",
     "notifications",
     "scripting",
-    "identity"
+    "identity",
+    "webRequest"
   ],
   "host_permissions": [
     "<all_urls>"
