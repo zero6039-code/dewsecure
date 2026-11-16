@@ -15,6 +15,9 @@ import androidx.lifecycle.lifecycleScope
 import com.dewsecure.android.R
 import com.dewsecure.android.policy.AuthManager
 import kotlinx.coroutines.launch
+import java.security.MessageDigest
+import java.security.SecureRandom
+import android.util.Base64
 
 class LoginActivity : AppCompatActivity() {
 
@@ -77,19 +80,21 @@ class LoginActivity : AppCompatActivity() {
 
     private fun handleDeepLink(intent: Intent?) {
         val data: Uri = intent?.data ?: return
+        // A-05 修复：清空 Intent 防重放
+        intent.data = null
+        setIntent(Intent())
+        
         if (data.scheme == DEEP_LINK_SCHEME && data.host == DEEP_LINK_HOST) {
-            Log.i(TAG, "收到登录回调: $data")
-            val fragment = data.fragment ?: return
-            val params = fragment.split("&").associate {
-                val parts = it.split("=")
-                if (parts.size == 2) parts[0] to parts[1] else "" to ""
+            val code = data.getQueryParameter("code") ?: return
+            val verifier = PendingLogin.consume(this) ?: run {
+                Toast.makeText(this, getString(R.string.toast_google_fail_token), Toast.LENGTH_LONG).show()
+                return
             }
-
-            val accessToken = params["access_token"]
-            val refreshToken = params["refresh_token"]
-
-            if (!accessToken.isNullOrEmpty()) {
-                lifecycleScope.launch {
+            
+            lifecycleScope.launch {
+                val tokenResult = AuthManager.exchangeCodeForSession(code, verifier)
+                if (tokenResult.isSuccess) {
+                    val (accessToken, refreshToken) = tokenResult.getOrNull()!!
                     val userResult = AuthManager.getUserInfo(accessToken)
                     var realEmail = getString(R.string.error_unknown_user)
                     if (userResult.isSuccess) {
@@ -106,10 +111,9 @@ class LoginActivity : AppCompatActivity() {
                     Toast.makeText(this@LoginActivity, getString(R.string.toast_google_success), Toast.LENGTH_SHORT).show()
                     startActivity(Intent(this@LoginActivity, AccountActivity::class.java))
                     finish()
+                } else {
+                    Toast.makeText(this@LoginActivity, getString(R.string.toast_google_fail_token), Toast.LENGTH_LONG).show()
                 }
-            } else {
-                Log.e(TAG, "回调中未找到 access_token")
-                Toast.makeText(this, getString(R.string.toast_google_fail_token), Toast.LENGTH_LONG).show()
             }
         }
     }
@@ -155,7 +159,11 @@ class LoginActivity : AppCompatActivity() {
         findViewById<View>(R.id.btn_google_login).setOnClickListener {
             val supabaseUrl = "https://uvbaioqqjqseapcancvi.supabase.co"
             val redirectUrl = "$DEEP_LINK_SCHEME://$DEEP_LINK_HOST"
-            val authUrl = "$supabaseUrl/auth/v1/authorize?provider=google&redirect_to=$redirectUrl&response_type=token"
+            
+            val verifier = Pkce.verifier().also { PendingLogin.save(this, it) }
+            val challenge = Pkce.challenge(verifier)
+            
+            val authUrl = "$supabaseUrl/auth/v1/authorize?provider=google&redirect_to=$redirectUrl&response_type=code&code_challenge=$challenge&code_challenge_method=s256"
 
             try {
                 val customTabsIntent = CustomTabsIntent.Builder().build()
@@ -264,5 +272,26 @@ class LoginActivity : AppCompatActivity() {
     override fun onDestroy() {
         super.onDestroy()
         cancelTimer()
+    }
+}
+
+
+object Pkce {
+    private const val F = Base64.URL_SAFE or Base64.NO_WRAP or Base64.NO_PADDING
+    fun verifier(): String = ByteArray(32).also { SecureRandom().nextBytes(it) }.let { Base64.encodeToString(it, F) }
+    fun challenge(v: String): String = Base64.encodeToString(MessageDigest.getInstance("SHA-256").digest(v.toByteArray(Charsets.US_ASCII)), F)
+}
+
+object PendingLogin {
+    private const val PREF_NAME = "pending_login"
+    private const val KEY_VERIFIER = "verifier"
+    fun save(context: Context, verifier: String) {
+        context.getSharedPreferences(PREF_NAME, Context.MODE_PRIVATE).edit().putString(KEY_VERIFIER, verifier).apply()
+    }
+    fun consume(context: Context): String? {
+        val prefs = context.getSharedPreferences(PREF_NAME, Context.MODE_PRIVATE)
+        val v = prefs.getString(KEY_VERIFIER, null)
+        prefs.edit().remove(KEY_VERIFIER).apply()
+        return v
     }
 }
