@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<shape xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- 深色半透明底 -->
+    <solid android:color="#33FFFFFF" />
+    <!-- 20dp 圆角，匹配你其他卡片的圆润感 -->
+    <corners android:radius="20dp" />
+    <!-- 极细边框 -->
+    <stroke android:width="1dp" android:color="@color/glass_stroke" />
+</shape>

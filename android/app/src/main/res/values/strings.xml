@@ -35,8 +35,8 @@
     <string name="report_success">Feedback submitted. Thank you!</string>
     <string name="report_fail">Submission failed, please check network.</string>
     <string name="report_empty_domain">Domain cannot be empty</string>
-    <string name="dialog_cancel">Cancel</string>
-    <string name="dialog_submit">Submit</string>
+    
+    
 
     <!-- 保护页 -->
     <string name="protect_dnr_title">DNR Rule Blocking</string>
@@ -101,8 +101,8 @@
     <string name="login_resend_in">%1$ds to resend</string>
 
     <!-- 日志页 -->
-    <string name="log_today_title">"Today's Blocked Logs (%1$d total)"</string>
-    <string name="log_total_title">"Total Blocked Logs (%1$d total)"</string>
+    
+    
     <string name="log_empty">No block records yet</string>
     <string name="log_empty_hint">Try browsing some ad-heavy websites</string>
 
@@ -135,4 +135,29 @@
     <string name="error_send_fail">Failed to send OTP</string>
     <string name="error_invalid_otp">Please enter the 8-digit code</string>
     <string name="error_verify_fail">Verification failed</string>
+
+    <!-- 流量页 -->
+    
+    
+    
+    
+    
+    
+    
+
+    <string name="traffic_title">"Traffic Savings Details"</string>
+    <string name="traffic_saved_today">"Saved Today"</string>
+    <string name="traffic_saved_total">"Saved Total"</string>
+    <string name="traffic_from_date">"From %1$s to now"</string>
+    <string name="traffic_unknown_date">"Unknown"</string>
+    <string name="traffic_empty_text">"No traffic savings yet.\nTry browsing some ad-heavy websites."</string>
+    <string name="log_today_title">"Today's Blocked Logs (%1$d total)"</string>
+    <string name="log_total_title">"Total Blocked Logs (%1$d total)"</string>
+    <string name="log_empty_text">"No block records yet.\nTry browsing some ad-heavy websites."</string>
+    <string name="report_hint">"e.g. example.com"</string>
+    <string name="dialog_cancel">"Cancel"</string>
+    <string name="dialog_submit">"Submit"</string>
+    <string name="login_otp_title">"Enter OTP"</string>
+    <string name="login_otp_subtitle">"Verification code sent to"</string>
+    <string name="login_otp_hint">"8-digit code"</string>
 </resources>

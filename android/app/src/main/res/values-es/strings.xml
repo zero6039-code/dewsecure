@@ -29,8 +29,8 @@
     <string name="report_success">Comentarios enviados. ¡Gracias!</string>
     <string name="report_fail">Error al enviar, comprueba la red.</string>
     <string name="report_empty_domain">El dominio no puede estar vacío</string>
-    <string name="dialog_cancel">Cancelar</string>
-    <string name="dialog_submit">Enviar</string>
+    
+    
     <string name="protect_dnr_title">Bloqueo de Reglas DNR</string>
     <string name="protect_dnr_desc">Bloquea dominios maliciosos conocidos, anuncios y rastreadores</string>
     <string name="protect_tracker_title">Bloquear Rastreadores</string>
@@ -83,8 +83,8 @@
     <string name="login_btn_back">Volver</string>
     <string name="login_resend">Reenviar Código</string>
     <string name="login_resend_in">%1$ds para reenviar</string>
-    <string name="log_today_title">"Registros Bloqueados Hoy (%1$d total)"</string>
-    <string name="log_total_title">"Registros Bloqueados Totales (%1$d total)"</string>
+    
+    
     <string name="log_empty">Aún no hay registros de bloqueo</string>
     <string name="log_empty_hint">Intenta navegar por sitios web con muchos anuncios</string>
     <string name="notif_title">DewSecure en Ejecución</string>
@@ -113,4 +113,27 @@
     <string name="error_send_fail">Error al enviar OTP</string>
     <string name="error_invalid_otp">Por favor, introduce el código de 8 dígitos</string>
     <string name="error_verify_fail">Verificación fallida</string>
+
+    
+    
+    
+    
+    
+    
+
+    <string name="traffic_title">"Detalles de Ahorro de Tráfico"</string>
+    <string name="traffic_saved_today">"Ahorrado Hoy"</string>
+    <string name="traffic_saved_total">"Total Ahorrado"</string>
+    <string name="traffic_from_date">"Desde %1$s hasta ahora"</string>
+    <string name="traffic_unknown_date">"Desconocido"</string>
+    <string name="traffic_empty_text">"Aún no hay ahorros de tráfico.\nIntenta navegar por sitios web con muchos anuncios."</string>
+    <string name="log_today_title">"Registros Bloqueados Hoy (%1$d total)"</string>
+    <string name="log_total_title">"Registros Bloqueados Totales (%1$d total)"</string>
+    <string name="log_empty_text">"Aún no hay registros de bloqueo.\nIntenta navegar por sitios web con muchos anuncios."</string>
+    <string name="report_hint">"ej: example.com"</string>
+    <string name="dialog_cancel">"Cancelar"</string>
+    <string name="dialog_submit">"Enviar"</string>
+    <string name="login_otp_title">"Introducir OTP"</string>
+    <string name="login_otp_subtitle">"Código de verificación enviado a"</string>
+    <string name="login_otp_hint">"Código de 8 dígitos"</string>
 </resources>

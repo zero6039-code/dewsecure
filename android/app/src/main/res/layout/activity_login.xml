@@ -44,7 +44,8 @@
                 <TextView
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:text="Login / Register"
+                    android:id="@+id/tv_login_title"
+                      android:text="@string/login_title"
                     android:textColor="@color/text_primary"
                     android:textSize="24sp"
                     android:textStyle="bold"
@@ -53,7 +54,8 @@
                 <TextView
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:text="Account auto-created on first use"
+                    android:id="@+id/tv_login_subtitle"
+                      android:text="@string/login_subtitle"
                     android:textColor="@color/text_secondary"
                     android:textSize="14sp"
                     android:layout_marginBottom="32dp"/>
@@ -63,7 +65,7 @@
                     android:layout_width="match_parent"
                     android:layout_height="56dp"
                     android:background="@drawable/bg_glass_card"
-                    android:hint="your@email.com"
+                    android:hint="@string/login_email_hint"
                     android:inputType="textEmailAddress"
                     android:paddingHorizontal="20dp"
                     android:textColor="@color/text_primary"
@@ -84,10 +86,11 @@
                     android:id="@+id/btn_send_otp"
                     android:layout_width="match_parent"
                     android:layout_height="56dp"
-                    android:text="Send OTP"
+                    android:text="@string/login_btn_send_otp"
                     android:textColor="@color/text_primary"
                     android:textStyle="bold"
-                    android:backgroundTint="@color/glass_bg"
+                    android:background="@drawable/bg_glass_card"
+                    app:backgroundTint="@null"
                     android:layout_marginBottom="24dp"/>
 
                 <!-- OR 分割线 -->
@@ -98,7 +101,8 @@
                     android:orientation="horizontal"
                     android:layout_marginBottom="24dp">
                     <View android:layout_width="0dp" android:layout_height="1dp" android:layout_weight="1" android:background="@color/glass_stroke"/>
-                    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="or" android:textColor="@color/text_secondary" android:layout_marginHorizontal="16dp" android:textSize="12sp"/>
+                    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:id="@+id/tv_login_or"
+                      android:text="@string/login_or" android:textColor="@color/text_secondary" android:layout_marginHorizontal="16dp" android:textSize="12sp"/>
                     <View android:layout_width="0dp" android:layout_height="1dp" android:layout_weight="1" android:background="@color/glass_stroke"/>
                 </LinearLayout>
 
@@ -107,7 +111,7 @@
                     android:id="@+id/btn_google_login"
                     android:layout_width="match_parent"
                     android:layout_height="56dp"
-                    android:text="G"
+                    android:text="@string/login_google_btn"
                     android:textColor="@color/text_primary"
                     android:textSize="26sp"
                     android:textStyle="bold"
@@ -130,7 +134,8 @@
                 <TextView
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:text="Enter OTP"
+                    android:id="@+id/tv_otp_title"
+                      android:text="@string/login_otp_title"
                     android:textColor="@color/text_primary"
                     android:textSize="24sp"
                     android:textStyle="bold"
@@ -139,7 +144,8 @@
                 <TextView
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:text="Verification code sent to"
+                    android:id="@+id/tv_otp_subtitle"
+                      android:text="@string/login_otp_subtitle"
                     android:textColor="@color/text_secondary"
                     android:textSize="14sp"
                     android:layout_marginBottom="4dp"/>
@@ -159,7 +165,7 @@
                     android:layout_width="match_parent"
                     android:layout_height="56dp"
                     android:background="@drawable/bg_glass_card"
-                    android:hint="8-digit code"
+                    android:hint="@string/login_otp_hint"
                     android:inputType="number"
                     android:maxLength="8"
                     android:gravity="center"
@@ -182,17 +188,18 @@
                     android:id="@+id/btn_verify_otp"
                     android:layout_width="match_parent"
                     android:layout_height="56dp"
-                    android:text="Verify"
+                    android:text="@string/login_btn_verify"
                     android:textColor="@color/text_primary"
                     android:textStyle="bold"
-                    android:backgroundTint="@color/glass_bg"
+                    android:background="@drawable/bg_glass_card"
+                    app:backgroundTint="@null"
                     android:layout_marginBottom="16dp"/>
 
                 <TextView
                     android:id="@+id/btn_resend_otp"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:text="Resend code"
+                    android:text="@string/login_resend"
                     android:textColor="@color/accent_blue"
                     android:textSize="14sp"
                     android:padding="8dp"/>
@@ -201,7 +208,7 @@
                     android:id="@+id/btn_back_email"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:text="Back to email"
+                    android:text="@string/login_btn_back"
                     android:textColor="@color/text_secondary"
                     android:textSize="14sp"
                     android:padding="8dp"

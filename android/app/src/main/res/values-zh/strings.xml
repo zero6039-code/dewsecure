@@ -35,8 +35,8 @@
     <string name="report_success">反馈已提交，感谢您的帮助！</string>
     <string name="report_fail">提交失败，请检查网络</string>
     <string name="report_empty_domain">域名不能为空</string>
-    <string name="dialog_cancel">取消</string>
-    <string name="dialog_submit">提交</string>
+    
+    
 
     <!-- 保护页 -->
     <string name="protect_dnr_title">DNR 规则拦截</string>
@@ -101,8 +101,8 @@
     <string name="login_resend_in">%1$d 秒后可重发</string>
 
     <!-- 日志页 -->
-    <string name="log_today_title">"今日拦截记录 (聚合后 %1$d 次)"</string>
-    <string name="log_total_title">"总拦截记录 (聚合后 %1$d 次)"</string>
+    
+    
     <string name="log_empty">暂无拦截记录</string>
     <string name="log_empty_hint">去刷几个广告网页试试吧</string>
 
@@ -135,4 +135,29 @@
     <string name="error_send_fail">发送失败</string>
     <string name="error_invalid_otp">请输入 8 位验证码</string>
     <string name="error_verify_fail">验证失败</string>
+
+    <!-- 流量页 -->
+    
+    
+    
+    
+    
+    
+    
+
+    <string name="traffic_title">"流量节省详情"</string>
+    <string name="traffic_saved_today">"大约为您节省 (今日)"</string>
+    <string name="traffic_saved_total">"大约为您节省 (总计)"</string>
+    <string name="traffic_from_date">"从 %1$s 到目前为止"</string>
+    <string name="traffic_unknown_date">"未知"</string>
+    <string name="traffic_empty_text">"今日暂无流量节省记录\n去刷几个广告网页试试吧"</string>
+    <string name="log_today_title">"今日拦截记录 (聚合后 %1$d 次)"</string>
+    <string name="log_total_title">"总拦截记录 (聚合后 %1$d 次)"</string>
+    <string name="log_empty_text">"暂无拦截记录\n去刷几个广告网页试试吧"</string>
+    <string name="report_hint">"例如: example.com"</string>
+    <string name="dialog_cancel">"取消"</string>
+    <string name="dialog_submit">"提交"</string>
+    <string name="login_otp_title">"输入验证码"</string>
+    <string name="login_otp_subtitle">"验证码已发送至"</string>
+    <string name="login_otp_hint">"8位验证码"</string>
 </resources>

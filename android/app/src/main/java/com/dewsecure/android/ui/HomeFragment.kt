@@ -104,13 +104,13 @@ class HomeFragment : Fragment() {
             }
         }
 
-        view.findViewById<View>(R.id.tv_blocked_today).setOnClickListener {
+        view.findViewById<View>(R.id.card_blocked_today).setOnClickListener {
             val intent = Intent(requireContext(), LogActivity::class.java)
             intent.putExtra("is_today", true)
             startActivity(intent)
         }
 
-        view.findViewById<View>(R.id.tv_blocked_total).setOnClickListener {
+        view.findViewById<View>(R.id.card_blocked_total).setOnClickListener {
             val intent = Intent(requireContext(), LogActivity::class.java)
             intent.putExtra("is_today", false)
             startActivity(intent)
@@ -134,6 +134,9 @@ class HomeFragment : Fragment() {
         dialog.requestWindowFeature(Window.FEATURE_NO_TITLE)
         dialog.setContentView(R.layout.dialog_report)
         dialog.window?.setBackgroundDrawable(ColorDrawable(Color.TRANSPARENT))
+        // 🌟 核心修复：加上遮罩，防止背景字透底太严重，同时凸显毛玻璃质感
+        dialog.window?.addFlags(android.view.WindowManager.LayoutParams.FLAG_DIM_BEHIND)
+        dialog.window?.setDimAmount(0.6f)
         dialog.window?.setLayout(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT)
 
         val tvTitle = dialog.findViewById<TextView>(R.id.tv_dialog_title)

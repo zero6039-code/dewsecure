@@ -1962,3 +1962,37 @@ html, body {
 #settingsView {
     padding-bottom: 0 !important; /* 取消底部的空白，让卡片撑满 */
 }
+
+/* ==========================================
+   🎨 细节 UI 修复
+   ========================================== */
+
+/* 1. 左上角 Logo 字体变大 */
+.logo-text {
+    font-size: 17px !important;
+    font-weight: 800 !important;
+}
+.logo-img {
+    width: 24px !important;
+    height: 24px !important;
+}
+
+/* 2. 强制部分挤在一行的功能项换行 */
+.feature-name {
+    display: block !important;
+    margin-bottom: 2px !important;
+}
+.feature-desc {
+    display: block !important;
+    margin-top: 0 !important;
+}
+
+/* 3. 流量节省卡片悬停效果 (放大与阴影) */
+.hover-card {
+    transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.3s cubic-bezier(0.4, 0, 0.2, 1) !important;
+    cursor: pointer;
+}
+.hover-card:hover {
+    transform: translateY(-2px) scale(1.02) !important;
+    box-shadow: 0 12px 28px rgba(31, 38, 135, 0.10), inset 0 1px 0 rgba(255, 255, 255, 0.9) !important;
+}
