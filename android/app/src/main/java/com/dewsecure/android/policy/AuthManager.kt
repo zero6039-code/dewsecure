@@ -369,4 +369,38 @@ object AuthManager {
             Result.failure(e) 
         }
     }
+    // 服务端登出，吊销 Token
+    suspend fun logout(context: Context): Result<Unit> = withContext(Dispatchers.IO) {
+        val prefs = context.getSharedPreferences("user_session", Context.MODE_PRIVATE)
+        val token = prefs.getString("access_token", null)
+        if (token != null) {
+            try {
+                val url = URL("$SUPABASE_URL/auth/v1/logout")
+                val conn = url.openConnection() as HttpURLConnection
+                conn.requestMethod = "POST"
+                conn.setRequestProperty("apikey", SUPABASE_KEY)
+                conn.setRequestProperty("Authorization", "Bearer $token")
+                if (conn.responseCode in 200..299) Result.success(Unit) else Result.failure(Exception("Logout failed"))
+            } catch (e: Exception) { Result.failure(e) }
+        } else Result.success(Unit)
+    }
+
+    // 获取一次性交接 Code
+    suspend fun getHandoffCode(context: Context): Result<String> = withContext(Dispatchers.IO) {
+        val prefs = context.getSharedPreferences("user_session", Context.MODE_PRIVATE)
+        val token = prefs.getString("access_token", null) ?: return@withContext Result.failure(Exception("No token"))
+        try {
+            val url = URL("$SUPABASE_URL/functions/v1/handoff")
+            val conn = url.openConnection() as HttpURLConnection
+            conn.requestMethod = "POST"
+            conn.setRequestProperty("apikey", SUPABASE_KEY)
+            conn.setRequestProperty("Authorization", "Bearer $token")
+            if (conn.responseCode in 200..299) {
+                val json = JSONObject(BufferedReader(InputStreamReader(conn.inputStream)).readText())
+                Result.success(json.optString("code"))
+            } else {
+                Result.failure(Exception("Handoff failed: ${conn.responseCode}"))
+            }
+        } catch (e: Exception) { Result.failure(e) }
+    }
 }
