@@ -15,8 +15,12 @@ object UpdateManager {
     private const val BASE_URL = "https://api.dewsecure.com/api/intel"
     private const val MODEL_BASE_URL = "https://cdn.dewsecure.com/canary"
     private const val CACHE_KEY_RULES_VER = "cloud_rules_version"
+    private const val CACHE_KEY_MODEL_VER = "cloud_model_version"
+    private const val CACHE_KEY_MODEL_SHA = "cloud_model_sha"
+    private const val CACHE_KEY_MODEL_SIG = "cloud_model_sig"
 
     suspend fun checkForUpdates(context: Context) = withContext(Dispatchers.IO) {
+        restoreModelIfAny(context) // A-07: 冷启动恢复已下载模型
         val prefs = context.getSharedPreferences("app_settings", Context.MODE_PRIVATE)
         val userPrefs = context.getSharedPreferences("user_session", Context.MODE_PRIVATE)
         val token = userPrefs.getString("access_token", null)
@@ -98,7 +102,6 @@ object UpdateManager {
     suspend fun checkForModelUpdates(context: Context, token: String?) = withContext(Dispatchers.IO) {
         Log.i(TAG, "🧠 开始检查 AI 模型更新 (CDN Canary)...")
         val prefs = context.getSharedPreferences("app_settings", Context.MODE_PRIVATE)
-        val CACHE_KEY_MODEL_VER = "cloud_model_version"
 
         try {
             // 1. 拉取模型元数据
@@ -125,6 +128,8 @@ object UpdateManager {
             val validUntil = 9999999999L // 先写死，或者从服务器取
             
             val localVersion = (prefs.getString(CACHE_KEY_MODEL_VER, "") ?: "").trim()
+            // A-07: 过滤旧的 Vxx.yyyymmdd 格式，防止 Rust 端 semver 解析失败
+            val safeLocalVersion = if (localVersion.matches(Regex("^\\d+\\.\\d+\\.\\d+.*"))) localVersion else null
 
             if (remoteVersion == localVersion) {
                 Log.d(TAG, "ℹ️ 本地 AI 模型已是最新版本: $localVersion")
@@ -150,7 +155,7 @@ object UpdateManager {
             // 3. 调用 Rust 侧接口加载模型
             val success = EngineBridge.loadSignedAdblockModel(
                 remoteVersion, expectedSha256, sigB64, modelBody, 
-                modelType, channel, validUntil, localVersion.ifEmpty { null }
+                modelType, channel, validUntil, safeLocalVersion
             )
 
             if (success) {
@@ -163,7 +168,11 @@ object UpdateManager {
                     Log.e(TAG, "❌ 模型落盘失败", e)
                 }
                 
-                prefs.edit().putString(CACHE_KEY_MODEL_VER, remoteVersion).apply()
+                prefs.edit()
+                    .putString(CACHE_KEY_MODEL_VER, remoteVersion)
+                    .putString(CACHE_KEY_MODEL_SHA, expectedSha256)
+                    .putString(CACHE_KEY_MODEL_SIG, sigB64)
+                    .apply()
                 Log.i(TAG, "✅ AI 模型热更新成功，版本: $remoteVersion")
             } else {
                 Log.e(TAG, "❌ AI 模型热更新失败：验签不通过或加载失败")
@@ -171,6 +180,31 @@ object UpdateManager {
 
         } catch (e: Exception) {
             Log.e(TAG, "❌ 模型更新网络异常", e)
+        }
+    }
+
+    suspend fun restoreModelIfAny(context: Context) = withContext(Dispatchers.IO) {
+        val prefs = context.getSharedPreferences("app_settings", Context.MODE_PRIVATE)
+        val userPrefs = context.getSharedPreferences("user_session", Context.MODE_PRIVATE)
+        val cachedTier = userPrefs.getString("tier", "free") ?: "free"
+        val isUserPro = cachedTier in listOf("pro", "premium", "trial", "trial-pro", "family", "sub-family", "family_sub")
+        if (!isUserPro) return@withContext
+
+        val ver = prefs.getString(CACHE_KEY_MODEL_VER, null) ?: return@withContext
+        val sha = prefs.getString(CACHE_KEY_MODEL_SHA, null) ?: return@withContext
+        val sig = prefs.getString(CACHE_KEY_MODEL_SIG, null) ?: return@withContext
+        val modelFile = java.io.File(context.filesDir, "cloud_weights.json")
+        if (!modelFile.exists()) return@withContext
+
+        try {
+            val modelBody = modelFile.readText()
+            val success = EngineBridge.loadSignedAdblockModel(
+                ver, sha, sig, modelBody, "adblock", "canary", 9999999999L, null
+            )
+            if (success) Log.i(TAG, "✅ 启动恢复本地 AI 模型成功，版本: $ver")
+            else Log.e(TAG, "❌ 启动恢复本地 AI 模型失败：验签不通过")
+        } catch (e: Exception) {
+            Log.e(TAG, "❌ 启动恢复本地 AI 模型异常", e)
         }
     }
 }
