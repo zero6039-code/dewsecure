@@ -73,10 +73,6 @@ class MainActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         
-        // 🌟 核心：如果当前是 Release 包，立即执行签名校验
-        if (!BuildConfig.DEBUG) {
-            checkSignature()
-        }
         
         val prefs = getSharedPreferences("app_settings", MODE_PRIVATE)
         if (!prefs.contains("install_date")) {
