@@ -18,16 +18,22 @@
         android:theme="@style/Theme.Material3.DayNight.NoActionBar"
         android:localeConfig="@xml/locale_config">
 
-        <!-- 主页 -->
+        <!-- 启动页 -->
         <activity
-            android:name=".ui.MainActivity"
+            android:name=".ui.SplashActivity"
             android:exported="true"
-            android:configChanges="locale|layoutDirection">
+            android:theme="@style/Theme.DewSecure.Splash">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+
+        <!-- 主页 -->
+        <activity
+            android:name=".ui.MainActivity"
+            android:exported="false"
+            android:configChanges="locale|layoutDirection" />
 
         <!-- 拦截日志页面 -->
         <activity android:name=".ui.LogActivity"
