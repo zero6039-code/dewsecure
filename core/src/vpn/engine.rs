@@ -51,13 +51,16 @@ impl VpnEngine {
         Self { tun_fd, protector } 
     }
 
-    pub async fn start(self) {
+    pub async fn start(self, ready_tx: Option<std::sync::mpsc::SyncSender<Result<(), String>>>) {
         info!("🚀 初始化 Rust 侧 smoltcp 透明代理 (完全接管版)...");
         RUNNING.store(true, Ordering::Relaxed);
 
         let proxy = crate::mitm_proxy::MitmProxy::new();
         if let Err(e) = proxy.start().await { 
             error!("❌ hudsucker 启动失败: {}", e); 
+            if let Some(tx) = ready_tx.as_ref() {
+                let _ = tx.try_send(Err(format!("hudsucker 启动失败: {}", e)));
+            }
             return; 
         }
 
@@ -87,6 +90,9 @@ impl VpnEngine {
         let protector = self.protector.clone();
 
         info!("✅ smoltcp 协议栈启动，动态监听 443...");
+        if let Some(tx) = ready_tx {
+            let _ = tx.try_send(Ok(()));
+        }
         let mut last_report = std::time::Instant::now();
 
         loop {
