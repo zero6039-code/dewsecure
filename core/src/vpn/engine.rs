@@ -12,7 +12,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use crate::VpnProtector;
 
-use super::device::{VpnDevice, spawn_tun_reader, TCP_443_CONNECTIONS, TunWriter};
+use super::device::{VpnDevice, spawn_tun_reader, TCP_443_CONNECTIONS, TunWriter, get_pending_tcp_ports};
 use super::utils::extract_sni;
 
 static MITM_ENABLED: AtomicBool = AtomicBool::new(false);
@@ -88,6 +88,10 @@ impl VpnEngine {
         let mut sockets = SocketSet::new(vec![]);
         let mut connections: HashMap<SocketHandle, ConnectionState> = HashMap::new();
         let protector = self.protector.clone();
+        let mut listening_ports: std::collections::HashSet<u16> = std::collections::HashSet::new();
+        listening_ports.insert(443);
+        let mut listening_ports: std::collections::HashSet<u16> = std::collections::HashSet::new();
+        listening_ports.insert(443);
 
         info!("✅ smoltcp 协议栈启动，动态监听 443...");
         if let Some(tx) = ready_tx {
@@ -101,22 +105,35 @@ impl VpnEngine {
                 break;
             }
             
-            // 1. 补充 Listener
-            let mut listen_count = 0;
-            for (_, socket) in sockets.iter() {
-                if let smoltcp::socket::Socket::Tcp(s) = socket {
-                    if s.state() == tcp::State::Listen { listen_count += 1; }
+            // 1. 补充 Listener（443 固定池 + 动态端口）
+            let mut c443 = 0;
+            for (_, s) in sockets.iter() {
+                if let smoltcp::socket::Socket::Tcp(s) = s {
+                    if s.state() == tcp::State::Listen {
+                        if let Some(ep) = s.local_endpoint() { if ep.port == 443 { c443 += 1; } }
+                    }
                 }
             }
-            
-            for _ in listen_count..64 {
-                let tcp_rx = tcp::SocketBuffer::new(vec![0u8; 65535]);
-                let tcp_tx = tcp::SocketBuffer::new(vec![0u8; 65535]);
-                let tcp_socket = tcp::Socket::new(tcp_rx, tcp_tx);
-                let handle = sockets.add(tcp_socket);
-                let socket = sockets.get_mut::<tcp::Socket>(handle);
-                if let Err(e) = socket.listen(IpListenEndpoint { addr: None, port: 443 }) {
-                    error!("监听 443 端口失败: {:?}", e);
+            for _ in c443..64 {
+                let rx = tcp::SocketBuffer::new(vec![0u8; 65535]);
+                let tx = tcp::SocketBuffer::new(vec![0u8; 65535]);
+                let h = sockets.add(tcp::Socket::new(rx, tx));
+                if let Err(e) = sockets.get_mut::<tcp::Socket>(h).listen(IpListenEndpoint { addr: None, port: 443 }) {
+                    error!("监听 443 失败: {:?}", e);
+                }
+            }
+            let pending: Vec<u16> = { let mut g = get_pending_tcp_ports().lock().unwrap(); let v: Vec<u16> = g.iter().copied().collect(); g.clear(); v };
+            for port in pending {
+                if listening_ports.insert(port) {
+                    for _ in 0..8 {
+                        let rx = tcp::SocketBuffer::new(vec![0u8; 65535]);
+                        let tx = tcp::SocketBuffer::new(vec![0u8; 65535]);
+                        let h = sockets.add(tcp::Socket::new(rx, tx));
+                        if let Err(e) = sockets.get_mut::<tcp::Socket>(h).listen(IpListenEndpoint { addr: None, port }) {
+                            error!("监听端口 {} 失败: {:?}", port, e);
+                        }
+                    }
+                    info!("🔧 新端口 {} 8 listeners", port);
                 }
             }
 
@@ -147,12 +164,13 @@ impl VpnEngine {
 
                 if !connections.contains_key(&handle) {
                     let local_ep = tcp_socket.local_endpoint().unwrap();
+                    let target_port = local_ep.port;
                     let ip_str = match local_ep.addr {
                         IpAddress::Ipv4(v4) => v4.to_string(),
                         IpAddress::Ipv6(v6) => format!("[{}]", v6),
                     };
 
-                    info!("🔗 捕获 TCP 连接: {}", ip_str);
+                    info!("🔗 捕获 TCP 连接: {}:{}", ip_str, target_port);
                     TCP_443_CONNECTIONS.fetch_add(1, Ordering::Relaxed);
 
                     let (tx_to_proxy, mut rx_from_tun) = mpsc::channel::<Bytes>(128);
@@ -168,6 +186,7 @@ impl VpnEngine {
                     let tx_to_tun_clone = tx_to_tun.clone();
                     let prot_clone = protector.clone();
                     let ip_str_clone = ip_str.clone();
+                    let target_port_clone = target_port;
 
                     tokio::spawn(async move {
                         let mut first_chunk = Vec::new();
@@ -177,16 +196,16 @@ impl VpnEngine {
                                 Ok(Some(data)) => {
                                     first_chunk.extend_from_slice(&data);
                                     if let Some(domain) = extract_sni(&first_chunk) { break domain; }
-                                    if first_chunk.len() > 16384 { return; }
+                                    if first_chunk.len() > 16384 { break String::new(); }
                                 }
-                                _ => return,
+                                _ => break String::new(),
                             }
                         };
 
                         let is_mitm_enabled = MITM_ENABLED.load(Ordering::Relaxed);
-                        if !is_mitm_enabled || crate::policy_rules::should_bypass_mitm(&target_domain) {
-                            info!("🛡️ [Bypass] 域名 {} 准备直连", target_domain);
-                            let target_addr = format!("{}:443", ip_str_clone);
+                        if target_domain.is_empty() || !is_mitm_enabled || crate::policy_rules::should_bypass_mitm(&target_domain) {
+                            info!("🛡️ [Bypass] 域名 {} 准备直连 {}:{}", target_domain, ip_str_clone, target_port_clone);
+                            let target_addr = format!("{}:{}", ip_str_clone, target_port_clone);
                             let is_ipv6 = target_addr.contains(':') && target_addr.starts_with('[');
                             
                             let socket = if is_ipv6 { tokio::net::TcpSocket::new_v6().unwrap() } else { tokio::net::TcpSocket::new_v4().unwrap() };
