@@ -1,6 +1,6 @@
 import { getCurrentUser } from '../../src/authManager.js';
 import { renderLoggedInView } from '../account-ui.js';
-import { updateSiteInfo, updateUserUI, renderTodayLogs, renderTotalStats } from './ui-render.js';
+import { updateSiteInfo, updateUserUI, renderTodayLogs, renderTotalStats, renderSavings } from './ui-render.js';
 import { updateSiteSwitch, switchView } from '../views.js';
 
 // 🔒 毛玻璃 Toast 提示组件
@@ -176,6 +176,14 @@ export function bindMiscEvents() {
             chrome.runtime.sendMessage({ type: 'UPDATE_SETTING_KEY', key: settingKey, value: isChecked });
         });
     });
+
+    
+    // 进入流量节省详情页
+    document.getElementById('savingsCard')?.addEventListener('click', () => {
+        switchView('savingsDetailsView');
+        try { renderSavings(); } catch(e) { console.warn(e); }
+    });
+    document.getElementById('backFromSavings')?.addEventListener('click', () => switchView('mainView'));
 
     document.getElementById('cardToday')?.addEventListener('click', () => {
         switchView('logsView');

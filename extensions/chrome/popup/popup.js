@@ -2,7 +2,7 @@ import { getCurrentUser, fetchUserProfile, logoutUser } from '../src/authManager
 import { updateStats as _updateStats } from './views.js';
 import { initAuthUI } from './auth-ui.js';
 import { initAccountUI, renderLoggedInView } from './account-ui.js';
-import { updateSiteInfo, updateUserUI, renderTodayLogs, renderTotalStats } from './modules/ui-render.js';
+import { updateSiteInfo, updateUserUI, renderTodayLogs, renderTotalStats, renderSavings } from './modules/ui-render.js';
 import { bindMiscEvents } from './modules/events.js';
 import { showDeviceLimitModal } from './modules/limit-modal.js';
 import { reportDeviceSilently } from '../src/deviceManager.js';
@@ -116,6 +116,9 @@ async function init() {
     await window.syncUserState();
 
     const versionSpan = document.getElementById('appVersion');
+    // 📊 安全加载一次流量数据，延时防阻塞
+    setTimeout(() => { try { renderSavings(); } catch(e){} }, 100);
+
     if (versionSpan && chrome.runtime.getManifest) {
         versionSpan.textContent = 'v' + chrome.runtime.getManifest().version;
     }
@@ -123,6 +126,10 @@ async function init() {
 
 chrome.storage.onChanged.addListener((changes, namespace) => {
     if (namespace === 'local') {
+        // 📊 实时监听节省数据的变化，自动更新 UI
+        if (changes['savings'] || changes['savingsLogs']) {
+            try { renderSavings(); } catch(e) { console.warn('Auto render savings failed', e); }
+        }
         if (changes['dewsecure_stats'] || changes['dewsecure_logs']) {
             if (renderTimeout) clearTimeout(renderTimeout);
             renderTimeout = setTimeout(() => {

@@ -68,7 +68,7 @@ export function disableSiteSwitch() {
 }
 
 export function switchView(viewId) {
-    const allViews = ['mainView', 'logsView', 'statsView', 'settingsView', 'protectView'];
+    const allViews = ['mainView', 'logsView', 'statsView', 'settingsView', 'protectView', 'savingsDetailsView'];
     allViews.forEach(id => document.getElementById(id)?.classList.add('hidden'));
 
     const target = document.getElementById(viewId);

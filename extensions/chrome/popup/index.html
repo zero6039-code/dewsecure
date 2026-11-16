@@ -62,7 +62,7 @@
         </div>
 
         <!-- 流量节省卡片 (移到反馈上方) -->
-        <div class="glass hover-card" style="padding: 16px; display: flex; align-items: center; margin-bottom: 10px;">
+        <div class="glass hover-card" id="savingsCard" style="padding: 16px; display: flex; align-items: center; margin-bottom: 10px; cursor: pointer;">
             <div style="flex: 1; text-align: center;">
                 <div style="font-size: 22px; font-weight: 700; color: #3b82f6;" id="todaySaved">0 KB</div>
                 <div style="font-size: 12px; color: #6b7280; margin-top: 4px;" data-i18n="saved_today">今日节省</div>
@@ -129,6 +129,37 @@
             <div class="feature-row" data-requires="premium">
                 <div class="feature-text"><div class="feature-name" style="font-size: 14px !important; font-weight: 600 !important; display: block !important; margin-bottom: 4px !important;"><span data-i18n="feat_ai">AI Smart Real-time Detection</span> <span class="pro-badge">PRO</span></div><div class="feature-desc" style="font-size: 12px !important; color: #6b7280 !important; display: block !important; line-height: 1.4 !important;" data-i18n="feat_ai_desc">Identifies uncaptured ads and threats</div></div>
                 <label class="ios-switch mini"><input type="checkbox" id="aiFourToggle" checked><span class="switch-track"><span class="switch-thumb"><svg class="icon-check" viewBox="0 0 24 24" fill="none"><path d="M5 13l4 4L19 7" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"/></svg><span class="icon-ring"></span></span></span></label>
+            </div>
+        </div>
+    </div>
+
+
+    <!-- 流量节省详情页 (Savings Details View) -->
+    <div class="app hidden" id="savingsDetailsView">
+        <div class="sub-view-nav glass">
+            <button class="btn-back" id="backFromSavings" data-i18n="logs_back">返回</button>
+            <div class="sub-view-title" data-i18n="savings_details_title">Traffic Savings Details</div>
+        </div>
+        
+        <div class="glass" style="padding: 16px; display: flex; align-items: center; margin-bottom: 16px; border-radius: 16px;">
+            <div style="flex: 1; text-align: center;">
+                <div style="font-size: 24px; font-weight: 700; color: #3b82f6;" id="detailsTodaySaved">0 KB</div>
+                <div style="font-size: 12px; color: #6b7280; margin-top: 4px;" data-i18n="saved_today">今日节省</div>
+                <div style="font-size: 10px; color: #9ca3af; margin-top: 2px;" id="detailsTodayDate"></div>
+            </div>
+            <div style="width: 1px; height: 48px; background: rgba(0,0,0,0.08);"></div>
+            <div style="flex: 1; text-align: center;">
+                <div style="font-size: 24px; font-weight: 700; color: #3b82f6;" id="detailsTotalSaved">0 KB</div>
+                <div style="font-size: 12px; color: #6b7280; margin-top: 4px;" data-i18n="saved_total">累计节省</div>
+                <div style="font-size: 10px; color: #9ca3af; margin-top: 2px;" id="detailsTotalDate"></div>
+            </div>
+        </div>
+
+        <div id="savingsListContainer" style="flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 8px;">
+            <!-- 列表将在此处渲染，目前为空状态 -->
+            <div id="savingsEmptyState" style="text-align: center; color: #9ca3af; font-size: 13px; padding: 40px 20px; line-height: 1.6;">
+                <div data-i18n="savings_no_data_title">No traffic savings yet.</div>
+                <div data-i18n="savings_no_data_desc" style="font-size: 12px;">Try browsing some ad-heavy websites.</div>
             </div>
         </div>
     </div>

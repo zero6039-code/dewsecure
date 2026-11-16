@@ -1996,3 +1996,24 @@ html, body {
     transform: translateY(-2px) scale(1.02) !important;
     box-shadow: 0 12px 28px rgba(31, 38, 135, 0.10), inset 0 1px 0 rgba(255, 255, 255, 0.9) !important;
 }
+
+/* ==========================================
+   📊 流量节省列表卡片悬停动画 (对齐 Blocked Today)
+   ========================================== */
+.savings-list-item {
+    transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1), 
+                box-shadow 0.3s cubic-bezier(0.4, 0, 0.2, 1), 
+                background 0.3s ease !important;
+    cursor: default;
+}
+
+.savings-list-item:hover {
+    transform: translateY(-2px) scale(1.02) !important;
+    background: linear-gradient(135deg, rgba(255, 255, 255, 0.9), rgba(220, 235, 255, 0.8)) !important;
+    box-shadow: 0 12px 28px rgba(31, 38, 135, 0.10), inset 0 1px 0 rgba(255, 255, 255, 0.9) !important;
+}
+
+/* 修复流量卡片悬停溢出的问题，并在容器内留出空间 */
+#savingsListContainer {
+    padding: 4px 0 !important;
+}

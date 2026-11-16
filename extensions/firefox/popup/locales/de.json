@@ -25,7 +25,7 @@
   "auth_title": "Anmelden / Registrieren",
   "auth_verify": "Bestätigen",
   "auth_verifying": "Wird überprüft...",
-  "btn_login": "Anmelden",
+  "btn_login": "Login / Registrieren",
   "btn_status": "Status anzeigen",
   "clipboard_btn": "Ich bin sicher, es ist sicher, fortfahren",
   "clipboard_desc": "Dieser Inhalt enthält verdächtige Befehle (z. B. PowerShell/CMD). Fügen Sie ihn nicht in das Ausführungsfenster ein.",

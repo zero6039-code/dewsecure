@@ -25,7 +25,7 @@
   "auth_title": "로그인 / 가입",
   "auth_verify": "확인",
   "auth_verifying": "확인 중...",
-  "btn_login": "로그인",
+  "btn_login": "로그인 / 가입",
   "btn_status": "상태 보기",
   "clipboard_btn": "안전한 것이 확실합니다. 계속 진행",
   "clipboard_desc": "이 콘텐츠에는 의심스러운 명령(예: PowerShell/CMD)이 포함되어 있습니다. 실행 창에 붙여넣지 마십시오.",

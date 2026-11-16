@@ -25,7 +25,7 @@
   "auth_title": "Iniciar sesión / Registrarse",
   "auth_verify": "Verificar",
   "auth_verifying": "Verificando...",
-  "btn_login": "Iniciar sesión",
+  "btn_login": "Iniciar sesión / Registro",
   "btn_status": "Ver estado",
   "clipboard_btn": "Estoy seguro de que es seguro, continuar",
   "clipboard_desc": "Este contenido contiene comandos sospechosos (por ejemplo, PowerShell/CMD). No lo pegue en la ventana de ejecución.",

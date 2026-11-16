@@ -25,7 +25,7 @@
   "auth_title": "Connexion / Inscription",
   "auth_verify": "Vérifier",
   "auth_verifying": "Vérification...",
-  "btn_login": "Se connecter",
+  "btn_login": "Connexion / Inscription",
   "btn_status": "Voir l'état",
   "clipboard_btn": "Je suis sûr que c'est sans danger, continuer",
   "clipboard_desc": "Ce contenu contient des commandes suspectes (par exemple, PowerShell/CMD). Ne le collez pas dans la fenêtre d'exécution.",
