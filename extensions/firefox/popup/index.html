@@ -10,26 +10,25 @@
 
     <!-- 1. 首页 (Home View) -->
     <div class="app" id="mainView">
-        <header class="header glass">
+        <!-- Header 无卡片化 (类似图2) -->
+        <header class="header" style="background: transparent; border: none; box-shadow: none; padding: 0 4px 10px 4px; backdrop-filter: none;">
             <a class="logo" href="https://dewsecure.com" target="_blank" style="text-decoration: none;">
-                <img src="../icons/DewSecure.png" class="logo-img" alt="DewSecure">
-                <span class="logo-text">DewSecure</span>
+                <img src="../icons/DewSecure.png" class="logo-img" alt="DewSecure" style="width: 28px !important; height: 28px !important;">
+                <span class="logo-text" style="font-size: 18px !important; font-weight: 800 !important; margin-left: 6px;">DewSecure</span>
             </a>
-            <div class="status-badge active" id="status" data-i18n="status_active">保护中</div>
+            <!-- 登录按钮移到右上角 -->
+            <button class="btn-login glass" id="loginBtn" style="width: auto; min-width: 110px; padding: 6px 14px; height: 34px; font-size: 12px; border-radius: 20px; border: 1px solid rgba(0,0,0,0.1);">
+                <span class="btn-login-text" id="loginBtnText">Login / Register</span>
+            </button>
         </header>
 
-        <div class="stats">
-            <div class="stat-card glass" id="cardToday" style="cursor: pointer;">
-                <div class="stat-value" id="todayBlocked">0</div>
-                <div class="stat-label" id="todayBlockedLabel" data-i18n="stat_today">今日拦截</div>
-            </div>
-            <div class="stat-card glass" id="cardTotal" style="cursor: pointer;">
-                <div class="stat-value" id="totalBlocked">0</div>
-                <div class="stat-label" id="totalBlockedLabel" data-i18n="stat_total">累计拦截</div>
-            </div>
+        <!-- 状态文本独立居中 -->
+        <div style="display: flex; justify-content: center; margin-bottom: 16px;">
+            <div class="status-badge active" id="status" style="background: rgba(16, 185, 129, 0.12); color: #10b981; font-size: 12px; letter-spacing: 1px; text-transform: uppercase; padding: 4px 12px; border-radius: 20px;" data-i18n="status_active">PROTECTED</div>
         </div>
 
-        <div class="site-card glass">
+        <!-- 站点卡片 (移到统计上方) -->
+        <div class="site-card glass" style="margin-bottom: 10px;">
             <div class="site-info">
                 <div class="site-domain" id="siteDomain">此网站</div>
                 <div class="site-label" id="siteLabel">保护已开启</div>
@@ -45,9 +44,16 @@
             </label>
         </div>
 
-        <div class="action-row">
-            <button class="btn-login glass" id="loginBtn"><span class="btn-login-text" id="loginBtnText">登录</span></button>
-            <button class="btn-upgrade glass" id="upgradeBtn"><span class="btn-upgrade-icon">⭐</span><span class="btn-upgrade-text">升级到高级版</span></button>
+        <!-- 统计卡片 (上下排版) -->
+        <div style="display: flex; flex-direction: column; gap: 10px; margin-bottom: 10px;">
+            <div class="stat-card glass" id="cardToday" style="padding: 16px 20px; display: flex; justify-content: space-between; align-items: center; cursor: pointer; border-radius: 16px;">
+                <div class="stat-label" style="font-size: 14px; font-weight: 500; color: #4b5563; margin-top: 0;" data-i18n="stat_today">今日拦截</div>
+                <div class="stat-value" id="todayBlocked" style="font-size: 28px; color: #1c1c1e; line-height: 1; letter-spacing: 0;">0</div>
+            </div>
+            <div class="stat-card glass" id="cardTotal" style="padding: 16px 20px; display: flex; justify-content: space-between; align-items: center; cursor: pointer; border-radius: 16px;">
+                <div class="stat-label" style="font-size: 14px; font-weight: 500; color: #4b5563; margin-top: 0;" data-i18n="stat_total">累计拦截</div>
+                <div class="stat-value" id="totalBlocked" style="font-size: 28px; color: #1c1c1e; line-height: 1; letter-spacing: 0;">0</div>
+            </div>
         </div>
 
         <div class="trial-banner glass hidden" id="trialBanner">
@@ -55,6 +61,20 @@
             <button class="trial-close" id="trialClose">✕</button>
         </div>
 
+        <!-- 流量节省卡片 (移到反馈上方) -->
+        <div class="glass hover-card" style="padding: 16px; display: flex; align-items: center; margin-bottom: 10px;">
+            <div style="flex: 1; text-align: center;">
+                <div style="font-size: 22px; font-weight: 700; color: #3b82f6;" id="todaySaved">0 KB</div>
+                <div style="font-size: 12px; color: #6b7280; margin-top: 4px;" data-i18n="saved_today">今日节省</div>
+            </div>
+            <div style="width: 1px; height: 36px; background: rgba(0,0,0,0.08);"></div>
+            <div style="flex: 1; text-align: center;">
+                <div style="font-size: 22px; font-weight: 700; color: #3b82f6;" id="totalSaved">0 KB</div>
+                <div style="font-size: 12px; color: #6b7280; margin-top: 4px;" data-i18n="saved_total">累计节省</div>
+            </div>
+        </div>
+
+        <!-- 帮助改进 (移到底部) -->
         <div class="feedback-card glass">
             <div class="feedback-title" data-i18n="feedback_title">🛠️ 帮助改进 DewSecure</div>
             <div class="feedback-buttons">
@@ -63,14 +83,6 @@
             </div>
             <div class="feedback-hint" id="feedbackHint" data-i18n="feedback_hint">您的反馈将匿名上传，帮助 AI 持续进化</div>
         </div>
-
-        <div class="glass" style="padding: 16px; display: flex; align-items: center; justify-content: space-between;">
-            <div>
-                <div style="font-size: 13px; font-weight: 700; color: #1c1c1e;">流量节省</div>
-                <div style="font-size: 11px; color: #6b7280; margin-top: 2px;">拦截广告为您节省的带宽</div>
-            </div>
-            <div style="font-size: 18px; font-weight: 700; color: #10b981;">0 KB</div>
-        </div>
     </div>
 
     <!-- 2. 保护页面 (Protect View) -->
@@ -78,44 +90,44 @@
         <div class="features-card glass">
             <div class="features-header" data-i18n="feat_header">PROTECTION FEATURES</div>
             <div class="feature-row">
-                <div class="feature-text"><div class="feature-name" data-i18n="feat_dnr">DNR Rule Blocking</div><div class="feature-desc" data-i18n="feat_dnr_desc">Blocks known malicious domains, ads & trackers</div></div>
+                <div class="feature-text"><div class="feature-name" style="font-size: 14px !important; font-weight: 600 !important; display: block !important; margin-bottom: 4px !important;" data-i18n="feat_dnr">DNR Rule Blocking</div><div class="feature-desc" style="font-size: 12px !important; color: #6b7280 !important; display: block !important; line-height: 1.4 !important;" data-i18n="feat_dnr_desc">Blocks known malicious domains, ads & trackers</div></div>
                 <label class="ios-switch mini"><input type="checkbox" id="dnrToggle" checked><span class="switch-track"><span class="switch-thumb"><svg class="icon-check" viewBox="0 0 24 24" fill="none"><path d="M5 13l4 4L19 7" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"/></svg><span class="icon-ring"></span></span></span></label>
             </div>
             <div class="feature-row">
-                <div class="feature-text"><div class="feature-name" data-i18n="feat_clickjack">Anti-Clickjacking</div><div class="feature-desc" data-i18n="feat_clickjack_desc">Prevents malicious transparent overlays</div></div>
+                <div class="feature-text"><div class="feature-name" style="font-size: 14px !important; font-weight: 600 !important; display: block !important; margin-bottom: 4px !important;" data-i18n="feat_clickjack">Anti-Clickjacking</div><div class="feature-desc" style="font-size: 12px !important; color: #6b7280 !important; display: block !important; line-height: 1.4 !important;" data-i18n="feat_clickjack_desc">Prevents malicious transparent overlays</div></div>
                 <label class="ios-switch mini"><input type="checkbox" id="antiHijackToggle" checked><span class="switch-track"><span class="switch-thumb"><svg class="icon-check" viewBox="0 0 24 24" fill="none"><path d="M5 13l4 4L19 7" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"/></svg><span class="icon-ring"></span></span></span></label>
             </div>
             <div class="feature-row">
-                <div class="feature-text"><div class="feature-name" data-i18n="feat_tracker">Block Trackers</div><div class="feature-desc" data-i18n="feat_tracker_desc">Intercepts tracking scripts and pixels</div></div>
+                <div class="feature-text"><div class="feature-name" style="font-size: 14px !important; font-weight: 600 !important; display: block !important; margin-bottom: 4px !important;" data-i18n="feat_tracker">Block Trackers</div><div class="feature-desc" style="font-size: 12px !important; color: #6b7280 !important; display: block !important; line-height: 1.4 !important;" data-i18n="feat_tracker_desc">Intercepts tracking scripts and pixels</div></div>
                 <label class="ios-switch mini"><input type="checkbox" id="trackerToggle" checked><span class="switch-track"><span class="switch-thumb"><svg class="icon-check" viewBox="0 0 24 24" fill="none"><path d="M5 13l4 4L19 7" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"/></svg><span class="icon-ring"></span></span></span></label>
             </div>
             <div class="feature-row">
-                <div class="feature-text"><div class="feature-name" data-i18n="feat_antiblock">Anti-Adblock Protection</div><div class="feature-desc" data-i18n="feat_antiblock_desc">Prevents sites from detecting the blocker</div></div>
+                <div class="feature-text"><div class="feature-name" style="font-size: 14px !important; font-weight: 600 !important; display: block !important; margin-bottom: 4px !important;" data-i18n="feat_antiblock">Anti-Adblock Protection</div><div class="feature-desc" style="font-size: 12px !important; color: #6b7280 !important; display: block !important; line-height: 1.4 !important;" data-i18n="feat_antiblock_desc">Prevents sites from detecting the blocker</div></div>
                 <label class="ios-switch mini"><input type="checkbox" id="antiBypassToggle" checked><span class="switch-track"><span class="switch-thumb"><svg class="icon-check" viewBox="0 0 24 24" fill="none"><path d="M5 13l4 4L19 7" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"/></svg><span class="icon-ring"></span></span></span></label>
             </div>
             <div class="feature-row">
-                <div class="feature-text"><div class="feature-name" data-i18n="feat_cookie">Hide Cookie Banners</div><div class="feature-desc" data-i18n="feat_cookie_desc">Hides cookie consent banners</div></div>
+                <div class="feature-text"><div class="feature-name" style="font-size: 14px !important; font-weight: 600 !important; display: block !important; margin-bottom: 4px !important;" data-i18n="feat_cookie">Hide Cookie Banners</div><div class="feature-desc" style="font-size: 12px !important; color: #6b7280 !important; display: block !important; line-height: 1.4 !important;" data-i18n="feat_cookie_desc">Hides cookie consent banners</div></div>
                 <label class="ios-switch mini"><input type="checkbox" id="cookieToggle" checked><span class="switch-track"><span class="switch-thumb"><svg class="icon-check" viewBox="0 0 24 24" fill="none"><path d="M5 13l4 4L19 7" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"/></svg><span class="icon-ring"></span></span></span></label>
             </div>
             <div class="feature-row">
-                <div class="feature-text"><div class="feature-name" data-i18n="feat_placeholder">Hide Ad Placeholders</div><div class="feature-desc" data-i18n="feat_placeholder_desc">Removes blank spaces left by ads</div></div>
+                <div class="feature-text"><div class="feature-name" style="font-size: 14px !important; font-weight: 600 !important; display: block !important; margin-bottom: 4px !important;" data-i18n="feat_placeholder">Hide Ad Placeholders</div><div class="feature-desc" style="font-size: 12px !important; color: #6b7280 !important; display: block !important; line-height: 1.4 !important;" data-i18n="feat_placeholder_desc">Removes blank spaces left by ads</div></div>
                 <label class="ios-switch mini"><input type="checkbox" id="placeholderToggle" checked><span class="switch-track"><span class="switch-thumb"><svg class="icon-check" viewBox="0 0 24 24" fill="none"><path d="M5 13l4 4L19 7" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"/></svg><span class="icon-ring"></span></span></span></label>
             </div>
             <div class="feature-row">
-                <div class="feature-text"><div class="feature-name" data-i18n="feat_social">Block Social Trackers</div><div class="feature-desc" data-i18n="feat_social_desc">Blocks social media tracking buttons</div></div>
+                <div class="feature-text"><div class="feature-name" style="font-size: 14px !important; font-weight: 600 !important; display: block !important; margin-bottom: 4px !important;" data-i18n="feat_social">Block Social Trackers</div><div class="feature-desc" style="font-size: 12px !important; color: #6b7280 !important; display: block !important; line-height: 1.4 !important;" data-i18n="feat_social_desc">Blocks social media tracking buttons</div></div>
                 <label class="ios-switch mini"><input type="checkbox" id="socialToggle" checked><span class="switch-track"><span class="switch-thumb"><svg class="icon-check" viewBox="0 0 24 24" fill="none"><path d="M5 13l4 4L19 7" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"/></svg><span class="icon-ring"></span></span></span></label>
             </div>
             <div style="margin: 20px 16px 10px 16px; height: 1px; background: rgba(0,0,0,0.06);"></div>
             <div class="feature-row" data-requires="premium">
-                <div class="feature-text"><div class="feature-name"><span data-i18n="feat_phishing">AI Phishing Detection</span> <span class="pro-badge">PRO</span></div><div class="feature-desc" data-i18n="feat_phishing_desc">Identifies malicious and phishing pages</div></div>
+                <div class="feature-text"><div class="feature-name" style="font-size: 14px !important; font-weight: 600 !important; display: block !important; margin-bottom: 4px !important;"><span data-i18n="feat_phishing">AI Phishing Detection</span> <span class="pro-badge">PRO</span></div><div class="feature-desc" style="font-size: 12px !important; color: #6b7280 !important; display: block !important; line-height: 1.4 !important;" data-i18n="feat_phishing_desc">Identifies malicious and phishing pages</div></div>
                 <label class="ios-switch mini"><input type="checkbox" id="phishingToggle" checked><span class="switch-track"><span class="switch-thumb"><svg class="icon-check" viewBox="0 0 24 24" fill="none"><path d="M5 13l4 4L19 7" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"/></svg><span class="icon-ring"></span></span></span></label>
             </div>
             <div class="feature-row" data-requires="premium">
-                <div class="feature-text"><div class="feature-name"><span data-i18n="feat_intel">Real-time Threat Intel</span> <span class="pro-badge">PRO</span></div><div class="feature-desc" data-i18n="feat_intel_desc">Dynamically blocks newly emerged phishing domains (PRO)</div></div>
+                <div class="feature-text"><div class="feature-name" style="font-size: 14px !important; font-weight: 600 !important; display: block !important; margin-bottom: 4px !important;"><span data-i18n="feat_intel">Real-time Threat Intel</span> <span class="pro-badge">PRO</span></div><div class="feature-desc" style="font-size: 12px !important; color: #6b7280 !important; display: block !important; line-height: 1.4 !important;" data-i18n="feat_intel_desc">Dynamically blocks newly emerged phishing domains (PRO)</div></div>
                 <label class="ios-switch mini"><input type="checkbox" id="intelToggle" checked><span class="switch-track"><span class="switch-thumb"><svg class="icon-check" viewBox="0 0 24 24" fill="none"><path d="M5 13l4 4L19 7" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"/></svg><span class="icon-ring"></span></span></span></label>
             </div>
             <div class="feature-row" data-requires="premium">
-                <div class="feature-text"><div class="feature-name"><span data-i18n="feat_ai">AI Smart Real-time Detection</span> <span class="pro-badge">PRO</span></div><div class="feature-desc" data-i18n="feat_ai_desc">Identifies uncaptured ads and threats</div></div>
+                <div class="feature-text"><div class="feature-name" style="font-size: 14px !important; font-weight: 600 !important; display: block !important; margin-bottom: 4px !important;"><span data-i18n="feat_ai">AI Smart Real-time Detection</span> <span class="pro-badge">PRO</span></div><div class="feature-desc" style="font-size: 12px !important; color: #6b7280 !important; display: block !important; line-height: 1.4 !important;" data-i18n="feat_ai_desc">Identifies uncaptured ads and threats</div></div>
                 <label class="ios-switch mini"><input type="checkbox" id="aiFourToggle" checked><span class="switch-track"><span class="switch-thumb"><svg class="icon-check" viewBox="0 0 24 24" fill="none"><path d="M5 13l4 4L19 7" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"/></svg><span class="icon-ring"></span></span></span></label>
             </div>
         </div>
@@ -189,8 +201,8 @@
                 <div class="settings-pane" id="tabPrivacy">
                     <div style="padding: 10px 0; display: flex; flex-direction: column; gap: 12px;">
                         <div class="feature-text">
-                            <div class="feature-name" data-i18n="feat_share_intel" style="font-weight: bold; font-size: 13px; color: #1c1c1e; margin-bottom: 4px;">参与威胁情报共享 (匿名)</div>
-                            <div class="feature-desc" data-i18n="feat_share_intel_desc" style="font-size: 11px; color: #6b7280; line-height: 1.4;">允许将脱敏后的可疑域名发送到云端，帮助改进拦截模型。默认关闭。</div>
+                            <div class="feature-name" style="font-size: 14px !important; font-weight: 600 !important; display: block !important; margin-bottom: 4px !important;" data-i18n="feat_share_intel" style="font-weight: bold; font-size: 13px; color: #1c1c1e; margin-bottom: 4px;">参与威胁情报共享 (匿名)</div>
+                            <div class="feature-desc" style="font-size: 12px !important; color: #6b7280 !important; display: block !important; line-height: 1.4 !important;" data-i18n="feat_share_intel_desc" style="font-size: 11px; color: #6b7280; line-height: 1.4;">允许将脱敏后的可疑域名发送到云端，帮助改进拦截模型。默认关闭。</div>
                         </div>
                         <div>
                             <label class="ios-switch mini"><input type="checkbox" id="shareThreatCandidatesToggle"><span class="switch-track"><span class="switch-thumb"><svg class="icon-check" viewBox="0 0 24 24" fill="none"><path d="M5 13l4 4L19 7" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"/></svg><span class="icon-ring"></span></span></span></label>
