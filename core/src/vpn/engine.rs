@@ -325,6 +325,8 @@ impl VpnEngine {
         unsafe {
             libc::close(fd_read);
         }
+        // A-03: 发送 -1 作为死亡探针，通知 Kotlin 侧引擎已崩溃/退出
+        self.protector.protect_fd(-1);
         info!("🛑 Rust 引擎主循环退出完毕，所有 FD 已彻底释放");
     }
 }

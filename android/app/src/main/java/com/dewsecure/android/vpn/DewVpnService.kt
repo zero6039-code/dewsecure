@@ -28,6 +28,11 @@ class DewVpnService : VpnService() {
 
     inner class ProtectorImpl : VpnProtector {
         override fun protectFd(fd: Int): Boolean {
+            if (fd == -1) {
+                Log.e(TAG, "🚨 收到 Rust 引擎死亡信号，正在紧急停止 VPN...")
+                CoroutineScope(Dispatchers.IO).launch { stopVpn() }
+                return true
+            }
             return this@DewVpnService.protect(fd)
         }
     }
@@ -267,6 +272,13 @@ class DewVpnService : VpnService() {
             val filesDir = applicationContext.filesDir.absolutePath
             val res = EngineBridge.startMitmVpnEngine(fdInt, filesDir, ProtectorImpl())
             Log.i(TAG, "Rust VPN Engine 启动状态: $res")
+
+              // A-03: 校验启动结果，防止 UI 虚报已保护
+              if (res != "OK") {
+                  Log.e(TAG, "❌ Rust VPN 引擎启动失败，强制停止服务: $res")
+                  stopVpn()
+                  return
+              }
 
             // 🌟 启动后台心跳
             heartbeatManager.start()
