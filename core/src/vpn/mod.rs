@@ -1,3 +1,5 @@
+pub mod udp_forwarder;
+pub mod dns_interceptor;
 pub mod utils;
 pub mod dns;
 pub mod device;

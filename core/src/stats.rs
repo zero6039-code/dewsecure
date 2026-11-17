@@ -37,9 +37,12 @@ impl StatsEngine {
 
     pub fn record_block(&self, domain: &str, block_type: &str) {
         // 获取当前 UTC 日期 YYYY-MM-DD
-        let secs = SystemTime::now().duration_since(UNIX_EPOCH).unwrap_or_default().as_secs();
-        let days = secs / 86400;
-        let current_date = format!("{}", days); // 用天数作为日期判断，简单高效
+        let current_date = unsafe {
+            let now = libc::time(std::ptr::null_mut());
+            let mut tm: libc::tm = std::mem::zeroed();
+            libc::localtime_r(&now, &mut tm);
+            format!("{:04}-{:02}-{:02}", tm.tm_year + 1900, tm.tm_mon + 1, tm.tm_mday)
+        };
 
         {
             let mut last_date = self.last_date.lock().unwrap_or_else(|e| e.into_inner());
@@ -109,9 +112,12 @@ impl StatsEngine {
         self.today_blocked.store(today, Ordering::Relaxed);
         
         // 修复：初始化时记录当天的日期，防止首次拦截时触发跨天误清零
-        let secs = SystemTime::now().duration_since(UNIX_EPOCH).unwrap_or_default().as_secs();
-        let days = secs / 86400;
-        let current_date = format!("{}", days);
+        let current_date = unsafe {
+            let now = libc::time(std::ptr::null_mut());
+            let mut tm: libc::tm = std::mem::zeroed();
+            libc::localtime_r(&now, &mut tm);
+            format!("{:04}-{:02}-{:02}", tm.tm_year + 1900, tm.tm_mon + 1, tm.tm_mday)
+        };
         let mut last_date = self.last_date.lock().unwrap_or_else(|e| e.into_inner());
         *last_date = current_date;
     }

@@ -14,6 +14,7 @@ pub enum BlockDecision {
     BlockAd,
     BlockTracker,
     BlockMining,
+    BlockPhishing,
 }
 
 #[derive(Debug, Clone, uniffi::Record)]
