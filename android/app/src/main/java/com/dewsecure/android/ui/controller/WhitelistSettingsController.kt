@@ -16,8 +16,10 @@ import androidx.lifecycle.lifecycleScope
 import com.dewsecure.android.R
 import com.dewsecure.android.policy.AuthManager
 import com.dewsecure.android.policy.EngineBridge
+import com.dewsecure.android.policy.WhitelistStore
 import com.dewsecure.android.ui.LoginActivity
 import kotlinx.coroutines.launch
+import java.net.IDN
 import org.json.JSONArray
 
 class WhitelistSettingsController(
@@ -27,6 +29,8 @@ class WhitelistSettingsController(
     private lateinit var btnAdd: Button
     private lateinit var containerWhitelist: LinearLayout
     private lateinit var tvEmpty: TextView
+
+    fun normalizeWhitelist(raw: String): String? = WhitelistStore.normalize(raw)
 
     fun setup(rootView: View) {
         etDomain = rootView.findViewById(R.id.et_whitelist_domain)
@@ -59,6 +63,8 @@ class WhitelistSettingsController(
             btnAdd.setOnClickListener {
                 fragment.startActivity(Intent(context, LoginActivity::class.java))
             }
+            // A-19 修复：登出状态同步清空列表 UI
+            updateUI(emptyList())
         } else {
             etDomain.isEnabled = true
             etDomain.hint = "example.com"
@@ -67,7 +73,11 @@ class WhitelistSettingsController(
             btnAdd.backgroundTintList = ColorStateList.valueOf(ContextCompat.getColor(context, R.color.green_on))
             etDomain.setOnClickListener(null)
             btnAdd.setOnClickListener {
-                val domain = etDomain.text.toString().trim().lowercase()
+                val domain = normalizeWhitelist(etDomain.text.toString())
+                if (domain == null) {
+                    Toast.makeText(context, "Invalid domain or public suffix", Toast.LENGTH_SHORT).show()
+                    return@setOnClickListener
+                }
                 if (domain.isNotEmpty()) {
                     addWhitelist(domain, token)
                 }
@@ -88,7 +98,7 @@ class WhitelistSettingsController(
                 val result = AuthManager.fetchCloudWhitelist(context, token)
                 if (result.isSuccess) {
                     val cloudList = result.getOrNull() ?: emptyList()
-                    val mergedList = (localList + cloudList).distinct()
+                    val mergedList = (localList + cloudList.mapNotNull { normalizeWhitelist(it) }).distinct()
                     EngineBridge.loadUserWhitelist(mergedList)
                     saveLocalWhitelist(mergedList)
                     updateUI(mergedList)
@@ -158,27 +168,9 @@ class WhitelistSettingsController(
         }
     }
 
-    private fun getLocalWhitelist(): List<String> {
-        val context = fragment.requireContext()
-        val prefs = context.getSharedPreferences("local_whitelist", Context.MODE_PRIVATE)
-        val jsonStr = prefs.getString("domains", "[]") ?: "[]"
-        val list = mutableListOf<String>()
-        try {
-            val array = JSONArray(jsonStr)
-            for (i in 0 until array.length()) {
-                list.add(array.getString(i))
-            }
-        } catch (e: Exception) {}
-        return list
-    }
+    private fun getLocalWhitelist(): List<String> =
+        WhitelistStore.readLocal(fragment.requireContext())
 
-    private fun saveLocalWhitelist(list: List<String>) {
-        val context = fragment.requireContext()
-        val prefs = context.getSharedPreferences("local_whitelist", Context.MODE_PRIVATE)
-        val array = JSONArray()
-        for (item in list) {
-            array.put(item)
-        }
-        prefs.edit().putString("domains", array.toString()).apply()
-    }
+    private fun saveLocalWhitelist(list: List<String>) =
+        WhitelistStore.writeLocal(fragment.requireContext(), list)
 }

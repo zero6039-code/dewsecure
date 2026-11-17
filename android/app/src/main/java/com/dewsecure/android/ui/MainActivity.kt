@@ -125,8 +125,13 @@ class MainActivity : AppCompatActivity() {
                 val result = AuthManager.fetchCloudWhitelist(this@MainActivity, accessToken)
                 if (result.isSuccess) {
                     val domains = result.getOrNull() ?: emptyList()
-                    EngineBridge.loadUserWhitelist(domains)
-                    Log.i("MainActivity", "云端白名单同步成功，共计 ${domains.size} 条")
+                    // A-19 修复：云端白名单先校验 + 合并本地，避免覆盖与注入非法后缀
+                    val valid = domains.mapNotNull { com.dewsecure.android.policy.WhitelistStore.normalize(it) }
+                    val local = com.dewsecure.android.policy.WhitelistStore.readLocal(this@MainActivity)
+                    val merged = (local + valid).distinct()
+                    EngineBridge.loadUserWhitelist(merged)
+                    com.dewsecure.android.policy.WhitelistStore.writeLocal(this@MainActivity, merged)
+                    Log.i("MainActivity", "云端白名单同步成功，有效 ${valid.size}/${domains.size} 条，合并后共 ${merged.size} 条")
                 }
             }
         }

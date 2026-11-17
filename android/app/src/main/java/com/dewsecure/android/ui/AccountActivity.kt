@@ -70,6 +70,9 @@ class AccountActivity : AppCompatActivity() {
                 } else {
                     Toast.makeText(this@AccountActivity, getString(R.string.toast_session_expired), Toast.LENGTH_SHORT).show()
                     prefs.edit().clear().apply()
+                    // A-19 修复：Session 过期时同步清理本地白名单与引擎内存
+                    getSharedPreferences("local_whitelist", Context.MODE_PRIVATE).edit().clear().apply()
+                    com.dewsecure.android.policy.EngineBridge.loadUserWhitelist(emptyList())
                     val intent = Intent(this@AccountActivity, LoginActivity::class.java).apply {
                         flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
                     }
@@ -101,6 +104,8 @@ class AccountActivity : AppCompatActivity() {
 
                 // 5. 清理本地白名单与统计数据
                 getSharedPreferences("local_whitelist", Context.MODE_PRIVATE).edit().clear().apply()
+                // A-19 修复：同步清空引擎内存中的 user_allow 集合
+                com.dewsecure.android.policy.EngineBridge.loadUserWhitelist(emptyList())
                 getSharedPreferences("stats_cache", Context.MODE_PRIVATE).edit().clear().apply()
 
                 Toast.makeText(this@AccountActivity, getString(R.string.toast_logout_success), Toast.LENGTH_SHORT).show()

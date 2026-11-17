@@ -9,13 +9,42 @@ impl HostEngine {
             return BlockResult { decision: BlockDecision::Allow, reason: "default_allow".into(), confidence: 0.0 };
         }
 
-        let user_allow_guard = self.user_allow.lock().unwrap_or_else(|e| e.into_inner());
-        if matches_domain_or_subdomain(&user_allow_guard, &host) {
-            return BlockResult { decision: BlockDecision::Allow, reason: "user_allow".into(), confidence: 1.0 };
+        // ── A-19 修复：恶意/钓鱼/挖矿先于用户放行；白名单仅覆盖广告/追踪 ──
+
+        // 1) 恶意类：挖矿 / 威胁情报（先于 user_allow）
+        if self.enable_threat_intel.load(Ordering::Relaxed) {
+            let guard = self.mining.read().unwrap_or_else(|e| e.into_inner());
+            if matches_domain_or_subdomain(&guard, &host) {
+                self.stats_engine.record_block(&host, "hard_mining");
+                return BlockResult { decision: BlockDecision::BlockMining, reason: "hard_mining".into(), confidence: 1.0 };
+            }
         }
 
+        // 2) 钓鱼启发式（先于 user_allow）
+        if self.enable_ai_phishing.load(Ordering::Relaxed) {
+            let parts: Vec<&str> = host.split('.').collect();
+            if parts.len() >= 2 {
+                let is_suspicious = host.contains("login") || host.contains("verify") || host.contains("secure") || host.contains("account") || host.contains("update");
+                let has_many_hyphens = host.matches('-').count() > 2;
+                let tld = parts.last().unwrap();
+                let suspicious_tld = ["xyz", "top", "pw", "cc", "tk"].contains(tld);
+                if is_suspicious && (has_many_hyphens || suspicious_tld) {
+                    self.stats_engine.record_block(&host, "ai_phishing");
+                    return BlockResult { decision: BlockDecision::BlockPhishing, reason: "ai_phishing_heuristic".into(), confidence: 0.85 };
+                }
+            }
+        }
+
+        // 3) 用户放行名单（仅对广告/追踪生效）
+        {
+            let user_allow_guard = self.user_allow.lock().unwrap_or_else(|e| e.into_inner());
+            if matches_domain_or_subdomain(&user_allow_guard, &host) {
+                return BlockResult { decision: BlockDecision::Allow, reason: "user_allow".into(), confidence: 1.0 };
+            }
+        }
+
+        // 4) 广告 / 追踪（FST + hard-domains.json）
         if self.enable_dnr.load(Ordering::Relaxed) {
-            // 1. 优先查询极速 FST 规则 (微秒级)
             let fst_guard = self.fst_rules.read().unwrap_or_else(|e| e.into_inner());
             if let Some(tag) = match_fst_subdomain(&fst_guard, &host) {
                 if tag == 1 {
@@ -30,8 +59,6 @@ impl HostEngine {
                     }
                 }
             }
-
-            // 2. 兜底查询 hard-domains.json 里自带的 block_ad
             let guard = self.block_ad.read().unwrap_or_else(|e| e.into_inner());
             if matches_domain_or_subdomain(&guard, &host) {
                 self.stats_engine.record_block(&host, "hard_block_ad");
@@ -39,14 +66,7 @@ impl HostEngine {
             }
         }
 
-        if self.enable_threat_intel.load(Ordering::Relaxed) {
-            let guard = self.mining.read().unwrap_or_else(|e| e.into_inner());
-            if matches_domain_or_subdomain(&guard, &host) {
-                self.stats_engine.record_block(&host, "hard_mining");
-                return BlockResult { decision: BlockDecision::BlockMining, reason: "hard_mining".into(), confidence: 1.0 };
-            }
-        }
-
+        // 5) 安全域名
         {
             let guard = self.safe.read().unwrap_or_else(|e| e.into_inner());
             if matches_domain_or_subdomain(&guard, &host) {
@@ -54,6 +74,7 @@ impl HostEngine {
             }
         }
 
+        // 6) AI 广告模型
         {
             let model_guard = self.adblock_model.lock().unwrap_or_else(|e| e.into_inner());
             if let Some(model) = model_guard.as_ref() {
@@ -74,20 +95,6 @@ impl HostEngine {
                         self.stats_engine.record_block(&host, reason);
                         return BlockResult { decision, reason: reason.to_string(), confidence };
                     }
-                }
-            }
-        }
-
-        if self.enable_ai_phishing.load(Ordering::Relaxed) {
-            let parts: Vec<&str> = host.split('.').collect();
-            if parts.len() >= 2 {
-                let is_suspicious = host.contains("login") || host.contains("verify") || host.contains("secure") || host.contains("account") || host.contains("update");
-                let has_many_hyphens = host.matches('-').count() > 2;
-                let tld = parts.last().unwrap();
-                let suspicious_tld = ["xyz", "top", "pw", "cc", "tk"].contains(tld);
-                if is_suspicious && (has_many_hyphens || suspicious_tld) {
-                    self.stats_engine.record_block(&host, "ai_phishing");
-                    return BlockResult { decision: BlockDecision::BlockPhishing, reason: "ai_phishing_heuristic".into(), confidence: 0.85 };
                 }
             }
         }

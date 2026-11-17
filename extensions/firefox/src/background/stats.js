@@ -39,20 +39,44 @@ export function initStatsListener() {
         chrome.declarativeNetRequest.setExtensionActionOptions({ displayActionCountAsBadgeText: true }).catch(() => {});
     }
 
-    // 2. 🦊 Firefox 主力：通过阻塞式 webRequest 实时统计
-    if (navigator.userAgent.includes('Firefox') && chrome.webRequest?.onBeforeRequest) {
+    // 2. 通用 webRequest 观察者模式（兼容商店版，无阻塞）
+    if (chrome.webRequest?.onBeforeRequest) {
         try {
             chrome.webRequest.onBeforeRequest.addListener(
                 (details) => {
-                    if (details.url.includes('dewsecure.com')) return;
-                    try {
-                        const host = new URL(details.url).hostname;
-                        recordBlock(host + '/webRequest', 'webRequest');
-                    } catch (e) {}
+                    if (details.url.includes('dewsecure.com') || details.tabId === -1) return;
+                    
+                    // Chrome / Whale 商店版：使用 testMatchOutcome 纯本地匹配
+                    if (!navigator.userAgent.includes('Firefox') && chrome.declarativeNetRequest?.testMatchOutcome) {
+                        const validTypes = ['main_frame', 'sub_frame', 'script', 'image', 'xmlhttprequest', 'stylesheet'];
+                        if (!validTypes.includes(details.type)) return;
+
+                        chrome.declarativeNetRequest.testMatchOutcome({
+                            url: details.url,
+                            type: details.type,
+                            tabId: details.tabId,
+                            initiator: details.initiator
+                        }).then(res => {
+                            if (res.matchedRules && res.matchedRules.length > 0) {
+                                try {
+                                    const host = new URL(details.url).hostname;
+                                    recordBlock(host + '/webRequest-dnr', 'dnr-intercept');
+                                } catch (e) {}
+                            }
+                        }).catch(() => {});
+                    } else if (navigator.userAgent.includes('Firefox')) {
+                        // Firefox 旧版逻辑
+                        try {
+                            const host = new URL(details.url).hostname;
+                            recordBlock(host + '/webRequest', 'webRequest');
+                        } catch (e) {}
+                    }
                 },
                 { urls: ["<all_urls>"] }
             );
-        } catch (e) {}
+        } catch (e) {
+            console.warn('webRequest 监听注册失败', e);
+        }
     }
 
     // 3. 兜底：开发版 onRuleMatchedDebug

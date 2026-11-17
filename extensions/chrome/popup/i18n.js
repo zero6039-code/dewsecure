@@ -28,6 +28,9 @@ window.applyI18n = function() {
         if (el.getAttribute('data-lang') === currentLang) el.classList.add('active');
         else el.classList.remove('active');
     });
+    
+    // 🌟 语言替换完成，平滑显示页面
+    if (document.body) document.body.classList.add('dew-ready');
 };
 
 async function loadAndApply(lang) {
@@ -42,6 +45,7 @@ async function loadAndApply(lang) {
     } catch(e) {
         console.warn('Failed to load language:', lang, e);
         if (lang !== 'en') loadAndApply('en'); // 回退英文
+        else if (document.body) document.body.classList.add('dew-ready'); // 彻底失败时也要显示，避免白屏
     }
 }
 

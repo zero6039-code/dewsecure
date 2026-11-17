@@ -72,6 +72,12 @@ impl Clone for HostEngine {
     }
 }
 
+fn is_public_suffix(d: &str) -> bool {
+    // A-19/B-4：基于 PSL 语义判定公共后缀（注册域为空 ⟺ 输入本身是公共后缀）
+    let (_sub, reg, _suffix) = crate::classifier::psl::PslSet::global().split(d);
+    reg.is_empty() && !d.is_empty()
+}
+
 pub fn normalize_domain(s: &str) -> String {
     s.trim().trim_end_matches('.').to_lowercase()
 }
@@ -135,10 +141,11 @@ impl HostEngine {
 
     pub fn user_allow(&self, domain: String) {
         let h = normalize_domain(&domain);
-        if !h.is_empty() {
-            let mut guard = self.user_allow.lock().unwrap_or_else(|e| e.into_inner());
-            guard.insert(h);
+        if h.is_empty() || is_public_suffix(&h) {
+            return;
         }
+        let mut guard = self.user_allow.lock().unwrap_or_else(|e| e.into_inner());
+        guard.insert(h);
     }
 
     pub fn user_remove_allow(&self, domain: String) {
@@ -152,7 +159,7 @@ impl HostEngine {
         guard.clear();
         for d in domains {
             let h = normalize_domain(&d);
-            if !h.is_empty() {
+            if !h.is_empty() && !is_public_suffix(&h) {
                 guard.insert(h);
             }
         }

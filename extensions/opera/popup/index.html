@@ -5,6 +5,11 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>DewSecure</title>
     <link rel="stylesheet" href="popup.css">
+    <style>
+        /* 防止语言异步加载导致的中英文闪烁 */
+        body { opacity: 0; transition: opacity 0.15s ease-in-out; }
+        body.dew-ready { opacity: 1; }
+    </style>
 </head>
 <body>
 
@@ -33,8 +38,8 @@
         <!-- 站点卡片 (移到统计上方) -->
         <div class="site-card glass" style="margin-bottom: 10px;">
             <div class="site-info">
-                <div class="site-domain" id="siteDomain">此网站</div>
-                <div class="site-label" id="siteLabel">保护已开启</div>
+                <div class="site-domain" id="siteDomain">This site</div>
+                <div class="site-label" id="siteLabel">Protection On</div>
             </div>
             <label class="ios-switch" id="siteSwitchWrap">
                 <input type="checkbox" id="siteSwitch" checked>
@@ -50,17 +55,17 @@
         <!-- 统计卡片 (上下排版) -->
         <div style="display: flex; flex-direction: column; gap: 10px; margin-bottom: 10px;">
             <div class="stat-card glass" id="cardToday" style="padding: 16px 20px; display: flex; justify-content: space-between; align-items: center; cursor: pointer; border-radius: 16px;">
-                <div class="stat-label" style="font-size: 14px; font-weight: 500; color: #4b5563; margin-top: 0;" data-i18n="stat_today">今日拦截</div>
+                <div class="stat-label" style="font-size: 14px; font-weight: 500; color: #4b5563; margin-top: 0;" data-i18n="stat_today">Blocked Today</div>
                 <div class="stat-value" id="todayBlocked" style="font-size: 28px; color: #1c1c1e; line-height: 1; letter-spacing: 0;">0</div>
             </div>
             <div class="stat-card glass" id="cardTotal" style="padding: 16px 20px; display: flex; justify-content: space-between; align-items: center; cursor: pointer; border-radius: 16px;">
-                <div class="stat-label" style="font-size: 14px; font-weight: 500; color: #4b5563; margin-top: 0;" data-i18n="stat_total">累计拦截</div>
+                <div class="stat-label" style="font-size: 14px; font-weight: 500; color: #4b5563; margin-top: 0;" data-i18n="stat_total">Total Blocked</div>
                 <div class="stat-value" id="totalBlocked" style="font-size: 28px; color: #1c1c1e; line-height: 1; letter-spacing: 0;">0</div>
             </div>
         </div>
 
         <div class="trial-banner glass hidden" id="trialBanner">
-            <div class="trial-content" id="trialContent" data-i18n="trial_banner">首次登录/注册，即可激活 30 天高级版。</div>
+            <div class="trial-content" id="trialContent" data-i18n="trial_banner">Log in to activate 30-day trial.</div>
             <button class="trial-close" id="trialClose">✕</button>
         </div>
 
@@ -79,12 +84,12 @@
 
         <!-- 帮助改进 (移到底部) -->
         <div class="feedback-card glass">
-            <div class="feedback-title" data-i18n="feedback_title">🛠️ 帮助改进 DewSecure</div>
+            <div class="feedback-title" data-i18n="feedback_title">🛠️ Help improve DewSecure</div>
             <div class="feedback-buttons">
-                <button class="btn-feedback" id="reportMissed" data-i18n="feedback_missed">😤 漏拦广告</button>
-                <button class="btn-feedback" id="reportFalse" data-i18n="feedback_false">😡 误拦内容</button>
+                <button class="btn-feedback" id="reportMissed" data-i18n="feedback_missed">😤 Missed Ad</button>
+                <button class="btn-feedback" id="reportFalse" data-i18n="feedback_false">😡 False Block</button>
             </div>
-            <div class="feedback-hint" id="feedbackHint" data-i18n="feedback_hint">您的反馈将匿名上传，帮助 AI 持续进化</div>
+            <div class="feedback-hint" id="feedbackHint" data-i18n="feedback_hint">Feedback is anonymous and helps AI evolve</div>
         </div>
     </div>
 
@@ -172,10 +177,10 @@
         <div class="sub-view-nav glass">
             <button class="btn-back" id="backFromLogs" data-i18n="logs_back">返回</button>
             <div class="sub-view-title" data-i18n="logs_title">今日拦截详情</div>
-            <div class="status-badge active" id="logCountBadge">0 条</div>
+            <div class="status-badge active" id="logCountBadge">0</div>
         </div>
         <div class="glass" style="padding: 12px; flex: 1; overflow-y: auto; height: calc(100vh - 120px);">
-            <div id="logsList" style="display: flex; flex-direction: column; gap: 8px;"><div style="text-align: center; color: #9ca3af; font-size: 12px; padding: 20px;" data-i18n="logs_empty">暂无拦截记录</div></div>
+            <div id="logsList" style="display: flex; flex-direction: column; gap: 8px;"><div style="text-align: center; color: #9ca3af; font-size: 12px; padding: 20px;" data-i18n="logs_empty">No blocked logs</div></div>
         </div>
     </div>
 
