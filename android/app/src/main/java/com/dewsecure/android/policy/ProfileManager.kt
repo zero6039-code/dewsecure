@@ -29,6 +29,8 @@ object ProfileManager {
             val url = URL("${SessionManager.SUPABASE_URL}/rest/v1/profiles?id=eq.$userId&select=tier,family_owner_id")
             val conn = url.openConnection() as HttpURLConnection
             conn.requestMethod = "GET"
+              conn.connectTimeout = 15000
+              conn.readTimeout = 15000
             conn.setRequestProperty("apikey", SessionManager.SUPABASE_KEY)
             conn.setRequestProperty("Authorization", "Bearer $token")
 

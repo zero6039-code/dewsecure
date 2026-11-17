@@ -4,6 +4,8 @@ import android.content.Context
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.json.JSONObject
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import java.io.BufferedReader
 import java.io.InputStreamReader
 import java.io.OutputStreamWriter
@@ -11,42 +13,49 @@ import java.net.HttpURLConnection
 import java.net.URL
 
 object SessionManager {
+    private val refreshMutex = Mutex()
     const val TAG = "SessionManager"
     const val SUPABASE_URL = "https://uvbaioqqjqseapcancvi.supabase.co"
     const val SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InV2YmFpb3FxanFzZWFwY2FuY3ZpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTI0OTIyODAsImV4cCI6MjEwODA2ODI4MH0.jhEaDHBvp702biC7oqM1oV5YO7rzhvmXFH5pTRF17kQ"
 
     suspend fun refreshToken(context: Context): Result<String> = withContext(Dispatchers.IO) {
-        try {
-            val prefs = context.getSharedPreferences("user_session", Context.MODE_PRIVATE)
-            val refreshToken = prefs.getString("refresh_token", null)
-                ?: return@withContext Result.failure(Exception("no refresh_token"))
+        refreshMutex.withLock {
+            try {
+                val prefs = context.getSharedPreferences("user_session", Context.MODE_PRIVATE)
+                val refreshToken = prefs.getString("refresh_token", null)
+                    ?: return@withLock Result.failure(Exception("no refresh_token"))
 
-            val url = URL("$SUPABASE_URL/auth/v1/token?grant_type=refresh_token")
-            val conn = url.openConnection() as HttpURLConnection
-            conn.requestMethod = "POST"
-            conn.setRequestProperty("apikey", SUPABASE_KEY)
-            conn.setRequestProperty("Content-Type", "application/json")
-            conn.doOutput = true
+                val url = URL("$SUPABASE_URL/auth/v1/token?grant_type=refresh_token")
+                val conn = url.openConnection() as HttpURLConnection
+                conn.connectTimeout = 15000
+                conn.readTimeout = 15000
+                conn.requestMethod = "POST"
+                conn.setRequestProperty("apikey", SUPABASE_KEY)
+                conn.setRequestProperty("Content-Type", "application/json")
+                conn.doOutput = true
 
-            val body = JSONObject().apply { put("refresh_token", refreshToken) }.toString()
-            val os = OutputStreamWriter(conn.outputStream); os.write(body); os.flush(); os.close()
+                try {
+                    val body = JSONObject().apply { put("refresh_token", refreshToken) }.toString()
+                    val os = OutputStreamWriter(conn.outputStream); os.write(body); os.flush(); os.close()
 
-            if (conn.responseCode in 200..299) {
-                val reader = BufferedReader(InputStreamReader(conn.inputStream))
-                val json = JSONObject(reader.readText())
-                val newAccess = json.optString("access_token")
-                val newRefresh = json.optString("refresh_token")
-
-                prefs.edit().putString("access_token", newAccess).putString("refresh_token", newRefresh).apply()
-                Result.success(newAccess)
-            } else {
-                Result.failure(Exception("refresh token failed"))
+                    if (conn.responseCode in 200..299) {
+                        val reader = BufferedReader(InputStreamReader(conn.inputStream))
+                        val json = JSONObject(reader.readText())
+                        val newAccess = json.optString("access_token").takeIf { it.isNotEmpty() } ?: return@withLock Result.failure(Exception("empty access_token"))
+                        val newRefresh = json.optString("refresh_token").takeIf { it.isNotEmpty() } ?: return@withLock Result.failure(Exception("empty refresh_token"))
+                        prefs.edit().putString("access_token", newAccess).putString("refresh_token", newRefresh).apply()
+                        Result.success(newAccess)
+                    } else {
+                        Result.failure(Exception("refresh token failed: ${'$'}{conn.responseCode}"))
+                    }
+                } finally {
+                    conn.disconnect()
+                }
+            } catch (e: Exception) {
+                Result.failure(e)
             }
-        } catch (e: Exception) {
-            Result.failure(e)
         }
     }
-
     fun getUserIdFromToken(token: String): String? {
         return try {
             val parts = token.split(".")

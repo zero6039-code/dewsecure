@@ -32,6 +32,13 @@ class SettingsFragment : Fragment() {
         return inflater.inflate(R.layout.fragment_settings, container, false)
     }
 
+    override fun onResume() {
+        super.onResume()
+        if (::whitelistController.isInitialized) {
+            whitelistController.refreshLoginState()
+        }
+    }
+
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
 
@@ -89,6 +96,7 @@ class SettingsFragment : Fragment() {
             "whitelist" -> {
                 tabWhitelist.setBackgroundResource(R.drawable.bg_glass_tab_active)
                 paneWhitelist.visibility = View.VISIBLE
+                whitelistController.refreshLoginState()
                 whitelistController.loadWhitelistData()
             }
             "privacy" -> {
