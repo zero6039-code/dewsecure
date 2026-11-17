@@ -168,6 +168,26 @@ impl VpnEngine {
                         IpAddress::Ipv6(v6) => format!("[{}]", v6),
                     };
 
+                    // 🛡️ [A-22 补丁] 过滤本地回环及内网 IP，防止无效直连引发 Connection Refused
+                    let is_local = match local_ep.addr {
+                        IpAddress::Ipv4(v4) => {
+                            let o = v4.0;
+                            o[0] == 10 || o[0] == 127 || 
+                            (o[0] == 192 && o[1] == 168) || 
+                            (o[0] == 172 && o[1] >= 16 && o[1] <= 31) ||
+                            (o[0] == 169 && o[1] == 254)
+                        },
+                        IpAddress::Ipv6(v6) => {
+                            let o = v6.0;
+                            (o[0] == 0xfe && (o[1] & 0xc0) == 0x80) || (o[0..15].iter().all(|&x| x == 0) && o[15] == 1)
+                        }
+                    };
+                    if is_local {
+                        log::debug!("🚫 忽略内网/回环连接: {}:{}", ip_str, target_port);
+                        tcp_socket.abort();
+                        continue;
+                    }
+
                     log::debug!("🔗 捕获 TCP 连接: {}:{}", ip_str, target_port);
                     TCP_443_CONNECTIONS.fetch_add(1, Ordering::Relaxed);
 
