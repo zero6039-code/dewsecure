@@ -138,8 +138,8 @@ async function init() {
     await window.syncUserState();
 
     const versionSpan = document.getElementById('appVersion');
-    // 📊 安全加载一次流量数据，延时防阻塞
-    setTimeout(() => { try { renderSavings(); } catch(e){} }, 100);
+    // 📊 取消延时，在页面显示前直接同步等待渲染，杜绝 0 闪烁
+    try { await renderSavings(); } catch(e) { console.warn('renderSavings failed', e); }
 
     if (versionSpan && chrome.runtime.getManifest) {
         versionSpan.textContent = 'v' + chrome.runtime.getManifest().version;
@@ -225,3 +225,17 @@ chrome.runtime.onMessage.addListener((msg) => {
     }
 });
 
+
+// 🌟 动态注入版本号
+document.addEventListener('DOMContentLoaded', () => {
+    const version = chrome.runtime.getManifest().version;
+    const mainView = document.getElementById('mainView');
+    if (mainView && !document.getElementById('dew-version')) {
+        const verDiv = document.createElement('div');
+        verDiv.id = 'dew-version';
+        // 字体加大到 12px，加粗，居中，并设置底部 margin 防止被 bottom-nav 遮挡
+        verDiv.style.cssText = 'font-size: 12px; color: #9ca3af; text-align: center; width: 100%; margin-top: 16px; margin-bottom: 70px; font-weight: 500;';
+        verDiv.textContent = 'Version ' + version;
+        mainView.appendChild(verDiv);
+    }
+});
