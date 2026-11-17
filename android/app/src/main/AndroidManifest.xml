@@ -2,7 +2,6 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
     <uses-permission android:name="android.permission.INTERNET" />
-    <uses-permission android:name="android.permission.QUERY_ALL_PACKAGES" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <!-- Android 13+ 需要通知权限 -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
@@ -10,9 +9,18 @@
 
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
 
+        <queries>
+        <intent>
+            <action android:name="android.intent.action.VIEW" />
+            <data android:scheme="https" />
+        </intent>
+    </queries>
+
     <application
         android:name=".DewSecureApplication"
         android:allowBackup="false"
+        android:dataExtractionRules="@xml/data_extraction_rules"
+        android:networkSecurityConfig="@xml/network_security_config"
         android:icon="@drawable/dewsecure_icon"
         android:label="DewSecure"
         android:supportsRtl="true"

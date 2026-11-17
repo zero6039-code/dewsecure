@@ -143,13 +143,11 @@ class DewVpnService : VpnService() {
                 networkCallback = object : ConnectivityManager.NetworkCallback() {
                     override fun onAvailable(network: Network) {
                         refreshUpstreamDns(cm)
-                        TcpDnsRelay.setUpstreamDns(upstreamDns)
                     }
                 }
                 try { cm.registerDefaultNetworkCallback(networkCallback!!) } catch (e: Exception) {}
             }
         }
-        TcpDnsRelay.setUpstreamDns(upstreamDns)
 
         // A-09: 引擎由 DewSecureApplication.onCreate 统一初始化
         
@@ -318,7 +316,6 @@ class DewVpnService : VpnService() {
         isRunning = false
         isRunningState = false
         heartbeatManager.stop()
-        TcpDnsRelay.removeAll()
 
         // 1. 通知 Rust 立即释放资源（异步）
         Thread {
