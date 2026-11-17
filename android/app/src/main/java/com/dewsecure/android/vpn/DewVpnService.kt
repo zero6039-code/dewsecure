@@ -21,6 +21,8 @@ import java.util.concurrent.Executors
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 
@@ -30,7 +32,7 @@ class DewVpnService : VpnService() {
         override fun protectFd(fd: Int): Boolean {
             if (fd == -1) {
                 Log.e(TAG, "🚨 收到 Rust 引擎死亡信号，正在紧急停止 VPN...")
-                CoroutineScope(Dispatchers.IO).launch { stopVpn() }
+                serviceScope.launch { stopVpn() }
                 return true
             }
             return this@DewVpnService.protect(fd)
@@ -38,13 +40,21 @@ class DewVpnService : VpnService() {
     }
 
     private var vpnInterface: ParcelFileDescriptor? = null
-    private var isRunning = false
+    @Volatile private var isRunning = false
     private val executor = Executors.newSingleThreadExecutor()
     private var upstreamDns = "223.5.5.5"
     private var networkCallback: ConnectivityManager.NetworkCallback? = null
-    private var isStopping = false
+    @Volatile private var isStopping = false
+    private val serviceScope = CoroutineScope(Dispatchers.IO + SupervisorJob())
     private val restartHandler = android.os.Handler(android.os.Looper.getMainLooper())
-    private val heartbeatManager by lazy { VpnHeartbeatManager(this) { stopVpn() } }
+    private val heartbeatManager by lazy { VpnHeartbeatManager(this) { 
+        Log.w(TAG, "⏰ 心跳降级，平滑重启 VPN 以应用 Free 模式...")
+        android.os.Handler(android.os.Looper.getMainLooper()).post {
+            android.widget.Toast.makeText(this, "Pro 订阅已过期，已自动降级为普通拦截", android.widget.Toast.LENGTH_LONG).show()
+        }
+        val restartIntent = Intent(this@DewVpnService, DewVpnService::class.java).apply { action = "ACTION_RESTART_VPN" }
+        androidx.core.content.ContextCompat.startForegroundService(this@DewVpnService, restartIntent)
+    } }
 
     companion object {
         private const val TAG = "DewVpnService"
@@ -96,7 +106,7 @@ class DewVpnService : VpnService() {
             
             if (isUserPro) {
                 Log.i(TAG, "✅ 权限确认为 Pro ($cachedTier)，触发模型拉取")
-                CoroutineScope(Dispatchers.IO).launch {
+                serviceScope.launch {
                     UpdateManager.checkForUpdates(this@DewVpnService)
                 }
             } else {
@@ -171,12 +181,12 @@ class DewVpnService : VpnService() {
 
         // 从本地存储恢复开关状态并同步给 Rust 引擎
         val appPrefs = getSharedPreferences("app_settings", MODE_PRIVATE)
-        EngineBridge.setEnableDnr(appPrefs.getBoolean("pref_v3_dnr", true))
-        EngineBridge.setEnableTracker(appPrefs.getBoolean("pref_v3_tracker", true))
-        EngineBridge.setEnableSocial(appPrefs.getBoolean("pref_v3_social", true))
-        EngineBridge.setEnableThreatIntel(appPrefs.getBoolean("pref_v3_intel", true))
-        EngineBridge.setEnableAiPhishing(appPrefs.getBoolean("pref_v3_ai_phishing", true))
-        EngineBridge.setEnableAiZeroDay(appPrefs.getBoolean("pref_v3_ai_zero_day", true))
+        EngineBridge.setEnableDnr(appPrefs.getBoolean("pref_v5_dnr", true))
+        EngineBridge.setEnableTracker(appPrefs.getBoolean("pref_v5_tracker", true))
+        EngineBridge.setEnableSocial(appPrefs.getBoolean("pref_v5_social", true))
+        EngineBridge.setEnableThreatIntel(appPrefs.getBoolean("pref_v5_intel", true))
+        EngineBridge.setEnableAiPhishing(appPrefs.getBoolean("pref_v5_ai_phishing", true))
+        EngineBridge.setEnableAiZeroDay(appPrefs.getBoolean("pref_v5_ai_zero_day", true))
 
         // 🌟 初始化 MitM 总开关 (默认关闭，仅 Root 用户手动开启 Full-App Filtering 时生效)
         val isMitmFullAppEnabled = appPrefs.getBoolean("pref_mitm_full_app", false)
@@ -192,7 +202,7 @@ class DewVpnService : VpnService() {
         // 触发云端热更新 (后台静默进行)
         // 🛡️ 修复：只有 Pro 用户才允许在 VPN 启动时拉取
         if (isUserPro) {
-            CoroutineScope(Dispatchers.IO).launch {
+            serviceScope.launch {
                 UpdateManager.checkForUpdates(this@DewVpnService)
             }
         } else {
@@ -227,7 +237,6 @@ class DewVpnService : VpnService() {
                 .addAddress("10.0.0.2", 24)
                 .addAddress("fd00::2", 120)
                 .addDnsServer("10.0.0.1")
-                .addDnsServer("fd00::1")
                 .setMtu(1400)
                 .setBlocking(false)
 
@@ -238,6 +247,7 @@ class DewVpnService : VpnService() {
                 builder.addRoute("10.0.0.1", 32)
             } else {
                 builder.addRoute("0.0.0.0", 0)
+                builder.addRoute("::", 0)
             }
             // 🌟 核心：读取分应用路由配置，踢出勾选直连的 App
             val allKeys = appPrefs.all
@@ -350,6 +360,7 @@ class DewVpnService : VpnService() {
     override fun onDestroy() {
         stopVpn()
         isStopping = false // 重置
+        serviceScope.cancel()
         super.onDestroy()
     }
 
