@@ -4,7 +4,15 @@ use hudsucker::{
     rcgen::{CertificateParams, KeyPair, DistinguishedName, DnType, IsCa, BasicConstraints, KeyUsagePurpose},
 };
 use std::net::SocketAddr;
-use std::sync::OnceLock;
+use std::sync::{OnceLock, Mutex};
+
+static PROXY_PORT: OnceLock<u16> = OnceLock::new();
+pub fn get_proxy_port() -> u16 {
+    *PROXY_PORT.get_or_init(|| {
+        let t = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap_or_default().as_millis() as u16;
+        (10000 + (t % 50000)).max(10000)
+    })
+}
 use rustls::crypto::aws_lc_rs;
 use std::fs;
 use std::path::PathBuf;
@@ -36,6 +44,8 @@ impl MitmProxy {
     }
 
     pub fn get_ca_cert_pem() -> String {
+        static LOCK: Mutex<()> = Mutex::new(());
+        let _guard = LOCK.lock().unwrap();
         if let Some(cert) = CA_CERT_PEM.get() {
             return cert.clone();
         }
@@ -70,6 +80,11 @@ impl MitmProxy {
                 }
                 if let Some(key_path) = Self::key_path() {
                     let _ = fs::write(&key_path, &key_pem);
+                    #[cfg(unix)]
+                    {
+                        use std::os::unix::fs::PermissionsExt;
+                        let _ = fs::set_permissions(&key_path, fs::Permissions::from_mode(0o600));
+                    }
                 }
                 
                 let _ = CA_CERT_PEM.set(pem.clone());
@@ -93,7 +108,7 @@ impl MitmProxy {
         params.is_ca = IsCa::Ca(BasicConstraints::Unconstrained);
         params.key_usages = vec![KeyUsagePurpose::KeyCertSign, KeyUsagePurpose::CrlSign];
         params.not_before = hudsucker::rcgen::date_time_ymd(2024, 1, 1);
-        params.not_after = hudsucker::rcgen::date_time_ymd(2034, 1, 1);
+        params.not_after = hudsucker::rcgen::date_time_ymd(2025, 1, 1);
         let key_pair = KeyPair::generate().expect("Failed to generate key pair");
         (key_pair, params)
     }
@@ -116,13 +131,13 @@ impl MitmProxy {
         params.is_ca = IsCa::Ca(BasicConstraints::Unconstrained);
         params.key_usages = vec![KeyUsagePurpose::KeyCertSign, KeyUsagePurpose::CrlSign];
         params.not_before = hudsucker::rcgen::date_time_ymd(2024, 1, 1);
-        params.not_after = hudsucker::rcgen::date_time_ymd(2034, 1, 1);
+        params.not_after = hudsucker::rcgen::date_time_ymd(2025, 1, 1);
         let cert = match params.self_signed(&key_pair) { Ok(c) => c, Err(_) => return Err("自签名失败".to_string()) };
 
         let crypto_provider = aws_lc_rs::default_provider();
         let ca = RcgenAuthority::new(key_pair, cert, 1024, crypto_provider);
 
-        let addr = SocketAddr::from(([127, 0, 0, 1], 8888));
+        let addr = SocketAddr::from(([127, 0, 0, 1], get_proxy_port()));
         let proxy = Proxy::builder()
             .with_addr(addr)
             .with_ca(ca)

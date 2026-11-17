@@ -61,7 +61,11 @@
     <string name="mitm_dialog_btn_cancel">取消</string>
     <string name="mitm_cert_fail">获取内置证书失败</string>
     <string name="mitm_cert_install_title">安装 HTTPS 过滤证书</string>
-    <string name="mitm_cert_install_msg">"为了拦截浏览器内的 HTTPS 广告，系统需要信任 DewSecure 的本地证书。\n\n点击“一键安装”后，请按系统提示操作。\n\n⚠️ 重点：在“凭据用途”界面，请务必选择【VPN 和应用】，否则 HTTPS 过滤无法生效！"</string>
+    <string name="mitm_cert_install_msg">"为了拦截浏览器内的 HTTPS 广告，系统需要信任 DewSecure 的本地证书。
+
+点击“一键安装”后，请按系统提示操作。
+
+⚠️ 注意：Android 7.0+ 默认不信任用户证书，如要拦截第三方 App，请 Root 后将证书移至系统目录 (/system/etc/security/cacerts/)。"</string>
     <string name="mitm_cert_btn_install">一键安装</string>
     <string name="mitm_cert_install_fail">唤起安装失败: %1$s</string>
     <string name="common_cancel">取消</string>

@@ -56,17 +56,21 @@ impl VpnEngine {
         RUNNING.store(true, Ordering::Relaxed);
 
         let proxy = crate::mitm_proxy::MitmProxy::new();
-        if let Err(e) = proxy.start().await { 
-            error!("❌ hudsucker 启动失败: {}", e); 
-            if let Some(tx) = ready_tx.as_ref() {
-                let _ = tx.try_send(Err(format!("hudsucker 启动失败: {}", e)));
+        if MITM_ENABLED.load(Ordering::Relaxed) {
+            if let Err(e) = proxy.start().await {
+                error!("❌ hudsucker 启动失败: {}", e);
+                if let Some(tx) = ready_tx.as_ref() {
+                    let _ = tx.try_send(Err(format!("hudsucker 启动失败: {}", e)));
+                }
+                return;
             }
-            return; 
+        } else {
+            info!("ℹ️ MitM 未启用，跳过 hudsucker 启动");
         }
 
         let rx_queue = Arc::new(Mutex::new(VecDeque::new()));
         let fd_read = unsafe { libc::dup(self.tun_fd) };
-        let fd_write = unsafe { libc::dup(self.tun_fd) }; // A-04: 独立 dup 写端，由 TunWriter 独占所有权
+        let fd_write = unsafe { libc::dup(self.tun_fd) };
         spawn_tun_reader(fd_read, rx_queue.clone(), Arc::new(AtomicBool::new(true)));
 
         let tx_writer = TunWriter::new(fd_write);
@@ -74,22 +78,19 @@ impl VpnEngine {
 
         let config = Config::new(smoltcp::wire::HardwareAddress::Ip);
         let mut iface = Interface::new(config, &mut device, Instant::now());
-        
+
         iface.set_any_ip(true);
         iface.update_ip_addrs(|ip_addrs| {
             let _ = ip_addrs.push(IpCidr::new(IpAddress::Ipv4(Ipv4Address::new(10, 0, 0, 1)), 24));
             let _ = ip_addrs.push(IpCidr::new(IpAddress::Ipv6(Ipv6Address::new(0xfd00, 0, 0, 0, 0, 0, 0, 2)), 120));
         });
-        
-        // 专家核心配置：默认路由网关指向自身
+
         iface.routes_mut().add_default_ipv4_route(Ipv4Address::new(10, 0, 0, 1)).unwrap();
         iface.routes_mut().add_default_ipv6_route(Ipv6Address::new(0xfd00, 0, 0, 0, 0, 0, 0, 2)).unwrap();
 
         let mut sockets = SocketSet::new(vec![]);
         let mut connections: HashMap<SocketHandle, ConnectionState> = HashMap::new();
         let protector = self.protector.clone();
-        let mut listening_ports: std::collections::HashSet<u16> = std::collections::HashSet::new();
-        listening_ports.insert(443);
         let mut listening_ports: std::collections::HashSet<u16> = std::collections::HashSet::new();
         listening_ports.insert(443);
 
@@ -104,8 +105,7 @@ impl VpnEngine {
                 info!("🔌 Rust 主循环已退出");
                 break;
             }
-            
-            // 1. 补充 Listener（443 固定池 + 动态端口）
+
             let mut c443 = 0;
             for (_, s) in sockets.iter() {
                 if let smoltcp::socket::Socket::Tcp(s) = s {
@@ -115,8 +115,8 @@ impl VpnEngine {
                 }
             }
             for _ in c443..64 {
-                let rx = tcp::SocketBuffer::new(vec![0u8; 65535]);
-                let tx = tcp::SocketBuffer::new(vec![0u8; 65535]);
+                let rx = tcp::SocketBuffer::new(vec![0u8; 16384]);
+                let tx = tcp::SocketBuffer::new(vec![0u8; 16384]);
                 let h = sockets.add(tcp::Socket::new(rx, tx));
                 if let Err(e) = sockets.get_mut::<tcp::Socket>(h).listen(IpListenEndpoint { addr: None, port: 443 }) {
                     error!("监听 443 失败: {:?}", e);
@@ -126,8 +126,8 @@ impl VpnEngine {
             for port in pending {
                 if listening_ports.insert(port) {
                     for _ in 0..8 {
-                        let rx = tcp::SocketBuffer::new(vec![0u8; 65535]);
-                        let tx = tcp::SocketBuffer::new(vec![0u8; 65535]);
+                        let rx = tcp::SocketBuffer::new(vec![0u8; 16384]);
+                        let tx = tcp::SocketBuffer::new(vec![0u8; 16384]);
                         let h = sockets.add(tcp::Socket::new(rx, tx));
                         if let Err(e) = sockets.get_mut::<tcp::Socket>(h).listen(IpListenEndpoint { addr: None, port }) {
                             error!("监听端口 {} 失败: {:?}", port, e);
@@ -137,10 +137,8 @@ impl VpnEngine {
                 }
             }
 
-            // 2. 核心 poll
             iface.poll(Instant::now(), &mut device, &mut sockets);
 
-            // 3. 实时状态打印（每 2 秒）
             if last_report.elapsed().as_secs() >= 2 {
                 for (h, s) in sockets.iter() {
                     if let smoltcp::socket::Socket::Tcp(socket) = s {
@@ -175,12 +173,12 @@ impl VpnEngine {
 
                     let (tx_to_proxy, mut rx_from_tun) = mpsc::channel::<Bytes>(128);
                     let (tx_to_tun, rx_from_proxy) = mpsc::unbounded_channel::<Bytes>();
-                    connections.insert(handle, ConnectionState { 
-                        tx_to_proxy, 
-                        rx_from_proxy, 
-                        pending_writes: VecDeque::new(), 
-                        pending_rx: VecDeque::new(), 
-                        is_aborted: false 
+                    connections.insert(handle, ConnectionState {
+                        tx_to_proxy,
+                        rx_from_proxy,
+                        pending_writes: VecDeque::new(),
+                        pending_rx: VecDeque::new(),
+                        is_aborted: false
                     });
 
                     let tx_to_tun_clone = tx_to_tun.clone();
@@ -207,14 +205,14 @@ impl VpnEngine {
                             info!("🛡️ [Bypass] 域名 {} 准备直连 {}:{}", target_domain, ip_str_clone, target_port_clone);
                             let target_addr = format!("{}:{}", ip_str_clone, target_port_clone);
                             let is_ipv6 = target_addr.contains(':') && target_addr.starts_with('[');
-                            
+
                             let socket = if is_ipv6 { tokio::net::TcpSocket::new_v6().unwrap() } else { tokio::net::TcpSocket::new_v4().unwrap() };
                             let fd = socket.as_raw_fd();
-                            
+
                             if !prot_clone.protect_fd(fd) { error!("protect fd 失败"); return; }
 
                             let mut real_conn = match tokio::time::timeout(
-                                std::time::Duration::from_secs(5), 
+                                std::time::Duration::from_secs(5),
                                 socket.connect(target_addr.parse().unwrap())
                             ).await {
                                 Ok(Ok(c)) => c,
@@ -247,12 +245,50 @@ impl VpnEngine {
                                     }
                                 }
                             };
-                            
+
                             tokio::join!(send_task, recv_task);
                             return;
                         }
-                        
-                        // MitM 逻辑...
+
+                        let proxy_addr = format!("127.0.0.1:{}", crate::mitm_proxy::get_proxy_port());
+                        let mut proxy_conn = match tokio::net::TcpStream::connect(&proxy_addr).await {
+                            Ok(c) => c,
+                            Err(e) => { error!("连接本地 MitM 代理失败: {}", e); return; }
+                        };
+
+                        let connect_req = format!("CONNECT {}:{} HTTP/1.1
+Host: {}:{}
+
+", ip_str_clone, target_port_clone, ip_str_clone, target_port_clone);
+                        if proxy_conn.write_all(connect_req.as_bytes()).await.is_err() { return; }
+
+                        if !first_chunk.is_empty() {
+                            if proxy_conn.write_all(&first_chunk).await.is_err() { return; }
+                        }
+
+                        let (mut pr, mut pw) = tokio::io::split(proxy_conn);
+
+                        let send_task = async move {
+                            while let Some(data) = rx_from_tun.recv().await {
+                                if pw.write_all(&data).await.is_err() { break; }
+                            }
+                            let _ = pw.shutdown().await;
+                        };
+
+                        let recv_task = async move {
+                            let mut buf = vec![0u8; 65535];
+                            loop {
+                                match pr.read(&mut buf).await {
+                                    Ok(0) => break,
+                                    Ok(n) => {
+                                        if tx_to_tun_clone.send(Bytes::copy_from_slice(&buf[..n])).is_err() { break; }
+                                    }
+                                    Err(_) => break,
+                                }
+                            }
+                        };
+
+                        tokio::join!(send_task, recv_task);
                     });
                 }
 
@@ -317,15 +353,15 @@ impl VpnEngine {
                 iface.poll(Instant::now(), &mut device, &mut sockets);
                 tokio::time::sleep(tokio::time::Duration::from_millis(1)).await;
             } else {
-                tokio::time::sleep(tokio::time::Duration::from_millis(5)).await;
+                let delay = iface.poll_delay(Instant::now(), &sockets);
+                let sleep_ms = delay.map(|d| d.total_millis()).unwrap_or(5).min(5).max(1);
+                tokio::time::sleep(tokio::time::Duration::from_millis(sleep_ms)).await;
             }
         }
 
-        // A-04: 只关闭 Rust 侧 dup 出来的 fd_read；原始 fd 由 Kotlin 持有，fd_write 由 TunWriter 线程负责关闭
         unsafe {
             libc::close(fd_read);
         }
-        // A-03: 发送 -1 作为死亡探针，通知 Kotlin 侧引擎已崩溃/退出
         self.protector.protect_fd(-1);
         info!("🛑 Rust 引擎主循环退出完毕，所有 FD 已彻底释放");
     }
