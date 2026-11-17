@@ -279,6 +279,7 @@ impl Device for VpnDevice {
 
                 // 尝试解析域名并执行拦截
                 let mut blocked = false;
+                let mut domain_for_mark = String::new();
                 if let Some(domain) = extract_dns_qname(&dns_payload) {
                     if let Some(engine) = crate::engine_host::GLOBAL_HOST_ENGINE.get() {
                         let result = engine.should_block(domain.clone());
@@ -290,15 +291,18 @@ impl Device for VpnDevice {
                             blocked = true;
                         }
                     }
+                    domain_for_mark = domain;
                 }
 
                 if blocked { continue; }
 
+                let domain_clone = domain_for_mark;
                 tokio::spawn(async move {
                     let socket = tokio::net::UdpSocket::bind("0.0.0.0:0").await.unwrap();
                     let fd = socket.as_raw_fd();
                     if !prot_clone.protect_fd(fd) {
                         log::error!("❌ DNS 上游 Socket protect 失败");
+                        if !domain_clone.is_empty() { crate::policy_rules::mark_failed(&domain_clone); }
                         return;
                     }
 
@@ -314,6 +318,7 @@ impl Device for VpnDevice {
                         writer.write(resp_pkt);
                     } else {
                         log::error!("⏰ DNS 上游查询超时");
+                        if !domain_clone.is_empty() { crate::policy_rules::mark_failed(&domain_clone); }
                     }
                 });
                 continue;

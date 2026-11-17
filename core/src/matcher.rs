@@ -62,7 +62,7 @@ impl HostEngine {
                 if confidence >= AI_CONFIDENCE_THRESHOLD && decision != BlockDecision::Allow {
                     let is_ai_enabled = match decision {
                         BlockDecision::BlockAd => self.enable_ai_zero_day.load(Ordering::Relaxed),
-                        BlockDecision::BlockTracker => self.enable_ai_phishing.load(Ordering::Relaxed),
+                        BlockDecision::BlockTracker => self.enable_tracker.load(Ordering::Relaxed),
                         _ => true,
                     };
                     if is_ai_enabled {
@@ -74,6 +74,20 @@ impl HostEngine {
                         self.stats_engine.record_block(&host, reason);
                         return BlockResult { decision, reason: reason.to_string(), confidence };
                     }
+                }
+            }
+        }
+
+        if self.enable_ai_phishing.load(Ordering::Relaxed) {
+            let parts: Vec<&str> = host.split('.').collect();
+            if parts.len() >= 2 {
+                let is_suspicious = host.contains("login") || host.contains("verify") || host.contains("secure") || host.contains("account") || host.contains("update");
+                let has_many_hyphens = host.matches('-').count() > 2;
+                let tld = parts.last().unwrap();
+                let suspicious_tld = ["xyz", "top", "pw", "cc", "tk"].contains(tld);
+                if is_suspicious && (has_many_hyphens || suspicious_tld) {
+                    self.stats_engine.record_block(&host, "ai_phishing");
+                    return BlockResult { decision: BlockDecision::BlockPhishing, reason: "ai_phishing_heuristic".into(), confidence: 0.85 };
                 }
             }
         }
