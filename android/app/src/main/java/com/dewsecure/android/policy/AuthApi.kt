@@ -15,6 +15,8 @@ object AuthApi {
         try {
             val url = URL("${SessionManager.SUPABASE_URL}/auth/v1/user")
             val conn = url.openConnection() as HttpURLConnection
+            conn.connectTimeout = 15000
+            conn.readTimeout = 15000
             conn.requestMethod = "GET"
             conn.setRequestProperty("apikey", SessionManager.SUPABASE_KEY)
             conn.setRequestProperty("Authorization", "Bearer $accessToken")
@@ -31,6 +33,8 @@ object AuthApi {
         try {
             val url = URL("${SessionManager.SUPABASE_URL}/auth/v1/token?grant_type=pkce")
             val conn = url.openConnection() as HttpURLConnection
+            conn.connectTimeout = 15000
+            conn.readTimeout = 15000
             conn.requestMethod = "POST"
             conn.setRequestProperty("apikey", SessionManager.SUPABASE_KEY)
             conn.setRequestProperty("Content-Type", "application/json")
@@ -42,7 +46,7 @@ object AuthApi {
             val os = OutputStreamWriter(conn.outputStream); os.write(body); os.flush(); os.close()
             if (conn.responseCode in 200..299) {
                 val json = JSONObject(BufferedReader(InputStreamReader(conn.inputStream)).readText())
-                Result.success(Pair(json.optString("access_token"), json.optString("refresh_token")))
+                Result.success(Pair(json.optString("access_token").takeIf { it.isNotEmpty() } ?: "", json.optString("refresh_token")))
             } else {
                 val msg = try { JSONObject(BufferedReader(InputStreamReader(conn.errorStream)).readText()).optString("msg", "failed") } catch (e: Exception) { "failed" }
                 Result.failure(Exception(msg))
@@ -54,6 +58,8 @@ object AuthApi {
         try {
             val url = URL("${SessionManager.SUPABASE_URL}/auth/v1/otp")
             val conn = url.openConnection() as HttpURLConnection
+            conn.connectTimeout = 15000
+            conn.readTimeout = 15000
             conn.requestMethod = "POST"
             conn.setRequestProperty("apikey", SessionManager.SUPABASE_KEY)
             conn.setRequestProperty("Content-Type", "application/json")
@@ -72,6 +78,8 @@ object AuthApi {
         try {
             val url = URL("${SessionManager.SUPABASE_URL}/auth/v1/verify")
             val conn = url.openConnection() as HttpURLConnection
+            conn.connectTimeout = 15000
+            conn.readTimeout = 15000
             conn.requestMethod = "POST"
             conn.setRequestProperty("apikey", SessionManager.SUPABASE_KEY)
             conn.setRequestProperty("Content-Type", "application/json")
@@ -80,7 +88,7 @@ object AuthApi {
             val os = OutputStreamWriter(conn.outputStream); os.write(body); os.flush(); os.close()
             if (conn.responseCode in 200..299) {
                 val json = JSONObject(BufferedReader(InputStreamReader(conn.inputStream)).readText())
-                Result.success(Pair(json.optString("access_token"), json.optString("refresh_token")))
+                Result.success(Pair(json.optString("access_token").takeIf { it.isNotEmpty() } ?: "", json.optString("refresh_token")))
             } else {
                 val msg = try { JSONObject(BufferedReader(InputStreamReader(conn.errorStream)).readText()).optString("msg", "invalid code") } catch (e: Exception) { "invalid code" }
                 Result.failure(Exception(msg))
@@ -95,7 +103,9 @@ object AuthApi {
             try {
                 val url = URL("${SessionManager.SUPABASE_URL}/auth/v1/logout")
                 val conn = url.openConnection() as HttpURLConnection
-                conn.requestMethod = "POST"
+                conn.connectTimeout = 15000
+            conn.readTimeout = 15000
+            conn.requestMethod = "POST"
                 conn.setRequestProperty("apikey", SessionManager.SUPABASE_KEY)
                 conn.setRequestProperty("Authorization", "Bearer $token")
                 if (conn.responseCode in 200..299) Result.success(Unit) else Result.failure(Exception("Logout failed"))
@@ -109,6 +119,8 @@ object AuthApi {
         try {
             val url = URL("${SessionManager.SUPABASE_URL}/functions/v1/handoff")
             val conn = url.openConnection() as HttpURLConnection
+            conn.connectTimeout = 15000
+            conn.readTimeout = 15000
             conn.requestMethod = "POST"
             conn.setRequestProperty("apikey", SessionManager.SUPABASE_KEY)
             conn.setRequestProperty("Authorization", "Bearer $token")
