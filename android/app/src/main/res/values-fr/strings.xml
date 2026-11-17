@@ -117,7 +117,7 @@
     <string name="toast_cred_parse_fail">"Échec de l'analyse des informations d'identification, veuillez réessayer"</string>
     <string name="toast_session_expired">Session expirée, retour à la connexion...</string>
     <string name="toast_logout_cleaning">Nettoyage et déconnexion...</string>
-    <string name="toast_logout_success">"Déconnecté, modèle d'IA effacé"</string>
+    <string name="toast_logout_success">Déconnecté</string>
     <string name="error_unknown_user">Utilisateur Inconnu</string>
     <string name="error_invalid_email">Veuillez saisir une adresse e-mail valide</string>
     <string name="error_send_fail">"Échec de l'envoi de l'OTP"</string>

@@ -107,7 +107,7 @@
     <string name="toast_cred_parse_fail">자격 증명 분석에 실패했습니다. 다시 시도하십시오</string>
     <string name="toast_session_expired">로그인이 만료되었습니다. 로그인 화면으로 돌아갑니다...</string>
     <string name="toast_logout_cleaning">정리 및 로그아웃 중...</string>
-    <string name="toast_logout_success">로그아웃되었습니다. AI 모델이 지워졌습니다</string>
+    <string name="toast_logout_success">로그아웃되었습니다</string>
     <string name="error_unknown_user">알 수 없는 사용자</string>
     <string name="error_invalid_email">유효한 이메일 주소를 입력하세요</string>
     <string name="error_send_fail">OTP 전송 실패</string>

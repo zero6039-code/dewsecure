@@ -141,7 +141,7 @@ class DewVpnService : VpnService() {
         }
         TcpDnsRelay.setUpstreamDns(upstreamDns)
 
-        EngineBridge.init(aiEnabled = false)
+        // A-09: 引擎由 DewSecureApplication.onCreate 统一初始化
         
         
         // 🌟 权限冷启动校验：非 Pro 强制卸载 AI

@@ -110,14 +110,7 @@ class MainActivity : AppCompatActivity() {
             }
         }
 
-        // 🌟 启动时初始化引擎（加入幂等保护，防止语言重建时重复初始化）
-        val enginePrefs = getSharedPreferences("engine_state", MODE_PRIVATE)
-        if (!enginePrefs.getBoolean("is_engine_initialized", false)) {
-            EngineBridge.init(this, aiEnabled = true)
-            enginePrefs.edit().putBoolean("is_engine_initialized", true).apply()
-        } else {
-            Log.i("MainActivity", "引擎已初始化，跳过重复调用")
-        }
+        // A-09: 引擎由 DewSecureApplication.onCreate 统一初始化
         val statsPrefs = getSharedPreferences("stats_cache", MODE_PRIVATE)
         val savedTotal = statsPrefs.getLong("total", 0)
         val savedToday = statsPrefs.getLong("today", 0)

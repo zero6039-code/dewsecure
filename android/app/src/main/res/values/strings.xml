@@ -129,7 +129,7 @@
     <string name="toast_cred_parse_fail">Credential parsing failed, please try again</string>
     <string name="toast_session_expired">Login expired, returning to login...</string>
     <string name="toast_logout_cleaning">Cleaning up and logging out...</string>
-    <string name="toast_logout_success">Logged out, AI model cleared</string>
+    <string name="toast_logout_success">Logged out</string>
     <string name="error_unknown_user">Unknown User</string>
     <string name="error_invalid_email">Please enter a valid email address</string>
     <string name="error_send_fail">Failed to send OTP</string>

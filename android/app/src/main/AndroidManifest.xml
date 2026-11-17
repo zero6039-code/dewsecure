@@ -11,6 +11,7 @@
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
 
     <application
+        android:name=".DewSecureApplication"
         android:allowBackup="false"
         android:icon="@drawable/dewsecure_icon"
         android:label="DewSecure"

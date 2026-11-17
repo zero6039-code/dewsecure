@@ -107,7 +107,7 @@
     <string name="toast_cred_parse_fail">Parsen der Anmeldeinformationen fehlgeschlagen, bitte erneut versuchen</string>
     <string name="toast_session_expired">Anmeldung abgelaufen, zurück zur Anmeldung...</string>
     <string name="toast_logout_cleaning">Bereinigung und Abmeldung...</string>
-    <string name="toast_logout_success">Abgemeldet, KI-Modell gelöscht</string>
+    <string name="toast_logout_success">Abgemeldet</string>
     <string name="error_unknown_user">Unbekannter Benutzer</string>
     <string name="error_invalid_email">Bitte geben Sie eine gültige E-Mail-Adresse ein</string>
     <string name="error_send_fail">OTP konnte nicht gesendet werden</string>

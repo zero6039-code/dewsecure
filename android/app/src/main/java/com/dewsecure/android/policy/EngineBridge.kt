@@ -25,7 +25,10 @@ object EngineBridge {
             return
         }
         try {
-            val baseDir = context?.filesDir?.absolutePath ?: ""
+            val baseDir = context?.filesDir?.absolutePath ?: run {
+                Log.e(TAG, "init 缺少 Context，拒绝初始化（禁止空 baseDir）")
+                return
+            }
             val config = EngineConfig(ruleData, modelPath, aiEnabled, baseDir)
             engine = HostEngine(config)
             Log.i(TAG, "HostEngine 初始化成功")

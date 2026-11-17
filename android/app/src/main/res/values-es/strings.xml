@@ -107,7 +107,7 @@
     <string name="toast_cred_parse_fail">Error al analizar credenciales, inténtalo de nuevo</string>
     <string name="toast_session_expired">Sesión expirada, volviendo al inicio de sesión...</string>
     <string name="toast_logout_cleaning">Limpiando y cerrando sesión...</string>
-    <string name="toast_logout_success">Sesión cerrada, modelo de IA borrado</string>
+    <string name="toast_logout_success">Sesión cerrada</string>
     <string name="error_unknown_user">Usuario Desconocido</string>
     <string name="error_invalid_email">Por favor, introduce una dirección de correo válida</string>
     <string name="error_send_fail">Error al enviar OTP</string>
