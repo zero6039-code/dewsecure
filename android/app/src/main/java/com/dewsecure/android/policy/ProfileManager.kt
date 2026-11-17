@@ -26,7 +26,7 @@ object ProfileManager {
             val token = prefs.getString("access_token", null) ?: return@withContext Result.failure(Exception("No token"))
             val userId = SessionManager.getUserIdFromToken(token) ?: return@withContext Result.failure(Exception("Invalid JWT"))
 
-            val url = URL("${SessionManager.SUPABASE_URL}/rest/v1/profiles?id=eq.$userId&select=tier,family_owner_id")
+            val url = URL("${SessionManager.SUPABASE_URL}/rest/v1/profiles?id=eq.$userId&select=tier,family_owner_id,subscription_ends_at")
             val conn = url.openConnection() as HttpURLConnection
             conn.requestMethod = "GET"
               conn.connectTimeout = 15000
@@ -45,6 +45,8 @@ object ProfileManager {
                     if (familyOwnerId.isNotEmpty() && familyOwnerId != "null") {
                         tier = "family"
                     }
+                    val subEnds = p.optString("subscription_ends_at", "")
+                    prefs.edit().putString("sub_ends_at", subEnds).apply()
 
                     val isPro = tier in listOf("pro", "premium", "trial", "trial-pro", "family", "sub-family", "family_sub")
                     if (!isPro) {

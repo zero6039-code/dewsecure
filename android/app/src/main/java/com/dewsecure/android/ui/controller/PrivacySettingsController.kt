@@ -28,7 +28,7 @@ class PrivacySettingsController(
 
         switchShareThreat.thumbTintList = ColorStateList(states, thumbColors)
         switchShareThreat.trackTintList = ColorStateList(states, trackColors)
-        switchShareThreat.isChecked = prefs.getBoolean("pref_share_threat_intel", true)
+        switchShareThreat.isChecked = prefs.getBoolean("pref_share_threat_intel", false)
 
         switchShareThreat.setOnCheckedChangeListener { _, isChecked ->
             prefs.edit().putBoolean("pref_share_threat_intel", isChecked).apply()

@@ -154,6 +154,10 @@ class HomeFragment : Fragment() {
 
         btnSubmit.setOnClickListener {
             val domain = etDomain.text.toString().trim().lowercase()
+            if (!domain.matches(Regex("^[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$"))) {
+                Toast.makeText(requireContext(), "域名格式不合法", Toast.LENGTH_SHORT).show()
+                return@setOnClickListener
+            }
             if (domain.isNotEmpty()) {
                 dialog.dismiss()
                 Toast.makeText(requireContext(), getString(R.string.report_submitting), Toast.LENGTH_SHORT).show()
