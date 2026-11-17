@@ -195,6 +195,8 @@ class HomeFragment : Fragment() {
     override fun onPause() {
         super.onPause()
         handler.removeCallbacks(updateRunnable)
+        // [A-22 修复] 将统计写盘操作移到 onPause，避免每 2 秒高频写 SharedPreferences 造成卡顿
+        EngineBridge.saveStatsCache(requireContext())
     }
 
     override fun onHiddenChanged(hidden: Boolean) {
