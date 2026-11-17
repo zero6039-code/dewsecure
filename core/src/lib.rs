@@ -200,7 +200,7 @@ pub fn start_mitm_vpn_engine(tun_fd: i32, base_dir: String, protector: std::sync
     #[cfg(target_os = "android")]
     android_logger::init_once(
         android_logger::Config::default()
-            .with_max_level(log::LevelFilter::Trace)
+            .with_max_level(if cfg!(debug_assertions) { log::LevelFilter::Trace } else { log::LevelFilter::Warn })
             .with_tag("DewSecureRust"),
     );
     log::info!("🔥 Rust 引擎已启动，日志已接入 Logcat");

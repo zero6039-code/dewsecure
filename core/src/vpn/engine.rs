@@ -143,7 +143,7 @@ impl VpnEngine {
                 for (h, s) in sockets.iter() {
                     if let smoltcp::socket::Socket::Tcp(socket) = s {
                         if socket.state() != tcp::State::Listen && socket.state() != tcp::State::Closed {
-                            info!("🔍 Socket {:?} 状态: {:?}", h, socket.state());
+                            log::debug!("🔍 Socket {:?} 状态: {:?}", h, socket.state());
                         }
                     }
                 }
@@ -168,7 +168,7 @@ impl VpnEngine {
                         IpAddress::Ipv6(v6) => format!("[{}]", v6),
                     };
 
-                    info!("🔗 捕获 TCP 连接: {}:{}", ip_str, target_port);
+                    log::debug!("🔗 捕获 TCP 连接: {}:{}", ip_str, target_port);
                     TCP_443_CONNECTIONS.fetch_add(1, Ordering::Relaxed);
 
                     let (tx_to_proxy, mut rx_from_tun) = mpsc::channel::<Bytes>(128);

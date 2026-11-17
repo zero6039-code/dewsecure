@@ -96,6 +96,13 @@ object WhitelistManager {
     }
 
     suspend fun submitReport(context: Context, type: String, domain: String): Result<Unit> = withContext(Dispatchers.IO) {
+        val ratePrefs = context.getSharedPreferences("report_rate_limit", Context.MODE_PRIVATE)
+        val lastTime = ratePrefs.getLong("last_report_time", 0L)
+        if (System.currentTimeMillis() - lastTime < 60_000L) {
+            return@withContext Result.failure(Exception("操作太频繁，请 1 分钟后再试"))
+        }
+        ratePrefs.edit().putLong("last_report_time", System.currentTimeMillis()).apply()
+
         try {
             val prefs = context.getSharedPreferences("user_session", Context.MODE_PRIVATE)
             val accessToken = prefs.getString("access_token", null)

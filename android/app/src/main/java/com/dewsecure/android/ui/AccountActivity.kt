@@ -25,8 +25,57 @@ class AccountActivity : AppCompatActivity() {
 
         updateUI()
         setupListeners()
+        fetchRealProfile()
     }
 
+    
+    private fun fetchRealProfile() {
+        lifecycleScope.launch {
+            val result = com.dewsecure.android.policy.ProfileManager.fetchUserProfile(this@AccountActivity, force = true)
+            val prefs = getSharedPreferences("user_session", Context.MODE_PRIVATE)
+            val tier = result.getOrDefault(prefs.getString("tier", "free") ?: "free")
+            
+            val tvPlan = findViewById<TextView>(R.id.tv_account_plan)
+            val tvExpiry = findViewById<TextView>(R.id.tv_account_expiry_value)
+            val tvGroup = findViewById<TextView>(R.id.tv_account_group_value)
+
+            // 更新 Plan 文本和颜色
+            when (tier) {
+                "free" -> {
+                    tvPlan.text = "Free Plan"
+                    tvPlan.setTextColor(android.graphics.Color.WHITE)
+                }
+                "pro", "premium", "trial", "trial-pro" -> {
+                    tvPlan.text = "Pro Plan"
+                    tvPlan.setTextColor(getColor(R.color.pro_yellow))
+                }
+                "family", "sub-family", "family_sub" -> {
+                    tvPlan.text = "Family Plan"
+                    tvPlan.setTextColor(getColor(R.color.pro_yellow))
+                    tvGroup.text = "Family"
+                }
+                else -> {
+                    tvPlan.text = tier
+                    tvPlan.setTextColor(getColor(R.color.pro_yellow))
+                }
+            }
+
+            // 更新到期时间
+            val subEnds = prefs.getString("sub_ends_at", "")
+            if (!subEnds.isNullOrEmpty() && subEnds != "null") {
+                // 格式化时间戳为 yyyy-MM-dd
+                try {
+                    val date = java.text.SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss", java.util.Locale.US).parse(subEnds.substring(0, 19))
+                    tvExpiry.text = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.US).format(date!!)
+                } catch (e: Exception) {
+                    tvExpiry.text = subEnds.substring(0, 10)
+                }
+            } else {
+                tvExpiry.text = "-"
+            }
+        }
+    }
+    
     override fun onConfigurationChanged(newConfig: Configuration) {
         super.onConfigurationChanged(newConfig)
         updateUI()

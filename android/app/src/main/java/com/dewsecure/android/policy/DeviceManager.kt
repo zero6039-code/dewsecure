@@ -23,14 +23,10 @@ object DeviceManager {
     // 获取设备唯一指纹 (优先 Android ID，其次本地 UUID)
     private fun getFingerprint(context: Context): String {
         val prefs = context.getSharedPreferences("app_settings", Context.MODE_PRIVATE)
-        var id = Settings.Secure.getString(context.contentResolver, Settings.Secure.ANDROID_ID)
-        
-        if (id.isNullOrEmpty() || id == "9774d56d682e549c") {
-            id = prefs.getString(INSTALLATION_KEY, null)
-            if (id == null) {
-                id = UUID.randomUUID().toString()
-                prefs.edit().putString(INSTALLATION_KEY, id).apply()
-            }
+        var id = prefs.getString(INSTALLATION_KEY, null)
+        if (id == null) {
+            id = UUID.randomUUID().toString()
+            prefs.edit().putString(INSTALLATION_KEY, id).apply()
         }
         return id
     }
