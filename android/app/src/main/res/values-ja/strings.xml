@@ -107,7 +107,7 @@
     <string name="toast_cred_parse_fail">認証情報の解析に失敗しました。もう一度お試しください</string>
     <string name="toast_session_expired">ログインの有効期限が切れました。ログイン画面に戻ります...</string>
     <string name="toast_logout_cleaning">クリーンアップしてログアウトしています...</string>
-    <string name="toast_logout_success">ログアウトしました。AIモデルをクリアしました</string>
+    <string name="toast_logout_success">ログアウトしました</string>
     <string name="error_unknown_user">不明なユーザー</string>
     <string name="error_invalid_email">有効なメールアドレスを入力してください</string>
     <string name="error_send_fail">OTPの送信に失敗しました</string>

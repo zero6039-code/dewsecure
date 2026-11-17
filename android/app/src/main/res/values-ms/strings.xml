@@ -107,7 +107,7 @@
     <string name="toast_cred_parse_fail">Penghuraian kelayakan gagal, sila cuba lagi</string>
     <string name="toast_session_expired">Log masuk tamat tempoh, kembali ke log masuk...</string>
     <string name="toast_logout_cleaning">Membersihkan dan log keluar...</string>
-    <string name="toast_logout_success">Telah log keluar, model AI dibersihkan</string>
+    <string name="toast_logout_success">Log keluar</string>
     <string name="error_unknown_user">Pengguna Tidak Dikenali</string>
     <string name="error_invalid_email">Sila masukkan alamat e-mel yang sah</string>
     <string name="error_send_fail">Gagal menghantar OTP</string>
