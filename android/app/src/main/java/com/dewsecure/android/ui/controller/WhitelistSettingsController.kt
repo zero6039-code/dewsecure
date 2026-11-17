@@ -60,20 +60,11 @@ class WhitelistSettingsController(
             etDomain.setOnClickListener {
                 fragment.startActivity(Intent(context, LoginActivity::class.java))
             }
-<<<<<<< HEAD
-<<<<<<< Updated upstream
-=======
             btnAdd.setOnClickListener {
                 fragment.startActivity(Intent(context, LoginActivity::class.java))
             }
             // A-19 修复：登出状态同步清空列表 UI
             updateUI(emptyList())
->>>>>>> Stashed changes
-=======
-            btnAdd.setOnClickListener {
-                fragment.startActivity(Intent(context, LoginActivity::class.java))
-            }
->>>>>>> origin/main
         } else {
             etDomain.isEnabled = true
             etDomain.hint = "example.com"
