@@ -61,7 +61,11 @@
     <string name="mitm_dialog_btn_cancel">Cancel</string>
     <string name="mitm_cert_fail">Failed to get built-in certificate</string>
     <string name="mitm_cert_install_title">Install HTTPS Filtering Certificate</string>
-    <string name="mitm_cert_install_msg">"To intercept HTTPS ads in the browser, the system needs to trust the DewSecure local certificate.\n\nAfter clicking 'One-click Install', please follow the system prompts.\n\n⚠️ Important: On the 'Credential use' screen, please be sure to select [VPN and app], otherwise HTTPS filtering will not work!"</string>
+    <string name="mitm_cert_install_msg">"To intercept HTTPS ads, DewSecure local certificate is required.
+
+Click 'One-click Install' and follow prompts.
+
+⚠️ Warning: Android 7.0+ ignores user CAs for apps. To intercept 3rd-party apps, Root is required to move the cert to /system/etc/security/cacerts/."</string>
     <string name="mitm_cert_btn_install">One-click Install</string>
     <string name="mitm_cert_install_fail">Failed to trigger install: %1$s</string>
     <string name="common_cancel">Cancel</string>

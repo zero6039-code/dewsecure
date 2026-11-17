@@ -32,12 +32,12 @@ impl AsRawFd for TunFd {
 
 #[derive(Clone)]
 pub struct TunWriter {
-    tx: mpsc::UnboundedSender<Vec<u8>>,
+    tx: mpsc::Sender<Vec<u8>>,
 }
 
 impl TunWriter {
     pub fn new(fd: RawFd) -> Self {
-        let (tx, mut rx) = mpsc::unbounded_channel::<Vec<u8>>();
+        let (tx, mut rx) = mpsc::channel::<Vec<u8>>(1024);
 
         // 启动独立的阻塞写线程，彻底释放 smoltcp 主循环
         std::thread::spawn(move || {
@@ -71,7 +71,10 @@ impl TunWriter {
     }
 
     pub fn write(&self, buf: Vec<u8>) {
-        let _ = self.tx.send(buf);
+        if self.tx.try_send(buf).is_err() {
+                static DROP_COUNT: AtomicUsize = AtomicUsize::new(0);
+                DROP_COUNT.fetch_add(1, Ordering::Relaxed);
+            }
     }
 }
 
