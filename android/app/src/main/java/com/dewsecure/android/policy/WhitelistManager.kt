@@ -15,10 +15,13 @@ import java.net.URL
 object WhitelistManager {
     private const val TAG = "WhitelistManager"
 
-    suspend fun fetchCloudWhitelist(context: Context, accessToken: String): Result<List<String>> = withContext(Dispatchers.IO) {
+    suspend fun fetchCloudWhitelist(context: Context, accessToken: String, retryCount: Int = 0): Result<List<String>> = withContext(Dispatchers.IO) {
+        if (retryCount >= 1) return@withContext Result.failure(Exception("401 retry limit"))
         try {
             val url = URL("${SessionManager.SUPABASE_URL}/rest/v1/user_whitelists?select=domain")
             val conn = url.openConnection() as HttpURLConnection
+            conn.connectTimeout = 15000
+            conn.readTimeout = 15000
             conn.requestMethod = "GET"
             conn.setRequestProperty("apikey", SessionManager.SUPABASE_KEY)
             conn.setRequestProperty("Authorization", "Bearer $accessToken")
@@ -30,7 +33,7 @@ object WhitelistManager {
                 Result.success(domains)
             } else if (conn.responseCode == 401) {
                 val refreshResult = SessionManager.refreshToken(context)
-                if (refreshResult.isSuccess) return@withContext fetchCloudWhitelist(context, refreshResult.getOrNull()!!)
+                if (refreshResult.isSuccess) return@withContext fetchCloudWhitelist(context, refreshResult.getOrNull()!!, retryCount + 1)
                 Result.failure(Exception("failed: 401"))
             } else {
                 Result.failure(Exception("failed: ${conn.responseCode}"))
@@ -38,10 +41,13 @@ object WhitelistManager {
         } catch (e: Exception) { Result.failure(e) }
     }
 
-    suspend fun uploadWhitelistDomain(context: Context, accessToken: String, domain: String): Result<Unit> = withContext(Dispatchers.IO) {
+    suspend fun uploadWhitelistDomain(context: Context, accessToken: String, domain: String, retryCount: Int = 0): Result<Unit> = withContext(Dispatchers.IO) {
+        if (retryCount >= 1) return@withContext Result.failure(Exception("401 retry limit"))
         try {
             val url = URL("${SessionManager.SUPABASE_URL}/rest/v1/user_whitelists")
             val conn = url.openConnection() as HttpURLConnection
+            conn.connectTimeout = 15000
+            conn.readTimeout = 15000
             conn.requestMethod = "POST"
             conn.setRequestProperty("apikey", SessionManager.SUPABASE_KEY)
             conn.setRequestProperty("Authorization", "Bearer $accessToken")
@@ -56,7 +62,7 @@ object WhitelistManager {
                 Result.success(Unit)
             } else if (conn.responseCode == 401) {
                 val refreshResult = SessionManager.refreshToken(context)
-                if (refreshResult.isSuccess) return@withContext uploadWhitelistDomain(context, refreshResult.getOrNull()!!, domain)
+                if (refreshResult.isSuccess) return@withContext uploadWhitelistDomain(context, refreshResult.getOrNull()!!, domain, retryCount + 1)
                 Result.failure(Exception("upload failed: invalid token"))
             } else {
                 val errorResponse = BufferedReader(InputStreamReader(conn.errorStream)).readText()
@@ -65,10 +71,14 @@ object WhitelistManager {
         } catch (e: Exception) { Result.failure(e) }
     }
 
-    suspend fun deleteCloudWhitelistDomain(context: Context, accessToken: String, domain: String): Result<Unit> = withContext(Dispatchers.IO) {
+    suspend fun deleteCloudWhitelistDomain(context: Context, accessToken: String, domain: String, retryCount: Int = 0): Result<Unit> = withContext(Dispatchers.IO) {
+        if (retryCount >= 1) return@withContext Result.failure(Exception("401 retry limit"))
         try {
-            val url = URL("${SessionManager.SUPABASE_URL}/rest/v1/user_whitelists?domain=eq.$domain")
+            val safeDomain = java.net.URLEncoder.encode(domain, "UTF-8")
+            val url = URL("${SessionManager.SUPABASE_URL}/rest/v1/user_whitelists?domain=eq.$safeDomain")
             val conn = url.openConnection() as HttpURLConnection
+            conn.connectTimeout = 15000
+            conn.readTimeout = 15000
             conn.requestMethod = "DELETE"
             conn.setRequestProperty("apikey", SessionManager.SUPABASE_KEY)
             conn.setRequestProperty("Authorization", "Bearer $accessToken")
@@ -77,7 +87,7 @@ object WhitelistManager {
                 Result.success(Unit)
             } else if (conn.responseCode == 401) {
                 val refreshResult = SessionManager.refreshToken(context)
-                if (refreshResult.isSuccess) return@withContext deleteCloudWhitelistDomain(context, refreshResult.getOrNull()!!, domain)
+                if (refreshResult.isSuccess) return@withContext deleteCloudWhitelistDomain(context, refreshResult.getOrNull()!!, domain, retryCount + 1)
                 Result.failure(Exception("delete failed: invalid token"))
             } else {
                 Result.failure(Exception("delete failed: ${conn.responseCode}"))
@@ -93,6 +103,8 @@ object WhitelistManager {
 
             val url = URL("${SessionManager.SUPABASE_URL}/rest/v1/reports")
             val conn = url.openConnection() as HttpURLConnection
+            conn.connectTimeout = 15000
+            conn.readTimeout = 15000
             conn.requestMethod = "POST"
             conn.setRequestProperty("apikey", SessionManager.SUPABASE_KEY)
             conn.setRequestProperty("Authorization", authHeader)

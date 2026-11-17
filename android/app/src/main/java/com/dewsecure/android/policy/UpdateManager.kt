@@ -11,6 +11,18 @@ import java.net.HttpURLConnection
 import java.net.URL
 
 object UpdateManager {
+    private fun BufferedReader.readTextWithLimit(): String {
+        val sb = StringBuilder()
+        val buf = CharArray(4096)
+        var n: Int
+        var total = 0
+        while (this.read(buf).also { n = it } != -1) {
+            total += n
+            if (total > 2 * 1024 * 1024) throw Exception("Response body too large")
+            sb.append(buf, 0, n)
+        }
+        return sb.toString()
+    }
     private const val TAG = "UpdateManager"
     private const val BASE_URL = "https://api.dewsecure.com/api/intel"
     private const val MODEL_BASE_URL = "https://cdn.dewsecure.com/canary"
@@ -48,7 +60,7 @@ object UpdateManager {
                 return@withContext
             }
 
-            val sigDataStr = BufferedReader(InputStreamReader(sigConn.inputStream)).readText()
+            val sigDataStr = BufferedReader(InputStreamReader(sigConn.inputStream)).readTextWithLimit()
             val sigData = JSONObject(sigDataStr)
             
             // 🔒 核心修复：清理可能混入的不可见字符、回车、空格
@@ -74,7 +86,7 @@ object UpdateManager {
                 return@withContext
             }
 
-            val rulesPayload = BufferedReader(InputStreamReader(rulesConn.inputStream)).readText()
+            val rulesPayload = BufferedReader(InputStreamReader(rulesConn.inputStream)).readTextWithLimit()
             
             // 与 Python 脚本绝对对齐，并用 trim() 防止隐形字符
             val msgStr = "$remoteVersion:$expectedSha256"
@@ -116,7 +128,7 @@ object UpdateManager {
                 return@withContext
             }
 
-            val metaStr = BufferedReader(InputStreamReader(metaConn.inputStream)).readText()
+            val metaStr = BufferedReader(InputStreamReader(metaConn.inputStream)).readTextWithLimit()
             val metaData = JSONObject(metaStr)
 
             // 从元数据中解析我们需要的字段
@@ -150,7 +162,7 @@ object UpdateManager {
                 return@withContext
             }
 
-            val modelBody = BufferedReader(InputStreamReader(weightsConn.inputStream)).readText()
+            val modelBody = BufferedReader(InputStreamReader(weightsConn.inputStream)).readTextWithLimit()
 
             // 3. 调用 Rust 侧接口加载模型
             val success = EngineBridge.loadSignedAdblockModel(

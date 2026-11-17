@@ -44,7 +44,8 @@ object DeviceManager {
     }
 
     // 静默上报设备（带 24 小时防刷机制）
-    suspend fun reportDeviceSilently(context: Context, token: String, force: Boolean = false): String = withContext(Dispatchers.IO) {
+    suspend fun reportDeviceSilently(context: Context, token: String, force: Boolean = false, retryCount: Int = 0): String = withContext(Dispatchers.IO) {
+        if (retryCount >= 1) return@withContext "AUTH_ERROR"
         val prefs = context.getSharedPreferences("app_settings", Context.MODE_PRIVATE)
         
         try {
@@ -66,6 +67,8 @@ object DeviceManager {
             val url = URL("${AuthManager.SUPABASE_URL}/rest/v1/devices?on_conflict=user_id,fingerprint")
             val conn = url.openConnection() as HttpURLConnection
             conn.requestMethod = "POST"
+              conn.connectTimeout = 15000
+              conn.readTimeout = 15000
             conn.setRequestProperty("apikey", AuthManager.SUPABASE_KEY)
             conn.setRequestProperty("Authorization", "Bearer $token")
             conn.setRequestProperty("Content-Type", "application/json")
@@ -97,7 +100,7 @@ object DeviceManager {
                 if (responseCode == 401) {
                     val refreshResult = AuthManager.refreshToken(context)
                     if (refreshResult.isSuccess) {
-                        return@withContext reportDeviceSilently(context, refreshResult.getOrNull()!!, true)
+                        return@withContext reportDeviceSilently(context, refreshResult.getOrNull()!!, true, retryCount + 1)
                     }
                     "AUTH_ERROR"
                 } else if (responseCode == 400 || errorText.contains("DEVICE_LIMIT_EXCEEDED") || errorText.contains("duplicate key value")) {

@@ -40,10 +40,10 @@ class WhitelistSettingsController(
         containerWhitelist = rootView.findViewById(R.id.container_whitelist)
         tvEmpty = rootView.findViewById(R.id.tv_whitelist_empty)
         
-        setupWhitelistLogic()
+        refreshLoginState()
     }
 
-    private fun setupWhitelistLogic() {
+    fun refreshLoginState() {
         val context = fragment.requireContext()
         val userPrefs = context.getSharedPreferences("user_session", Context.MODE_PRIVATE)
         val token = userPrefs.getString("access_token", null)
@@ -60,6 +60,7 @@ class WhitelistSettingsController(
             etDomain.setOnClickListener {
                 fragment.startActivity(Intent(context, LoginActivity::class.java))
             }
+<<<<<<< HEAD
 <<<<<<< Updated upstream
 =======
             btnAdd.setOnClickListener {
@@ -68,12 +69,18 @@ class WhitelistSettingsController(
             // A-19 修复：登出状态同步清空列表 UI
             updateUI(emptyList())
 >>>>>>> Stashed changes
+=======
+            btnAdd.setOnClickListener {
+                fragment.startActivity(Intent(context, LoginActivity::class.java))
+            }
+>>>>>>> origin/main
         } else {
             etDomain.isEnabled = true
             etDomain.hint = "example.com"
             btnAdd.isEnabled = true
             btnAdd.text = context.getString(R.string.settings_whitelist_add)
             btnAdd.backgroundTintList = ColorStateList.valueOf(ContextCompat.getColor(context, R.color.green_on))
+            etDomain.setOnClickListener(null)
             btnAdd.setOnClickListener {
                 val domain = normalizeWhitelist(etDomain.text.toString())
                 if (domain == null) {
