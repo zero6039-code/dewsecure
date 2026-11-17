@@ -31,6 +31,14 @@ class RoutingSettingsController(
     private lateinit var rvApps: RecyclerView
     private lateinit var appAdapter: AppRoutingAdapter
     private var allApps = listOf<AppModel>()
+    private val handler = android.os.Handler(android.os.Looper.getMainLooper())
+    private val restartRunnable = Runnable {
+        val context = fragment.context ?: return@Runnable
+        val restartIntent = Intent(context, DewVpnService::class.java).apply {
+            action = "ACTION_RESTART_VPN"
+        }
+        context.startService(restartIntent)
+    }
 
     fun setup() {
         etSearchApp = rootView.findViewById(R.id.et_search_app)
@@ -68,9 +76,8 @@ class RoutingSettingsController(
                 if ((info.flags and ApplicationInfo.FLAG_SYSTEM) != 0 && pm.getLaunchIntentForPackage(info.packageName) == null) continue
 
                 val name = pm.getApplicationLabel(info).toString()
-                val icon = info.loadIcon(pm)
                 val isBypassed = prefs.getBoolean("routing_${info.packageName}", false)
-                list.add(AppModel(name, info.packageName, icon, isBypassed))
+                list.add(AppModel(name, info.packageName, isBypassed))
             }
 
             val sortedList = list.sortedWith(compareByDescending<AppModel> { it.isBypassed }.thenBy { it.name })
@@ -102,11 +109,9 @@ class RoutingSettingsController(
 
         if (DewVpnService.isRunningState) {
             Toast.makeText(context, R.string.toast_routing_saved_restart, Toast.LENGTH_SHORT).show()
-            // 🌟 核心修复：发送带有明确 Action 的指令，让 Service 内部安全重启
-            val restartIntent = Intent(context, DewVpnService::class.java).apply {
-                action = "ACTION_RESTART_VPN"
-            }
-            context.startService(restartIntent)
+            // [A-29] 防抖重启：500ms 内的连续切换只触发最后一次重启
+            handler.removeCallbacks(restartRunnable)
+            handler.postDelayed(restartRunnable, 500)
         } else {
             Toast.makeText(context, R.string.toast_routing_saved, Toast.LENGTH_SHORT).show()
         }

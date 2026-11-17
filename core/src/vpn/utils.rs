@@ -44,12 +44,37 @@ pub fn extract_sni(hello: &[u8]) -> Option<String> {
             if *name_type == 0 {
                 let name_len = u16::from_be_bytes([*hello.get(sub_pos)?, *hello.get(sub_pos + 1)?]) as usize;
                 sub_pos += 2;
-                if let Ok(domain) = std::str::from_utf8(&hello[sub_pos..sub_pos + name_len]) {
-                    return Some(domain.to_string());
+                // [A-28 修复] 安全切片，防止越界 panic
+                if let Some(slice) = hello.get(sub_pos..sub_pos.saturating_add(name_len)) {
+                    if let Ok(domain) = std::str::from_utf8(slice) {
+                        return Some(domain.to_string());
+                    }
                 }
             }
         }
         pos += ext_size;
     }
     None
+}
+
+
+#[cfg(test)]
+mod a28_poc_tests {
+    use super::*;
+
+    #[test]
+    fn test_a28_malicious_sni_overflow() {
+        let mut hello = vec![0x16, 0x03, 0x01, 0x00, 0x00, 0x01];
+        hello.extend_from_slice(&[0x00; 40]);
+        hello.extend_from_slice(&[0x00, 0x02, 0x13, 0x01]);
+        hello.extend_from_slice(&[0x01, 0x00]);
+        hello.extend_from_slice(&[0x00, 0x08]);
+        hello.extend_from_slice(&[0x00, 0x00]);
+        hello.extend_from_slice(&[0x00, 0x04]);
+        hello.extend_from_slice(&[0x00, 0x00, 0xFF, 0xFF]);
+        
+        let result = extract_sni(&hello);
+        assert!(result.is_none(), "POC 失败：发生越界 panic！");
+        println!("✅ POC 成功：恶意 SNI 长度未引发 panic，安全返回 None");
+    }
 }

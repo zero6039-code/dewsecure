@@ -16,6 +16,10 @@ import java.util.Date
 import java.util.Locale
 
 class TrafficActivity : AppCompatActivity() {
+    companion object {
+        private const val ESTIMATED_MB_PER_BLOCK = 0.08
+        private const val ESTIMATED_KB_PER_BLOCK = 80.0
+    }
 
     private lateinit var tvTodayDetail: TextView
     private lateinit var tvTotalDetail: TextView
@@ -76,8 +80,8 @@ class TrafficActivity : AppCompatActivity() {
 
         // 格式化流量文本
         fun formatTraffic(count: Int): String {
-            val mb = count * 0.08
-            return if (mb < 1.0) String.format("%.0f KB", count * 80.0) else String.format("%.1f MB", mb)
+            val mb = count * ESTIMATED_MB_PER_BLOCK
+            return if (mb < 1.0) String.format("%.0f KB", count * ESTIMATED_KB_PER_BLOCK) else String.format("%.1f MB", mb)
         }
 
         tvTodayDetail.text = formatTraffic(todayCount)
