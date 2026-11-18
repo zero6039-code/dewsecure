@@ -4,6 +4,28 @@ use crate::VpnProtector;
 use super::device::TunWriter;
 use super::dns::build_udp_dns_response;
 
+async fn query_upstream(
+    payload: &[u8],
+    prot: &std::sync::Arc<dyn crate::VpnProtector>,
+    server: std::net::SocketAddr,
+) -> Result<Vec<u8>, String> {
+    if payload.len() < 12 { return Err("query too short".into()); }
+    let socket = tokio::net::UdpSocket::bind("0.0.0.0:0").await.map_err(|e| format!("bind: {e}"))?;
+    if !prot.protect_fd(socket.as_raw_fd()) { return Err("protect_fd returned false".into()); }
+    socket.connect(server).await.map_err(|e| format!("connect {server}: {e}"))?;
+    socket.send(payload).await.map_err(|e| format!("send {server}: {e}"))?;
+    let mut buf = vec![0u8; 4096];
+    let n = tokio::time::timeout(std::time::Duration::from_millis(1500), socket.recv(&mut buf))
+        .await
+        .map_err(|_| format!("timeout {server} (local {:?})", socket.local_addr().ok()))?
+        .map_err(|e| format!("recv {server}: {e}"))?;
+    buf.truncate(n);
+    if n < 12 || buf[0..2] != payload[0..2] || buf[2] & 0x80 == 0 {
+        return Err(format!("invalid response from {server}"));
+    }
+    Ok(buf)
+}
+
 pub fn extract_dns_qname(payload: &[u8]) -> Option<String> {
     if payload.len() < 12 { return None; }
     let mut pos = 12;
@@ -50,7 +72,9 @@ pub fn intercept_dns(
     req: &[u8],
     writer: TunWriter,
     prot_clone: Arc<dyn VpnProtector>,
+    is_ipv6: bool, // 🌟 新增：传递真实的 IP 版本
 ) -> bool {
+    log::warn!("🚨 [ENTRY] intercept_dns called, payload_len={}", dns_payload.len());
     let mut blocked = false;
     let mut domain_for_mark = String::new();
     if let Some(domain) = extract_dns_qname(dns_payload) {
@@ -59,7 +83,7 @@ pub fn intercept_dns(
             if result.decision != crate::engine_host::BlockDecision::Allow {
                 log::info!("🛡️ [DNS拦截] 阻断 {}: {}", domain, result.reason);
                 let block_resp = build_block_dns_response(dns_payload);
-                let resp_pkt = build_udp_dns_response(req, &block_resp, false);
+                let resp_pkt = build_udp_dns_response(req, &block_resp, is_ipv6); // 🌟 修复：阻断响应也需正确 IP 版本
                 writer.write(resp_pkt);
                 blocked = true;
             }
@@ -73,32 +97,33 @@ pub fn intercept_dns(
     let dns_payload_vec = dns_payload.to_vec();
     let req_vec = req.to_vec();
     tokio::spawn(async move {
-        let socket = match tokio::net::UdpSocket::bind("0.0.0.0:0").await {
-            Ok(s) => s,
-            Err(e) => {
-                log::error!("❌ DNS 上游 bind 失败: {}", e);
-                if !domain_clone.is_empty() { crate::policy_rules::mark_failed(&domain_clone); }
-                return;
+        let servers = [
+            std::net::SocketAddr::from(([1, 1, 1, 1], 53)),
+            std::net::SocketAddr::from(([8, 8, 8, 8], 53)),
+            std::net::SocketAddr::from(([223, 5, 5, 5], 53)),
+        ];
+        
+        let mut last_err = String::new();
+        let mut success = false;
+        
+        for server in servers {
+            match query_upstream(&dns_payload_vec, &prot_clone, server).await {
+                Ok(resp_buf) => {
+                    let resp_pkt = build_udp_dns_response(&req_vec, &resp_buf, is_ipv6);
+                    log::warn!("📤 成功返回 DNS 响应 (上游: {}), 长度: {} 字节", server, resp_pkt.len());
+                    writer.write(resp_pkt);
+                    success = true;
+                    break;
+                }
+                Err(e) => {
+                    last_err = format!("{} | {}", last_err, e);
+                    log::warn!("⚠️ DNS 上游 {} 失败: {}", server, e);
+                }
             }
-        };
-        let fd = socket.as_raw_fd();
-        if !prot_clone.protect_fd(fd) {
-            log::error!("❌ DNS 上游 Socket protect 失败");
-            if !domain_clone.is_empty() { crate::policy_rules::mark_failed(&domain_clone); }
-            return;
         }
-
-        let dns_server = "223.5.5.5:53";
-        let _ = socket.send_to(&dns_payload_vec, dns_server).await;
-        let mut resp_buf = [0u8; 1500];
-
-        let recv_res = tokio::time::timeout(std::time::Duration::from_secs(2), socket.recv_from(&mut resp_buf)).await;
-        if let Ok(Ok((n, _))) = recv_res {
-            let resp_pkt = build_udp_dns_response(&req_vec, &resp_buf[..n], false);
-            log::info!("📤 返回 IPv4 DNS 响应包，长度: {} 字节", resp_pkt.len());
-            writer.write(resp_pkt);
-        } else {
-            log::error!("⏰ DNS 上游查询超时");
+        
+        if !success {
+            log::error!("❌ DNS 全部上游失败 [{}]. 域名: {}", last_err.trim_start_matches(" | "), domain_clone);
             if !domain_clone.is_empty() { crate::policy_rules::mark_failed(&domain_clone); }
         }
     });

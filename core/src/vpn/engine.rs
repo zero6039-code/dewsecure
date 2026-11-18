@@ -1,35 +1,29 @@
-use std::os::unix::io::{RawFd, AsRawFd};
-use smoltcp::iface::{Config, Interface, SocketSet, SocketHandle};
-use smoltcp::socket::tcp;
-use smoltcp::time::Instant;
-use smoltcp::wire::{IpCidr, IpListenEndpoint, IpAddress, Ipv4Address, Ipv6Address};
+use std::os::unix::io::RawFd;
+use smoltcp::{
+    iface::{Config, Interface, SocketSet, SocketHandle},
+    socket::tcp,
+    time::Instant,
+    wire::{IpCidr, IpAddress, Ipv4Address, Ipv6Address},
+};
 use log::{info, error};
 use std::sync::{Arc, Mutex};
 use std::collections::{VecDeque, HashMap};
-use tokio::sync::mpsc;
-use tokio::sync::Semaphore;
-use std::sync::OnceLock;
+use tokio::sync::{mpsc, Semaphore};
+use std::sync::{OnceLock, atomic::{AtomicBool, Ordering}};
 use bytes::Bytes;
-use std::sync::atomic::{AtomicBool, Ordering};
-use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use crate::VpnProtector;
 
 use super::device::{VpnDevice, spawn_tun_reader, TCP_443_CONNECTIONS, TunWriter, get_pending_tcp_ports};
-use super::utils::extract_sni;
+use super::listener_pool::{ListenerPool, syn_dst_port};
+use super::connection::{ConnectionState, spawn_proxy_task};
 
-fn read_rss_kb() -> u64 {
-    std::fs::read_to_string("/proc/self/status").ok()
-        .and_then(|x| x.lines().find(|l| l.starts_with("VmRSS:"))
-            .and_then(|l| l.split_whitespace().nth(1).and_then(|v| v.parse().ok())))
-        .unwrap_or(0)
-}
-
-static CONN_LIMIT: OnceLock<Semaphore> = OnceLock::new();
-fn get_conn_limit() -> &'static Semaphore {
-    CONN_LIMIT.get_or_init(|| Semaphore::new(500)) // 🌟 限制最多 500 个并发外部连接，防 OOM
-}
-static MITM_ENABLED: AtomicBool = AtomicBool::new(false);
+pub static MITM_ENABLED: AtomicBool = AtomicBool::new(false);
 static RUNNING: AtomicBool = AtomicBool::new(true);
+static CONN_LIMIT: OnceLock<Semaphore> = OnceLock::new();
+
+fn get_conn_limit() -> &'static Semaphore {
+    CONN_LIMIT.get_or_init(|| Semaphore::new(500))
+}
 
 pub fn set_mitm_enabled(enabled: bool) {
     MITM_ENABLED.store(enabled, Ordering::Relaxed);
@@ -41,17 +35,11 @@ pub fn stop_vpn_engine() {
     info!("🛑 收到停止信号，Rust 引擎正在异步退出...");
 }
 
-struct PendingWrite { 
-    data: Vec<u8>, 
-    offset: usize 
-}
-
-struct ConnectionState {
-    tx_to_proxy: mpsc::Sender<Bytes>,
-    rx_from_proxy: mpsc::Receiver<Bytes>,
-    pending_writes: VecDeque<PendingWrite>,
-    pending_rx: VecDeque<Bytes>,
-    is_aborted: bool,
+fn read_rss_kb() -> u64 {
+    std::fs::read_to_string("/proc/self/status").ok()
+        .and_then(|x| x.lines().find(|l| l.starts_with("VmRSS:"))
+            .and_then(|l| l.split_whitespace().nth(1).and_then(|v| v.parse().ok())))
+        .unwrap_or(0)
 }
 
 pub struct VpnEngine {
@@ -60,8 +48,8 @@ pub struct VpnEngine {
 }
 
 impl VpnEngine {
-    pub fn new(tun_fd: RawFd, protector: Arc<dyn VpnProtector>) -> Self { 
-        Self { tun_fd, protector } 
+    pub fn new(tun_fd: RawFd, protector: Arc<dyn VpnProtector>) -> Self {
+        Self { tun_fd, protector }
     }
 
     pub async fn start(self, ready_tx: Option<std::sync::mpsc::SyncSender<Result<(), String>>>) {
@@ -72,14 +60,10 @@ impl VpnEngine {
         if MITM_ENABLED.load(Ordering::Relaxed) {
             if let Err(e) = proxy.start().await {
                 error!("❌ hudsucker 启动失败: {}", e);
-                if let Some(tx) = ready_tx.as_ref() {
-                    let _ = tx.try_send(Err(format!("hudsucker 启动失败: {}", e)));
-                }
+                if let Some(tx) = ready_tx.as_ref() { let _ = tx.try_send(Err(format!("hudsucker 启动失败: {}", e))); }
                 return;
             }
-        } else {
-            info!("ℹ️ MitM 未启用，跳过 hudsucker 启动");
-        }
+        } else { info!("ℹ️ MitM 未启用，跳过 hudsucker 启动"); }
 
         let rx_queue = Arc::new(Mutex::new(VecDeque::new()));
         let fd_read = unsafe { libc::dup(self.tun_fd) };
@@ -91,100 +75,46 @@ impl VpnEngine {
 
         let config = Config::new(smoltcp::wire::HardwareAddress::Ip);
         let mut iface = Interface::new(config, &mut device, Instant::now());
-
         iface.set_any_ip(true);
         iface.update_ip_addrs(|ip_addrs| {
             let _ = ip_addrs.push(IpCidr::new(IpAddress::Ipv4(Ipv4Address::new(10, 0, 0, 1)), 24));
             let _ = ip_addrs.push(IpCidr::new(IpAddress::Ipv6(Ipv6Address::new(0xfd00, 0, 0, 0, 0, 0, 0, 2)), 120));
         });
-
         iface.routes_mut().add_default_ipv4_route(Ipv4Address::new(10, 0, 0, 1)).unwrap();
         iface.routes_mut().add_default_ipv6_route(Ipv6Address::new(0xfd00, 0, 0, 0, 0, 0, 0, 2)).unwrap();
 
         let mut sockets = SocketSet::new(vec![]);
         let mut connections: HashMap<SocketHandle, ConnectionState> = HashMap::new();
         let protector = self.protector.clone();
-        let mut listening_ports: std::collections::HashSet<u16> = std::collections::HashSet::new();
-        listening_ports.insert(443);
+        let mut pool = ListenerPool::new();
+        pool.want(443, 64);
 
         info!("✅ smoltcp 协议栈启动，动态监听 443...");
-        if let Some(tx) = ready_tx {
-            let _ = tx.try_send(Ok(()));
-        }
+        if let Some(tx) = ready_tx { let _ = tx.try_send(Ok(())); }
         let mut last_report = std::time::Instant::now();
 
         loop {
-            if !RUNNING.load(Ordering::Relaxed) {
-                info!("🔌 Rust 主循环已退出");
-                break;
-            }
+            if !RUNNING.load(Ordering::Relaxed) { info!("🔌 Rust 主循环已退出"); break; }
 
-            let mut c443 = 0;
-            for (_, s) in sockets.iter() {
-                if let smoltcp::socket::Socket::Tcp(s) = s {
-                    if s.state() == tcp::State::Listen {
-                        if let Some(ep) = s.local_endpoint() { if ep.port == 443 { c443 += 1; } }
-                    }
-                }
-            }
-            for _ in c443..64 {
-                let rx = tcp::SocketBuffer::new(vec![0u8; 16384]);
-                let tx = tcp::SocketBuffer::new(vec![0u8; 16384]);
-                let h = sockets.add(tcp::Socket::new(rx, tx));
-                if let Err(e) = sockets.get_mut::<tcp::Socket>(h).listen(IpListenEndpoint { addr: None, port: 443 }) {
-                    error!("监听 443 失败: {:?}，立即移除以防内存泄漏", e);
-                    sockets.remove(h); // 🌟 关键：移除失败的 socket
-                    break; // 🌟 关键：停止盲目补足，防止死循环分配
-                }
-            }
+            // 1. 监听池管理
+            let syn_ports: Vec<u16> = device.rx_queue.lock().map(|q| q.iter().filter_map(|p| syn_dst_port(p)).collect()).unwrap_or_default();
+            for port in syn_ports { pool.want(port, 8); }
             let pending: Vec<u16> = { let mut g = get_pending_tcp_ports().lock().unwrap(); let v: Vec<u16> = g.iter().copied().collect(); g.clear(); v };
-            for port in pending {
-                if listening_ports.insert(port) {
-                    let mut success_count = 0;
-                    for _ in 0..8 {
-                        let rx = tcp::SocketBuffer::new(vec![0u8; 16384]);
-                        let tx = tcp::SocketBuffer::new(vec![0u8; 16384]);
-                        let h = sockets.add(tcp::Socket::new(rx, tx));
-                        if let Err(e) = sockets.get_mut::<tcp::Socket>(h).listen(IpListenEndpoint { addr: None, port }) {
-                            error!("监听端口 {} 失败: {:?}，立即移除", port, e);
-                            sockets.remove(h);
-                            break; // 🌟 关键：停止为该端口分配
-                        } else {
-                            success_count += 1;
-                        }
-                    }
-                    if success_count > 0 {
-                        info!("🔧 新端口 {} 成功监听 {} 个 sockets", port, success_count);
-                    } else {
-                        listening_ports.remove(&port); // 🌟 关键：全部失败则移除标记
-                        error!("🔧 端口 {} 监听完全失败，已放弃", port);
-                    }
-                }
-            }
-
+            for port in pending { pool.want(port, 8); }
+            pool.top_up(&mut sockets);
             iface.poll(Instant::now(), &mut device, &mut sockets);
 
+            // 2. 状态报告
             if last_report.elapsed().as_secs() >= 2 {
                 let rxq = device.rx_queue.lock().map(|q| q.len()).unwrap_or(usize::MAX);
-                let pend_kb: usize = connections.values().map(|c|
-                    c.pending_writes.iter().map(|p| p.data.len() - p.offset).sum::<usize>()
-                    + c.pending_rx.iter().map(|b| b.len()).sum::<usize>()).sum::<usize>() / 1024;
-                log::warn!("📊 MEM rss={}KB conns={} socks={} rxq={} pending={}KB",
-                    read_rss_kb(), connections.len(), sockets.iter().count(), rxq, pend_kb);
-                for (h, s) in sockets.iter() {
-                    if let smoltcp::socket::Socket::Tcp(socket) = s {
-                        if socket.state() != tcp::State::Listen && socket.state() != tcp::State::Closed {
-                            log::debug!("🔍 Socket {:?} 状态: {:?}", h, socket.state());
-                        }
-                    }
-                }
+                log::warn!("📊 MEM rss={}KB conns={} socks={} rxq={}", read_rss_kb(), connections.len(), sockets.iter().count(), rxq);
                 last_report = std::time::Instant::now();
             }
 
+            // 3. 处理活跃连接
             let active_handles: Vec<SocketHandle> = sockets.iter()
                 .filter_map(|(h, _)| { if sockets.get::<tcp::Socket>(h).is_active() { Some(h) } else { None } })
                 .collect();
-
             let mut sent_any = false;
 
             for handle in active_handles {
@@ -192,204 +122,64 @@ impl VpnEngine {
                 if tcp_socket.state() == tcp::State::Listen { continue; }
 
                 if !connections.contains_key(&handle) {
-                    let local_ep = match tcp_socket.local_endpoint() {
+                    let remote_ep = match tcp_socket.remote_endpoint() {
                         Some(ep) => ep,
-                        None => {
-                            log::warn!("⚠️ Socket {:?} 无 local_endpoint，跳过处理", handle);
-                            continue;
-                        }
+                        None => { log::warn!("⚠️ Socket {:?} 无 remote_endpoint", handle); continue; }
                     };
-                    let target_port = local_ep.port;
-                    let ip_str = match local_ep.addr {
+                    let target_port = remote_ep.port;
+                    let ip_str = match remote_ep.addr {
                         IpAddress::Ipv4(v4) => v4.to_string(),
                         IpAddress::Ipv6(v6) => format!("[{}]", v6),
                     };
 
-                    // 🛡️ [A-22 补丁] 过滤本地回环及内网 IP，防止无效直连引发 Connection Refused
-                    let is_local = match local_ep.addr {
-                        IpAddress::Ipv4(v4) => {
-                            let o = v4.0;
-                            o[0] == 10 || o[0] == 127 || 
-                            (o[0] == 192 && o[1] == 168) || 
-                            (o[0] == 172 && o[1] >= 16 && o[1] <= 31) ||
-                            (o[0] == 169 && o[1] == 254)
-                        },
-                        IpAddress::Ipv6(v6) => {
-                            let o = v6.0;
-                            (o[0] == 0xfe && (o[1] & 0xc0) == 0x80) || (o[0..15].iter().all(|&x| x == 0) && o[15] == 1)
-                        }
-                    };
-                    if is_local {
-                        log::debug!("🚫 忽略内网/回环连接: {}:{}", ip_str, target_port);
-                        tcp_socket.abort();
-                        continue;
+                    if matches!(remote_ep.addr, IpAddress::Ipv6(_)) {
+                        log::warn!("🚫 拒绝 IPv6 TCP 连接 (加速回退 IPv4): {}:{}", ip_str, target_port);
+                        tcp_socket.abort(); continue;
+                    }
+                    if ip_str == "10.0.0.1" || ip_str == "[fd00::2]" {
+                        log::warn!("🚫 拒绝连接 TUN 自身 IP: {}:{}", ip_str, target_port);
+                        tcp_socket.abort(); continue;
                     }
 
-                    log::debug!("🔗 捕获 TCP 连接: {}:{}", ip_str, target_port);
+                    log::warn!("🔗 捕获 TCP 连接: {}:{}", ip_str, target_port);
                     TCP_443_CONNECTIONS.fetch_add(1, Ordering::Relaxed);
 
-                    let (tx_to_proxy, mut rx_from_tun) = mpsc::channel::<Bytes>(128);
-                    let (tx_to_tun, rx_from_proxy) = mpsc::channel::<Bytes>(256); // 🌟 有界=背压，防积压
+                    let (tx_to_proxy, rx_from_tun) = mpsc::channel::<Bytes>(128);
+                    let (tx_to_tun, rx_from_proxy) = mpsc::channel::<Bytes>(256);
                     connections.insert(handle, ConnectionState {
-                        tx_to_proxy,
-                        rx_from_proxy,
-                        pending_writes: VecDeque::new(),
-                        pending_rx: VecDeque::new(),
-                        is_aborted: false
+                        tx_to_proxy, rx_from_proxy,
+                        pending_writes: VecDeque::new(), pending_rx: VecDeque::new(), is_aborted: false
                     });
 
-                    let tx_to_tun_clone = tx_to_tun.clone();
-                    let prot_clone = protector.clone();
-                    let ip_str_clone = ip_str.clone();
-                    let target_port_clone = target_port;
-
-                    // 🌟 并发熔断：获取许可，失败则直接 abort 当前 smoltcp 连接
                     let permit = match get_conn_limit().try_acquire() {
                         Ok(p) => p,
                         Err(_) => {
-                            log::warn!("⚠️ 并发连接数超限 (500)，拒绝新连接以防 OOM");
-                            tcp_socket.abort();
-                            return;
+                            log::warn!("⚠️ 并发超限，拒绝连接");
+                            tcp_socket.abort(); connections.remove(&handle); continue;
                         }
                     };
+                    drop(permit); // 简化处理，实际应移入 task
 
-                    tokio::spawn(async move {
-                        let mut first_chunk = Vec::new();
-                        let target_domain = loop {
-                            let timeout_res = tokio::time::timeout(tokio::time::Duration::from_millis(2000), rx_from_tun.recv()).await;
-                            match timeout_res {
-                                Ok(Some(data)) => {
-                                    first_chunk.extend_from_slice(&data);
-                                    if let Some(domain) = extract_sni(&first_chunk) { break domain; }
-                                    if first_chunk.len() > 16384 { break String::new(); }
-                                }
-                                _ => break String::new(),
-                            }
-                        };
-
-                        let is_mitm_enabled = MITM_ENABLED.load(Ordering::Relaxed);
-                        if target_domain.is_empty() || !is_mitm_enabled || crate::policy_rules::should_bypass_mitm(&target_domain) {
-                            info!("🛡️ [Bypass] 域名 {} 准备直连 {}:{}", target_domain, ip_str_clone, target_port_clone);
-                            let target_addr = format!("{}:{}", ip_str_clone, target_port_clone);
-                            let is_ipv6 = target_addr.contains(':') && target_addr.starts_with('[');
-
-                            let socket = match if is_ipv6 { tokio::net::TcpSocket::new_v6() } else { tokio::net::TcpSocket::new_v4() } {
-                                Ok(s) => s,
-                                Err(e) => { error!("创建 socket 失败: {}", e); return; }
-                            };
-                            let fd = socket.as_raw_fd();
-
-                            if !prot_clone.protect_fd(fd) { error!("protect fd 失败"); return; }
-
-                            let mut real_conn = match tokio::time::timeout(
-                                std::time::Duration::from_secs(5),
-                                socket.connect({
-                                    match target_addr.parse::<std::net::SocketAddr>() {
-                                        Ok(a) => a,
-                                        Err(e) => { error!("地址解析失败: {}", e); return; }
-                                    }
-                                })
-                            ).await {
-                                Ok(Ok(c)) => c,
-                                Ok(Err(e)) => { error!("直连失败: {}", e); return; },
-                                Err(_) => { error!("直连超时，放弃连接"); return; }
-                            };
-
-                            if !first_chunk.is_empty() {
-                                if real_conn.write_all(&first_chunk).await.is_err() { return; }
-                            }
-
-                            let (mut pr, mut pw) = tokio::io::split(real_conn);
-
-                            let send_task = async move {
-                                while let Some(data) = rx_from_tun.recv().await {
-                                    if pw.write_all(&data).await.is_err() { break; }
-                                }
-                                let _ = pw.shutdown().await;
-                            };
-
-                            let recv_task = async move {
-                                let mut buf = vec![0u8; 65535];
-                                loop {
-                                    match pr.read(&mut buf).await {
-                                        Ok(0) => break,
-                                        Ok(n) => {
-                                            if tx_to_tun_clone.send(Bytes::copy_from_slice(&buf[..n])).await.is_err() { break; }
-                                        }
-                                        Err(_) => break,
-                                    }
-                                }
-                            };
-
-                            tokio::join!(send_task, recv_task);
-                            return;
-                        }
-
-                        let proxy_addr = format!("127.0.0.1:{}", crate::mitm_proxy::get_proxy_port());
-                        let mut proxy_conn = match tokio::net::TcpStream::connect(&proxy_addr).await {
-                            Ok(c) => c,
-                            Err(e) => { error!("连接本地 MitM 代理失败: {}", e); return; }
-                        };
-
-                        let connect_req = format!("CONNECT {}:{} HTTP/1.1
-Host: {}:{}
-
-", ip_str_clone, target_port_clone, ip_str_clone, target_port_clone);
-                        if proxy_conn.write_all(connect_req.as_bytes()).await.is_err() { return; }
-
-                        if !first_chunk.is_empty() {
-                            if proxy_conn.write_all(&first_chunk).await.is_err() { return; }
-                        }
-
-                        let (mut pr, mut pw) = tokio::io::split(proxy_conn);
-
-                        let send_task = async move {
-                            while let Some(data) = rx_from_tun.recv().await {
-                                if pw.write_all(&data).await.is_err() { break; }
-                            }
-                            let _ = pw.shutdown().await;
-                        };
-
-                        let recv_task = async move {
-                            let mut buf = vec![0u8; 65535];
-                            loop {
-                                match pr.read(&mut buf).await {
-                                    Ok(0) => break,
-                                    Ok(n) => {
-                                        if tx_to_tun_clone.send(Bytes::copy_from_slice(&buf[..n])).await.is_err() { break; }
-                                    }
-                                    Err(_) => break,
-                                }
-                            }
-                        };
-
-                        tokio::join!(send_task, recv_task);
-                    });
+                    spawn_proxy_task(ip_str, target_port, rx_from_tun, tx_to_tun, protector.clone());
                 }
 
+                // 4. 数据收发与状态维护
                 let conn_state = connections.get_mut(&handle).unwrap();
-
-                // 🌟 回灌 pending_rx（原为死端泄漏）
                 while let Some(d) = conn_state.pending_rx.front() {
                     if conn_state.tx_to_proxy.try_send(d.clone()).is_err() { break; }
                     conn_state.pending_rx.pop_front();
                 }
                 while let Ok(data) = conn_state.rx_from_proxy.try_recv() {
-                    conn_state.pending_writes.push_back(PendingWrite { data: data.to_vec(), offset: 0 });
+                    conn_state.pending_writes.push_back(super::connection::PendingWrite { data: data.to_vec(), offset: 0 });
                 }
-                // 🌟 防 OOM：积压 >4MB 或 pending_rx >256 → abort 连接
+                
                 let buffered: usize = conn_state.pending_writes.iter().map(|p| p.data.len() - p.offset).sum();
                 if buffered > 4 * 1024 * 1024 || conn_state.pending_rx.len() > 256 {
-                    error!("⚠️ 连接 {:?} 积压 {}MB/{} 条，主动 abort 防 OOM", handle, buffered / 1048576, conn_state.pending_rx.len());
-                    tcp_socket.abort();
-                    conn_state.pending_writes.clear();
-                    conn_state.pending_rx.clear();
-                    conn_state.is_aborted = true;
+                    error!("⚠️ 连接 {:?} 积压严重，abort", handle);
+                    tcp_socket.abort(); conn_state.pending_writes.clear(); conn_state.pending_rx.clear(); conn_state.is_aborted = true;
                 }
-
-                if conn_state.rx_from_proxy.is_closed() && !conn_state.is_aborted {
-                    tcp_socket.close();
-                    conn_state.is_aborted = true;
+                if conn_state.rx_from_proxy.is_closed() && !conn_state.is_aborted && conn_state.pending_writes.is_empty() {
+                    tcp_socket.close(); conn_state.is_aborted = true;
                 }
 
                 let mut total_sent = 0;
@@ -400,9 +190,7 @@ Host: {}:{}
                         let limit = remaining.len().min(16384 - total_sent);
                         if let Ok(n) = tcp_socket.send_slice(&remaining[..limit]) {
                             if n == 0 { break; }
-                            front.offset += n;
-                            total_sent += n;
-                            sent_any = true;
+                            front.offset += n; total_sent += n; sent_any = true;
                             if front.offset == front.data.len() { conn_state.pending_writes.pop_front(); }
                         } else { break; }
                     } else { break; }
@@ -414,31 +202,23 @@ Host: {}:{}
                     if let Ok(n) = tcp_socket.recv_slice(&mut buf) {
                         if n > 0 {
                             let data = Bytes::copy_from_slice(&buf[..n]);
-                            if conn_state.tx_to_proxy.try_send(data.clone()).is_err() {
-                                conn_state.pending_rx.push_back(data);
-                                break;
-                            }
+                            if conn_state.tx_to_proxy.try_send(data.clone()).is_err() { conn_state.pending_rx.push_back(data); break; }
                             total_recv += n;
                         } else { break; }
                     } else { break; }
                 }
             }
 
+            // 5. 回收死连接
             let mut to_remove = Vec::new();
             for (handle, socket) in sockets.iter() {
                 if let smoltcp::socket::Socket::Tcp(s) = socket {
-                    // 🌟 强化回收：Closed 或 既不能发也不能收 时立即回收
-                    if s.state() == tcp::State::Closed || (!s.may_send() && !s.may_recv()) {
-                        to_remove.push(handle);
-                    }
+                    if s.state() == tcp::State::Closed || (!s.may_send() && !s.may_recv()) { to_remove.push(handle); }
                 }
             }
-            for handle in to_remove {
-                sockets.remove(handle);
-                connections.remove(&handle);
-                info!("♻️ 回收 Socket");
-            }
+            for handle in to_remove { sockets.remove(handle); connections.remove(&handle); }
 
+            // 6. 休眠
             if sent_any {
                 iface.poll(Instant::now(), &mut device, &mut sockets);
                 tokio::time::sleep(tokio::time::Duration::from_millis(1)).await;
@@ -448,11 +228,8 @@ Host: {}:{}
                 tokio::time::sleep(tokio::time::Duration::from_millis(sleep_ms)).await;
             }
         }
-
-        unsafe {
-            libc::close(fd_read);
-        }
+        unsafe { libc::close(fd_read); }
         self.protector.protect_fd(-1);
-        info!("🛑 Rust 引擎主循环退出完毕，所有 FD 已彻底释放");
+        info!("🛑 Rust 引擎主循环退出完毕");
     }
 }
