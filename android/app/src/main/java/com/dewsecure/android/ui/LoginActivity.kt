@@ -46,6 +46,15 @@ class LoginActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_login)
 
+        // 🌟 修复：inset 加到带 bg_aurora 的根布局，消除状态栏/导航栏白条
+        androidx.core.view.WindowCompat.setDecorFitsSystemWindows(window, false)
+        val insetRoot = (findViewById<android.view.View>(android.R.id.content) as android.view.ViewGroup).getChildAt(0)
+        androidx.core.view.ViewCompat.setOnApplyWindowInsetsListener(insetRoot) { v, ins ->
+            val bars = ins.getInsetsIgnoringVisibility(androidx.core.view.WindowInsetsCompat.Type.systemBars())
+            v.setPadding(v.paddingLeft, bars.top, v.paddingRight, bars.bottom)
+            ins
+        }
+
         initViews()
         setupListeners()
         updateUI()

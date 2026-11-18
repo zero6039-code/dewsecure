@@ -1,6 +1,8 @@
 package com.dewsecure.android.ui
 
 import android.app.Activity
+import androidx.core.view.WindowInsetsCompat
+import androidx.core.view.updatePadding
 import android.content.Intent
 import android.net.VpnService
 import android.os.Bundle
@@ -33,6 +35,12 @@ class MainActivity : AppCompatActivity() {
 
         // 获取当前显示的 Tab
         val bottomNav = findViewById<BottomNavigationView>(R.id.bottom_navigation)
+
+        androidx.core.view.ViewCompat.setOnApplyWindowInsetsListener(bottomNav) { v, insets ->
+            val systemBars = insets.getInsets(WindowInsetsCompat.Type.systemBars())
+            v.updatePadding(bottom = systemBars.bottom)
+            insets
+        }
         val selectedId = bottomNav.selectedItemId
 
         // 🌟 核心修复：彻底销毁并重建所有 Fragment，保证 100% 语言刷新，杜绝 View 重叠
@@ -72,6 +80,22 @@ class MainActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+
+        // 🌟 清理 Native Crash 残留的僵尸通知
+        val nm = getSystemService(NOTIFICATION_SERVICE) as android.app.NotificationManager
+        nm.cancel(1001)
+        // 同时清理所有渠道
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
+            nm.deleteNotificationChannel("dewsecure_vpn")
+            com.dewsecure.android.vpn.VpnNotificationManager.createChannel(this)
+        }
+        android.util.Log.i("MainActivity", "🧹 僵尸通知已清理")
+
+        // 🌟 清理由于 Native Crash 残留的僵尸通知
+        if (!com.dewsecure.android.vpn.DewVpnService.isRunningState) {
+            androidx.core.app.NotificationManagerCompat.from(this).cancel(1001)
+            android.util.Log.i("MainActivity", "🧹 已清理可能残留的 VPN 通知")
+        }
         
         
         val prefs = getSharedPreferences("app_settings", MODE_PRIVATE)
@@ -80,6 +104,33 @@ class MainActivity : AppCompatActivity() {
             prefs.edit().putString("install_date", sdf.format(java.util.Date())).apply()
         }
         setContentView(R.layout.activity_main)
+
+        // 🌟 顶部 inset 直接设在 fragment_container，用 ignoringVisibility 防 Honor 返回 0
+        val fc = findViewById<android.view.View>(R.id.fragment_container)
+        androidx.core.view.ViewCompat.setOnApplyWindowInsetsListener(fc) { v, ins ->
+            val top = ins.getInsetsIgnoringVisibility(WindowInsetsCompat.Type.statusBars()).top
+            android.util.Log.w("InsetDebug", "fc.statusBars.top=" + top)
+            v.setPadding(0, top, 0, 0)
+            ins
+        }
+
+        // 🌟 动态处理 Edge-to-Edge 安全区，兼容华为/荣耀等各厂商
+        androidx.core.view.WindowCompat.setDecorFitsSystemWindows(window, false)
+        val rootView = findViewById<android.view.View>(android.R.id.content)
+        androidx.core.view.ViewCompat.setOnApplyWindowInsetsListener(rootView) { view, insets ->
+            val systemBars = insets.getInsets(androidx.core.view.WindowInsetsCompat.Type.systemBars())
+            val fragmentContainer = findViewById<android.view.View>(R.id.fragment_container)
+            val bottomNav = findViewById<android.view.View>(R.id.bottom_navigation)
+            
+            // 顶部：防止顶进状态栏（时间/电量）
+            android.util.Log.w("InsetDebug", "content.systemBars.top=" + systemBars.top)
+            
+            // 底部：使用 paddingBottom 确保内容不被系统导航栏遮挡，同时保持 View 贴底
+            bottomNav.setPadding(0, 0, 0, systemBars.bottom)
+            
+            insets
+        }
+
 
         val bottomNav = findViewById<BottomNavigationView>(R.id.bottom_navigation)
         
