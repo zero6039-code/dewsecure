@@ -202,8 +202,13 @@ pub fn spawn_tun_reader(fd_read: RawFd, rx_queue: Arc<Mutex<VecDeque<Vec<u8>>>>,
                 }).map(|res| {
                     if let Ok(n) = res {
                         if n > 0 {
-                            TUN_RX_PACKETS.fetch_add(1, Ordering::Relaxed);
-                            rx_queue.lock().unwrap().push_back(buf[..n].to_vec());
+                            let mut queue = rx_queue.lock().unwrap();
+                            if queue.len() < 10000 { // 🌟 防止 OOM：限制队列最大长度
+                                TUN_RX_PACKETS.fetch_add(1, Ordering::Relaxed);
+                                queue.push_back(buf[..n].to_vec());
+                            } else {
+                                log::warn!("⚠️ TUN rx_queue 满载 (10000)，丢弃数据包以防 OOM");
+                            }
                         }
                     }
                 });

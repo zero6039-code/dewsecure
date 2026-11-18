@@ -7,6 +7,7 @@ import android.net.Network
 import android.net.VpnService
 import android.os.Build
 import android.os.ParcelFileDescriptor
+import android.os.IBinder
 import android.util.Log
 import com.dewsecure.android.policy.EngineBridge
 import com.dewsecure.core.VpnProtector
@@ -64,6 +65,11 @@ class DewVpnService : VpnService() {
         @Volatile var isRunningState = false
     }
 
+    override fun onBind(intent: Intent?): IBinder? {
+        Log.i(TAG, "🔗 onBind 被系统调用: ${intent?.action}")
+        return super.onBind(intent)
+    }
+
     override fun onCreate() {
         super.onCreate()
         VpnNotificationManager.createChannel(this)
@@ -75,16 +81,7 @@ class DewVpnService : VpnService() {
         // 🌟 处理热重启指令（用于分应用路由配置变更）
         if (intent?.action == "ACTION_RESTART_VPN") {
             Log.i(TAG, "🔄 收到热重启指令，正在安全重建 VPN...")
-            stopVpn() // 清理旧 TUN 并彻底关闭当前服务
-            
-            // 延迟 2 秒，等系统彻底回收资源后再重新拉起
-            restartHandler.postDelayed({
-                if (!isStopping) {
-                    isStopping = false // 重置状态准备新一次启动
-                    val restartIntent = Intent(this@DewVpnService, DewVpnService::class.java)
-                    androidx.core.content.ContextCompat.startForegroundService(this@DewVpnService, restartIntent)
-                }
-            }, 2000)
+            triggerRestart()
             return START_NOT_STICKY
         }
 
@@ -134,6 +131,8 @@ class DewVpnService : VpnService() {
         }
 
         if (isRunning) return START_STICKY
+        // 🌟 先清理可能残留的旧通知
+        (getSystemService(NOTIFICATION_SERVICE) as android.app.NotificationManager).cancel(1001)
         startForeground(VpnNotificationManager.NOTIFICATION_ID, VpnNotificationManager.buildNotification(this))
 
         val cm = getSystemService(ConnectivityManager::class.java)
@@ -143,6 +142,23 @@ class DewVpnService : VpnService() {
                 networkCallback = object : ConnectivityManager.NetworkCallback() {
                     override fun onAvailable(network: Network) {
                         refreshUpstreamDns(cm)
+                        try {
+                            setUnderlyingNetworks(arrayOf(network))
+                            Log.i(TAG, "✅ 已绑定底层网络")
+                        } catch (e: Exception) {
+                            Log.e(TAG, "绑定底层网络失败", e)
+                        }
+                    }
+                    override fun onLost(network: Network) {
+                        Log.w(TAG, "⚠️ 底层网络丢失，3秒后尝试重连...")
+                        if (isRunning) {
+                            restartHandler.postDelayed({
+                                if (isRunning && !isStopping) {
+                                    Log.i(TAG, "🔄 网络丢失触发重连")
+                                    triggerRestart()
+                                }
+                            }, 3000)
+                        }
                     }
                 }
                 try { cm.registerDefaultNetworkCallback(networkCallback!!) } catch (e: Exception) {}
@@ -291,20 +307,77 @@ class DewVpnService : VpnService() {
             // 🌟 启动后台心跳
             heartbeatManager.start()
 
-            // Kotlin 侧不再读取 TUN 数据，保持后台线程存活即可
+            // Kotlin 侧不再读取 TUN 数据，增加看门狗巡检防死锁
+            var checkCount = 0
+            var vpnTransportMissCount = 0
             while (isRunning) {
                 Thread.sleep(1000)
+                checkCount++
+                if (checkCount % 5 == 0 && isRunning) {
+                    val currentFd = vpnInterface?.fd ?: -1
+                    Log.d(TAG, "⏱️ [看门狗] 巡检中, TUN fd=$currentFd, 引擎状态已保持10秒未断开")
+                    if (vpnInterface == null || currentFd == -1) {
+                        Log.e(TAG, "🚨 看门狗发现 TUN 异常(可能被系统静默切断)，触发重启")
+                        triggerRestart()
+                        break
+                    }
+                    // 🌟 兜底：荣耀/HarmonyOS 后台管控 force-stop 场景，检测系统侧 VPN transport
+                    val cmW = getSystemService(ConnectivityManager::class.java)
+                    val hasVpnTransport = cmW?.allNetworks?.any { n ->
+                        cmW.getNetworkCapabilities(n)
+                            ?.hasTransport(android.net.NetworkCapabilities.TRANSPORT_VPN) == true
+                    } ?: false
+                    if (hasVpnTransport) {
+                        vpnTransportMissCount = 0
+                    } else {
+                        vpnTransportMissCount++
+                        Log.w(TAG, "⚠️ [看门狗] 系统侧 VPN transport 未检测到，累计 $vpnTransportMissCount 次")
+                        if (vpnTransportMissCount >= 2) {
+                            Log.e(TAG, "🚨 [看门狗] 系统侧 VPN 隧道已消失（后台管控强杀），主动停服并移除通知")
+                            stopVpn()
+                            break
+                        }
+                    }
+                }
             }
         } catch (e: Exception) {
             Log.e(TAG, "VPN 循环整体异常", e)
         } finally {
-            stopVpn()
+            if (!isStopping) {
+                stopVpn()
+            }
         }
     }
 
 
 
 
+
+    private fun triggerRestart() {
+        if (isStopping) return
+        Log.i(TAG, "🔄 执行平滑重启逻辑...")
+        isRunning = false
+        
+        // 🌟 核心修复：直接接管清理，将 isStopping 置为 true
+        // 避免 runVpnLoop 的 finally 块触发 stopVpn() 清除掉我们接下来的重启任务
+        isStopping = true 
+        isRunningState = false
+        heartbeatManager.stop()
+        
+        try { vpnInterface?.close() } catch (_: Exception) {}
+        vpnInterface = null
+        
+        Thread {
+            try { EngineBridge.stopMitmVpnEngine() } catch (_: Throwable) {}
+        }.start()
+
+        // 延迟 2 秒重新拉起
+        restartHandler.postDelayed({
+            isStopping = false 
+            val restartIntent = Intent(this@DewVpnService, DewVpnService::class.java)
+            androidx.core.content.ContextCompat.startForegroundService(this@DewVpnService, restartIntent)
+        }, 2000)
+    }
 
     private fun stopVpn() {
         if (isStopping) return
@@ -349,8 +422,18 @@ class DewVpnService : VpnService() {
 
 
     override fun onRevoke() {
-        Log.w(TAG, "⚠️ VPN 权限被系统或其他 VPN 抢占，正在紧急关闭...")
-        stopVpn()
+        Log.e(TAG, "🚨 [致命] 系统强行回收 VPN 权限！(onRevoke) 正在强制清理...")
+        // 强制解锁，无视 isStopping 状态，直接暴力的关停
+        isStopping = false
+        isRunning = false
+        isRunningState = false
+        try { vpnInterface?.close() } catch (_: Exception) {}
+        vpnInterface = null
+        try { heartbeatManager.stop() } catch (_: Exception) {}
+        try { EngineBridge.stopMitmVpnEngine() } catch (_: Exception) {}
+        
+        stopForeground(STOP_FOREGROUND_REMOVE)
+        stopSelf()
         super.onRevoke()
     }
 

@@ -73,7 +73,14 @@ pub fn intercept_dns(
     let dns_payload_vec = dns_payload.to_vec();
     let req_vec = req.to_vec();
     tokio::spawn(async move {
-        let socket = tokio::net::UdpSocket::bind("0.0.0.0:0").await.unwrap();
+        let socket = match tokio::net::UdpSocket::bind("0.0.0.0:0").await {
+            Ok(s) => s,
+            Err(e) => {
+                log::error!("❌ DNS 上游 bind 失败: {}", e);
+                if !domain_clone.is_empty() { crate::policy_rules::mark_failed(&domain_clone); }
+                return;
+            }
+        };
         let fd = socket.as_raw_fd();
         if !prot_clone.protect_fd(fd) {
             log::error!("❌ DNS 上游 Socket protect 失败");
