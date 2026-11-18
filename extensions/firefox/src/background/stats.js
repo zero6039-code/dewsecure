@@ -60,7 +60,7 @@ export function initStatsListener() {
                             if (res.matchedRules && res.matchedRules.length > 0) {
                                 try {
                                     const host = new URL(details.url).hostname;
-                                    recordBlock(host + '/webRequest-dnr', 'dnr-intercept');
+                                    recordBlock(details.url, 'dnr-intercept');
                                 } catch (e) {}
                             }
                         }).catch(() => {});
@@ -84,7 +84,7 @@ export function initStatsListener() {
         try {
             chrome.declarativeNetRequest.onRuleMatchedDebug.addListener(async (info) => {
                 if (info.request?.url && !info.request.url.includes('dewsecure.com')) {
-                    await recordBlock(new URL(info.request.url).hostname + '/dnr-debug', 'dnr-debug');
+                    await recordBlock(info.request.url, 'dnr-debug');
                 }
             });
         } catch(e) {}
@@ -107,12 +107,38 @@ export function initStatsListener() {
                 const now = Date.now();
                 const matched = await chrome.declarativeNetRequest.getMatchedRules({ minTimeStamp: lastFetchTime });
                 if (matched?.rulesMatchedInfo?.length > 0) {
-                    const count = matched.rulesMatchedInfo.length;
                     await ensureLoaded();
-                    memoryStats.totalBlocked += count;
-                    memoryStats.todayBlocked += count;
-                    scheduleSave();
-                        addSavings(count).catch(e => console.warn('Savings error:', e));
+                    const todayStr = new Date().toDateString();
+                    
+                    // 过滤掉已经被 webRequest 记录过的规则，防止重复统计
+                    const newRulesMatched = matched.rulesMatchedInfo.filter(info => {
+                        const url = info.request?.url;
+                        if (!url || url.includes('dewsecure.com')) return false;
+                        // 检查 memoryLogs 中最近是否已有相同的 URL 记录
+                        return !memoryLogs.some(l => l.url === url && l.ts >= lastFetchTime);
+                    });
+
+                    if (newRulesMatched.length > 0) {
+                        memoryStats.totalBlocked += newRulesMatched.length;
+                        memoryStats.todayBlocked += newRulesMatched.length;
+
+                        // 将 getMatchedRules 抓到的新记录同步到日志
+                        newRulesMatched.forEach(info => {
+                            const url = info.request.url;
+                            let domain = '未知';
+                            try {
+                                domain = new URL(url).hostname;
+                            } catch (e) {}
+                            memoryLogs.push({ domain, url, type: 'dnr-intercept', date: todayStr, ts: Date.now() });
+                        });
+
+                        if (memoryLogs.length > 1000) {
+                            memoryLogs.splice(0, memoryLogs.length - 1000);
+                        }
+
+                        scheduleSave();
+                        addSavings(newRulesMatched.length).catch(e => console.warn('Savings error:', e));
+                    }
                 }
                 lastFetchTime = now;
             } catch (e) {

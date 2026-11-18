@@ -70,7 +70,7 @@ export async function renderTodayLogs() {
 
     // 🛡️ 修复：获取真实的今日拦截总数，如果大于日志条数，显示“+”
     const realTodayBlocked = stats.date === todayStr ? stats.todayBlocked : 0;
-    const displayCount = realTodayBlocked > todayLogs.length ? `${todayLogs.length}+` : todayLogs.length;
+    const displayCount = realTodayBlocked > 0 ? realTodayBlocked : todayLogs.length;
     
     const badge = document.getElementById('logCountBadge');
     if (badge) badge.textContent = `${displayCount} ${window.t('log_items')}`;
