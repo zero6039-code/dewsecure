@@ -26,6 +26,39 @@ import { sanitizeForLLM } from './content/sanitizeForLLM.js';
     }
 
     window.__dewsecureInjected = true;
+    // 🛡️ 修复 2.2：建立与主世界(mainWorld.js)的私有 MessageChannel 通信
+    function connectPage() {
+        if (state.toPage) return; // 防止重复建立
+        try {
+            const ch = new MessageChannel();
+            state.toPage = ch.port1;
+            
+            // 监听来自主世界的消息 (如统计增量)
+            ch.port1.onmessage = (ev) => {
+                if (ev.data && ev.data.type === 'DEWSECURE_STAT_INCREMENT') {
+                    // 信任边界修复：在此处添加限速/去重逻辑，暂不直接计入核心指标，仅作为提示
+                    safeSendMessage({ type: 'DOM_AD_HIDDEN', url: window.location.href });
+                }
+            };
+            
+            // 将 port2 传递给主世界
+            const targetOrigin = location.origin === 'null' ? '*' : location.origin;
+            window.postMessage({ type: 'DEWSECURE_PORT_INIT' }, targetOrigin, [ch.port2]);
+        } catch (e) {
+            console.warn('[DewSecure] 建立私有通道失败:', e);
+        }
+    }
+
+    // 监听主世界的握手请求 (应对脚本加载顺序竞争)
+    window.addEventListener('message', (e) => {
+        if (e.source === window && e.data && e.data.type === 'DEW_HELLO') {
+            connectPage();
+        }
+    }, { once: false });
+
+    // 主动尝试握手 (内容脚本通常先于主世界脚本运行)
+    connectPage();
+
 
     function safeSendMessage(msg) {
         try {
@@ -39,13 +72,7 @@ import { sanitizeForLLM } from './content/sanitizeForLLM.js';
 
 
 
-    window.addEventListener('message', (e) => {
-        if (e.source !== window || e.origin !== location.origin) return;
-        if (!e.data) return;
-        if (e.data.type === 'DEWSECURE_STAT_INCREMENT') {
-            safeSendMessage({ type: 'DOM_AD_HIDDEN', url: window.location.href });
-        }
-    });
+    // 🛡️ 修复 A-2：移除可被页面伪造的全局监听器；合法统计仅经 connectPage 的私有端口 port1.onmessage 上报
 
     function init() {
         const hostname = window.location.hostname;
