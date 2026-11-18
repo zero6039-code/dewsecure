@@ -6,7 +6,6 @@ use std::sync::{Arc, Mutex};
 use std::collections::VecDeque;
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use log::{info, error};
-use super::dns::extract_udp_dns;
 use crate::VpnProtector;
 use tokio::sync::mpsc;
 use std::sync::OnceLock;
@@ -110,23 +109,64 @@ impl Device for VpnDevice {
         let mut queue = self.rx_queue.lock().unwrap();
         let mut valid_pkt = None;
         while let Some(pkt) = queue.pop_front() {
-            if let Some((dns_payload, is_ipv6)) = extract_udp_dns(&pkt) {
+            // 🌟 暴力诊断：打印所有进入 TUN 的 UDP/TCP 包的目标端口
+            if pkt.len() >= 20 {
+                let is_ipv4 = (pkt[0] >> 4) == 4;
+                let is_ipv6 = (pkt[0] >> 4) == 6;
+                if is_ipv4 && pkt.len() >= 28 {
+                    let proto = pkt[9];
+                    let ihl = (pkt[0] & 0x0F) as usize * 4;
+                    if proto == 17 && pkt.len() >= ihl + 8 { // UDP
+                        let dst_port = u16::from_be_bytes([pkt[ihl + 2], pkt[ihl + 3]]);
+                        log::warn!("🔍 [DIAG] TUN 收到 IPv4 UDP 包, 目标端口: {}", dst_port);
+                    } else if proto == 6 && pkt.len() >= ihl + 14 { // TCP
+                        let dst_port = u16::from_be_bytes([pkt[ihl + 2], pkt[ihl + 3]]);
+                        log::warn!("🔍 [DIAG] TUN 收到 IPv4 TCP 包, 目标端口: {}", dst_port);
+                    }
+                } else if is_ipv6 && pkt.len() >= 48 {
+                    let proto = pkt[6];
+                    if proto == 17 && pkt.len() >= 40 + 8 { // UDP
+                        let dst_port = u16::from_be_bytes([pkt[40 + 2], pkt[40 + 3]]);
+                        log::warn!("🔍 [DIAG] TUN 收到 IPv6 UDP 包, 目标端口: {}", dst_port);
+                    }
+                }
+            }
+
+            // 🌟 终极修复：用已验证可靠的简单 UDP 53 检测，绕过 extract_udp_dns 的失败逻辑
+            let mut dns_payload: Vec<u8> = Vec::new();
+            let mut is_dns = false;
+            let mut is_ipv6 = false;
+            if pkt.len() >= 20 {
+                let v = pkt[0] >> 4;
+                if v == 4 {
+                    let ihl = (pkt[0] & 0x0F) as usize * 4;
+                    if pkt[9] == 17 && pkt.len() >= ihl + 20 {
+                        let dst_port = u16::from_be_bytes([pkt[ihl + 2], pkt[ihl + 3]]);
+                        if dst_port == 53 {
+                            dns_payload = pkt[ihl + 8..].to_vec();
+                            is_dns = true;
+                        }
+                    }
+                } else if v == 6 {
+                    if pkt[6] == 17 && pkt.len() >= 40 + 20 {
+                        let dst_port = u16::from_be_bytes([pkt[40 + 2], pkt[40 + 3]]);
+                        if dst_port == 53 {
+                            dns_payload = pkt[40 + 8..].to_vec();
+                            is_dns = true;
+                            is_ipv6 = true;
+                        }
+                    }
+                }
+            }
+            if is_dns && dns_payload.len() >= 12 {
                 DNS_INTERCEPTED.fetch_add(1, Ordering::Relaxed);
                 let writer = self.tx_writer.clone();
                 let req = pkt.clone();
                 let prot_clone = self.protector.clone();
-
-                if is_ipv6 {
-                    log::info!("📡 收到 IPv6 DNS 请求，直接放行/丢弃，防止卡死");
-                    continue;
-                }
-
-                // 统一交由 dns_interceptor 模块处理
-                dns_interceptor::intercept_dns(&dns_payload, &req, writer, prot_clone);
+                log::warn!("🌐 [DIAG] 强制拦截 DNS (IPv6={}) payload_len={}", is_ipv6, dns_payload.len());
+                dns_interceptor::intercept_dns(&dns_payload, &req, writer, prot_clone, is_ipv6);
                 continue;
             }
-            
-            // A-02: IPv4 UDP 非 DNS 透明转发
             if pkt.len() >= 20 && (pkt[0] >> 4) == 4 && pkt[9] == 17 {
                 if let Some((src_ip, src_port, dst_ip, dst_port, payload_start, payload_end)) = udp_forwarder::parse_ipv4_udp(&pkt) {
                     if dst_port != 53 {
@@ -136,8 +176,6 @@ impl Device for VpnDevice {
                     }
                 }
             }
-            
-            // A-02: 记录非 443 TCP 目标端口，通知 engine.rs 惰性建 listener
             if pkt.len() >= 20 && (pkt[0] >> 4) == 4 && pkt[9] == 6 {
                 let ihl = ((pkt[0] & 0x0F) as usize) * 4;
                 if pkt.len() >= ihl + 14 {
@@ -161,7 +199,6 @@ impl Device for VpnDevice {
                 let flags = pkt[ihl + 13];
                 if (flags & 0x02) != 0 {
                     TCP_SYN_PACKETS.fetch_add(1, Ordering::Relaxed);
-                    let _src_port = u16::from_be_bytes([pkt[ihl], pkt[ihl + 1]]);
                     let dst_port = u16::from_be_bytes([pkt[ihl + 2], pkt[ihl + 3]]);
                     let dst_ip = format!("{}.{}.{}.{}", pkt[16], pkt[17], pkt[18], pkt[19]);
                     log::debug!("📥 [TUN RX] 收到 SYN: 目标 {}:{}", dst_ip, dst_port);
@@ -202,13 +239,8 @@ pub fn spawn_tun_reader(fd_read: RawFd, rx_queue: Arc<Mutex<VecDeque<Vec<u8>>>>,
                 }).map(|res| {
                     if let Ok(n) = res {
                         if n > 0 {
-                            let mut queue = rx_queue.lock().unwrap();
-                            if queue.len() < 10000 { // 🌟 防止 OOM：限制队列最大长度
-                                TUN_RX_PACKETS.fetch_add(1, Ordering::Relaxed);
-                                queue.push_back(buf[..n].to_vec());
-                            } else {
-                                log::warn!("⚠️ TUN rx_queue 满载 (10000)，丢弃数据包以防 OOM");
-                            }
+                            TUN_RX_PACKETS.fetch_add(1, Ordering::Relaxed);
+                            rx_queue.lock().unwrap().push_back(buf[..n].to_vec());
                         }
                     }
                 });

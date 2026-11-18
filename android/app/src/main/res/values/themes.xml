@@ -8,6 +8,6 @@
 
     <!-- 启动页主题：直接继承正常主题，不需要系统遮罩 -->
     <style name="Theme.DewSecure.Splash" parent="Theme.DewSecure">
-        <item name="android:windowFullscreen">true</item>
+        <item name="android:windowFullscreen">false</item>
     </style>
 </resources>

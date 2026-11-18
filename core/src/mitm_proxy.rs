@@ -120,7 +120,7 @@ impl MitmProxy {
         if cert_pem.is_empty() {
             return Err("证书为空".to_string());
         }
-        let key_pem = CA_KEY_PEM.get().expect("Key not initialized").clone();
+        let key_pem = match CA_KEY_PEM.get() { Some(k) => k.clone(), None => return Err("CA Key 未初始化".to_string()) };
         
         let key_pair = match KeyPair::from_pem(&key_pem) { Ok(k) => k, Err(_) => return Err("私钥解析失败".to_string()) };
         let mut params = CertificateParams::default();
