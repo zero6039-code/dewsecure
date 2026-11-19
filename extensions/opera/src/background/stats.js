@@ -90,80 +90,85 @@ export function initStatsListener() {
         } catch(e) {}
     }
 
-    // 4. 🌟 P-5 终极修复：由页面加载和完成事件驱动 getMatchedRules
-    // 移除不可靠且容易超配额的 setInterval 轮询，避免 MV3 SW 休眠导致的统计中断
+    // 4. 游标与节流持久化，按规则过滤
     if (chrome.declarativeNetRequest?.getMatchedRules) {
-        let lastFetchTime = Date.now();
-        let isFetching = false;
+        const BLOCK_RULESETS = new Set(['ads', 'trackers', 'malware']); // 补充 manifest 静态规则集
+        const isBlockRule = ({ rulesetId, ruleId }) =>
+            BLOCK_RULESETS.has(rulesetId) ||
+            (rulesetId === '_dynamic' && ((ruleId >= 900000 && ruleId < 901000) || ruleId >= 1000000));
 
-        // 节流执行函数
+        let isFetching = false;
         const fetchDNRStats = async () => {
             if (isFetching) return;
-            // 保证两次调用至少间隔 5 秒，防止频繁导航耗尽配额 (配额限制: 10分钟20次)
-            if (Date.now() - lastFetchTime < 5000) return;
             isFetching = true;
-
             try {
-                const now = Date.now();
-                const matched = await chrome.declarativeNetRequest.getMatchedRules({ minTimeStamp: lastFetchTime });
+                const sess = await chrome.storage.session.get(['dnrStatCursor', 'dnrLastFetch']);
+                let statCursor = sess.dnrStatCursor || 0;
+                const lastFetch = sess.dnrLastFetch || 0;
+                
+                if (Date.now() - lastFetch < 5000) return;
+                await chrome.storage.session.set({ dnrLastFetch: Date.now() });
+
+                const queryTime = Date.now();
+                const matched = await chrome.declarativeNetRequest.getMatchedRules({ minTimeStamp: statCursor + 1 });
+                
+                // 无论是否有匹配，都先推进游标到查询时间，防止空窗期漏算
+                await chrome.storage.session.set({ dnrStatCursor: queryTime });
+
                 if (matched?.rulesMatchedInfo?.length > 0) {
+                    const newest = Math.max(...matched.rulesMatchedInfo.map(r => r.timeStamp));
+                    await chrome.storage.session.set({ dnrStatCursor: newest }); // 有数据则推到最新时间
+
                     await ensureLoaded();
                     const todayStr = new Date().toDateString();
-                    
-                    // 过滤掉已经被 webRequest 记录过的规则，防止重复统计
+
                     const newRulesMatched = matched.rulesMatchedInfo.filter(info => {
+                        if (!isBlockRule(info.rule || {})) return false;
                         const url = info.request?.url;
                         if (!url || url.includes('dewsecure.com')) return false;
-                        // 检查 memoryLogs 中最近是否已有相同的 URL 记录
-                        return !memoryLogs.some(l => l.url === url && l.ts >= lastFetchTime);
+                        return !memoryLogs.some(l => l.url === url && l.ts >= statCursor);
                     });
 
                     if (newRulesMatched.length > 0) {
                         memoryStats.totalBlocked += newRulesMatched.length;
                         memoryStats.todayBlocked += newRulesMatched.length;
 
-                        // 将 getMatchedRules 抓到的新记录同步到日志
                         newRulesMatched.forEach(info => {
                             const url = info.request.url;
                             let domain = '未知';
-                            try {
-                                domain = new URL(url).hostname;
-                            } catch (e) {}
+                            try { domain = new URL(url).hostname; } catch (e) {}
                             memoryLogs.push({ domain, url, type: 'dnr-intercept', date: todayStr, ts: Date.now() });
                         });
 
-                        if (memoryLogs.length > 1000) {
-                            memoryLogs.splice(0, memoryLogs.length - 1000);
-                        }
-
+                        if (memoryLogs.length > 1000) memoryLogs.splice(0, memoryLogs.length - 1000);
                         scheduleSave();
-                        addSavings(newRulesMatched.length).catch(e => console.warn('Savings error:', e));
+
+                        const details = newRulesMatched.map(info => ({
+                            domain: (() => { try { return new URL(info.request.url).hostname; } catch { return '未知'; } })(),
+                            url: info.request.url,
+                            type: info.request.type || 'other'
+                        }));
+                        addSavings(newRulesMatched.length, details).catch(e => console.warn('Savings error:', e));
                     }
                 }
-                lastFetchTime = now;
             } catch (e) {
-                // 如果是 429 Too Many Requests 配额错误，推迟下次执行时间
                 if (e.message && e.message.includes('quota')) {
-                    lastFetchTime = Date.now() + 30000;
+                    await chrome.storage.session.set({ dnrLastFetch: Date.now() + 30000 });
                 }
             } finally {
                 isFetching = false;
             }
         };
 
-        // 触发时机 1：标签页加载状态改变（complete 意味着页面及资源基本加载完毕）
+        // 触发时机 1：标签页加载状态改变
         chrome.tabs.onUpdated.addListener((tabId, changeInfo) => {
-            if (changeInfo.status === 'complete') {
-                fetchDNRStats();
-            }
+            if (changeInfo.status === 'complete') fetchDNRStats();
         });
 
-        // 触发时机 2：主框架导航提交（补足部分不触发 complete 的情况）
+        // 触发时机 2：主框架导航提交
         if (chrome.webNavigation?.onCommitted) {
             chrome.webNavigation.onCommitted.addListener((details) => {
-                if (details.frameId === 0) {
-                    fetchDNRStats();
-                }
+                if (details.frameId === 0) fetchDNRStats();
             });
         }
     }
@@ -205,4 +210,6 @@ export async function recordBlock(url, type) {
     }
 
     scheduleSave();
+    // 🛡️ 修复: 同步记录流量节省，防止 recordBlock 提前消耗日志导致 addSavings 饿死
+    addSavings(1, [{ domain, url, type }]).catch(e => console.warn('Savings error:', e));
 }

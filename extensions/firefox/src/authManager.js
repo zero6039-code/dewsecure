@@ -79,9 +79,9 @@ export async function saveExternalAuth(payload) {
     const claims = jwtPayload(token);
     if (!claims) return { ok: false, error: 'Invalid JWT format' };
     
-    if (claims.iss && !claims.iss.startsWith(SUPABASE_URL)) {
-        return { ok: false, error: 'Invalid JWT issuer' };
-    }
+    let issOk = false;
+    try { issOk = new URL(claims.iss).host === new URL(SUPABASE_URL).host; } catch {}
+    if (!issOk) return { ok: false, error: 'Invalid JWT issuer' };
     if (claims.aud && claims.aud !== 'authenticated') {
         return { ok: false, error: 'Invalid JWT audience' };
     }
