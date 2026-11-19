@@ -40,13 +40,22 @@ async function initCache() {
 }
 initCache().catch(console.warn);
 
-// 异步加载模型
+// 🔒 冷启动 modelReady：供导航监听限时等待，避免 fail-open
 let phishModel = null;
-(async () => {
+const modelReady = (async () => {
     const modelData = await getPhishModelData();
     phishModel = loadModel(modelData);
     console.log('🛡️ [AI] PhishScout 纯 JS 模型已就绪');
-})();
+    return phishModel;
+})().catch(err => {
+    console.warn('⚠️ [AI] 模型加载失败，降级为启发式', err);
+    return null;
+});
+
+const withTimeout = (p, ms) => Promise.race([
+    p,
+    new Promise(r => setTimeout(() => r(null), ms))
+]);
 
 // 监听模型热更新
 chrome.runtime.onMessage.addListener((msg) => {
@@ -71,6 +80,9 @@ export function initNavigation() {
         const blockedTabs = new Map();
 
         chrome.webNavigation.onBeforeNavigate.addListener(async (details) => {
+            // 🔒 冷启动：首个导航最多等模型 400ms，超时降级走启发式
+            await withTimeout(modelReady, 400);
+
             if (isOwnWarningPage(details.url) && details.frameId === 0) {
                 try {
                     const urlParams = new URL(details.url).searchParams;
@@ -129,7 +141,10 @@ export function initNavigation() {
                 // 🚀 P-3 优化：直接使用内存缓存的用户状态
                 const user = cachedUser;
                 const isPro = user && ['pro', 'trial', 'family', 'premium'].includes(user.tier);
-                if (!isPro || s.phishingEnabled !== true || !phishModel) return;
+                if (!isPro || s.phishingEnabled !== true) return;
+
+                // 🔒 冷启动 fail-safe：模型未就绪时仍跑启发式，避免 fail-open
+                const modelReadyNow = !!phishModel;
 
                 // 🚀 P-3 优化：静态导入的 assess 函数，消除动态 import
                 let heurFlag = false, heurScore = 0, heurReasons = [];
@@ -143,15 +158,19 @@ export function initNavigation() {
 
                 let aiProb = 0;
                 let aiFailed = false;
-                try {
-                    // 修复超长 URL 导致解析崩溃的问题
-                    const safeUrl = details.url.length > 2048 ? details.url.slice(0, 2048) : details.url;
-                    const features = extractFeatures(safeUrl);
-                    aiProb = predict(phishModel, features);
-                } catch (err) {
-                    aiFailed = true;
-                    heurScore += 1; // 特征提取失败作为弱信号
-                    heurReasons.push('ai-unavailable');
+                if (modelReadyNow) {
+                    try {
+                        // 修复超长 URL 导致解析崩溃的问题
+                        const safeUrl = details.url.length > 2048 ? details.url.slice(0, 2048) : details.url;
+                        const features = extractFeatures(safeUrl);
+                        aiProb = predict(phishModel, features);
+                    } catch (err) {
+                        aiFailed = true;
+                        heurScore += 1; // 特征提取失败作为弱信号
+                        heurReasons.push('ai-unavailable');
+                    }
+                } else {
+                    heurReasons.push('ai-cold-start');
                 }
 
                 let isPhish = false;
