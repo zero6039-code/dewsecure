@@ -1,6 +1,7 @@
 import { getCachedModel } from '../modelManager.js';
 import { HARD_SAFE_DOMAINS, HARD_BLOCK_DOMAINS, AI_BLOCK_RESOURCE_TYPES } from './aiConfig.js';
 import { checkThreatFilter } from './threatIntel.js'; // 🛡️ N-12 修复：引入威胁情报作为真实信号
+import { withLock } from './dnrOwner.js'; // 🔒 与临时白名单共用串行队列
 
 // 辅助函数：FNV-1a 哈希
 function fnv1a(str) {
@@ -198,11 +199,38 @@ export function extractSparseFeatures(url) {
 }
 
 const AI_CHECKED_DOMAINS = new Set();
-// 📊 信号 3：记录该域名在多少个不同站点中被请求
+// 📊 信号 3：记录该域名在多少个不同站点中被请求（Map<host, Set<sourceHost>>）
 const HOST_REF_COUNT = new Map();
-export function recordHostRef(host) {
-    HOST_REF_COUNT.set(host, (HOST_REF_COUNT.get(host) || 0) + 1);
+let hostRefsLoaded = false;
+let saveHostRefsTimer = null;
+function scheduleSaveHostRefs() {
+    if (saveHostRefsTimer) return;
+    saveHostRefsTimer = setTimeout(() => {
+        saveHostRefsTimer = null;
+        if (!chrome.storage.session) return;
+        const obj = {};
+        for (const [h, s] of HOST_REF_COUNT) obj[h] = Array.from(s);
+        chrome.storage.session.set({ hostRefCount: obj }).catch(() => {});
+    }, 2000);
+}
+async function loadHostRefs() {
+    if (hostRefsLoaded) return;
+    hostRefsLoaded = true;
+    try {
+        const res = await chrome.storage.session.get('hostRefCount');
+        const obj = (res && res.hostRefCount) || {};
+        for (const [h, arr] of Object.entries(obj)) {
+            if (!HOST_REF_COUNT.has(h)) HOST_REF_COUNT.set(h, new Set(arr));
+        }
+    } catch (e) {}
+}
+export function recordHostRef(host, sourceHost = '') {
+    if (!host) return;
+    let set = HOST_REF_COUNT.get(host);
+    if (!set) { set = new Set(); HOST_REF_COUNT.set(host, set); }
+    set.add(sourceHost || '__direct__');
     if (HOST_REF_COUNT.size > 5000) HOST_REF_COUNT.clear(); // 防内存泄漏
+    scheduleSaveHostRefs();
 }
 
 
@@ -234,9 +262,37 @@ export function invalidateAIModelCache() {
     cachedWeights = null;
     console.log('🔄 [AI] 模型缓存已清除，等待下次加载');
 } // 🚀 M-7 修复：内存级模型缓存
+
+// 🛡️ 串行分配 AI 拦截规则 ID，限 3000 条，FIFO 淘汰（避免 session 规则配额耗尽）
+const AI_MAX_RULES = 3000;
+export async function addAiBlock(domain) {
+    return withLock(async () => {
+        const { aiRules = [], nextAIRuleId = 8_000_000 } =
+            await chrome.storage.session.get(['aiRules', 'nextAIRuleId']);
+        if (aiRules.some(r => r.d === domain)) return;
+        const remove = aiRules.length >= AI_MAX_RULES ? [aiRules.shift().id] : [];
+        const id = nextAIRuleId;
+        await chrome.declarativeNetRequest.updateSessionRules({
+            removeRuleIds: remove,
+            addRules: [{
+                id,
+                priority: 2000000,
+                action: { type: 'block' },
+                condition: {
+                    requestDomains: [domain],
+                    resourceTypes: AI_BLOCK_RESOURCE_TYPES
+                }
+            }]
+        });
+        aiRules.push({ id, d: domain });
+        await chrome.storage.session.set({ aiRules, nextAIRuleId: id + 1 });
+    });
+}
+
 export async function runAICheck(url, tabId = null, isThirdParty = false) {
     try {
         await loadCheckedDomains(); // 🚀 恢复休眠前的状态
+        await loadHostRefs(); // 📊 恢复跨站引用计数
         const domain = isThirdParty ? url : new URL(url).hostname;
         if (AI_CHECKED_DOMAINS.has(domain)) return;
         
@@ -253,6 +309,9 @@ export async function runAICheck(url, tabId = null, isThirdParty = false) {
             console.log(`🛑 [AI] 命中绝对黑名单，交由网络层/规则层处理: ${domain}`);
             return;
         }
+
+        // 🚀 性能优化：主框架不产生 DNR 拦截，跳过 AI 推理（防白屏由网络层保障）
+        if (!isThirdParty) return;
 
         // 🚀 稀疏化：只取非零 n-gram 桶与结构特征，不建 16418 维稠密数组
         const { buckets, structs } = extractSparseFeatures(domain);
@@ -325,9 +384,10 @@ export async function runAICheck(url, tabId = null, isThirdParty = false) {
             let finalConfidence = confidence;
 
             // 信号 2：跨站引用频率 (被 >= 3 个站点引用)
-            const refCount = HOST_REF_COUNT.get(domain) || 0;
+            const refSet = HOST_REF_COUNT.get(domain);
+            const refCount = refSet ? refSet.size : 0;
             if (refCount >= 3) {
-                signals.push(`跨站引用(${refCount}次)`);
+                signals.push(`跨站引用(${refCount}站点)`);
                 finalConfidence = Math.min(1.0, finalConfidence + 0.05);
             }
 
@@ -339,30 +399,14 @@ export async function runAICheck(url, tabId = null, isThirdParty = false) {
 
             // 🛡️ N-12 修复：现在才加入去重集合
             // 如果是第三方且信号不足（如 refCount 只有 1），允许后续再次评估
-            if (!isThirdParty || (HOST_REF_COUNT.get(domain) || 0) >= 3 || finalConfidence >= 0.95) {
+            if (!isThirdParty || refCount >= 3 || finalConfidence >= 0.95) {
                 AI_CHECKED_DOMAINS.add(domain);
                 scheduleSaveDomains();
             }
 
             if (signals.length >= 3 && finalConfidence >= 0.95) {
-                // 🛡️ 满足三信号交叉验证，执行硬拦截
-                // 🛡️ N-12 修复：使用递增计数器分配 ID，避免碰撞
-                const { nextAIRuleId = 8000000 } = await chrome.storage.session.get('nextAIRuleId');
-                const ruleId = nextAIRuleId;
-                await chrome.storage.session.set({ nextAIRuleId: ruleId + 1 });
-
-                await chrome.declarativeNetRequest.updateSessionRules({
-                    removeRuleIds: [ruleId],
-                    addRules: [{
-                        id: ruleId,
-                        priority: 2000000,
-                        action: { type: 'block' },
-                        condition: {
-                            requestDomains: [domain],
-                            resourceTypes: AI_BLOCK_RESOURCE_TYPES
-                        }
-                    }]
-                }).catch(e => console.warn('[AI] DNR 规则注入失败:', e));
+                // 🛡️ 满足三信号交叉验证，执行硬拦截（withLock 串行，限 3000，FIFO 淘汰）
+                await addAiBlock(domain).catch(e => console.warn('[AI] DNR 规则注入失败:', e));
 
                 console.log(`🛡️ [AI] 已对 ${domain} 实施硬拦截 (信号: ${signals.join(', ')} | 置信度: ${finalConfidence.toFixed(2)})`);
             } else {

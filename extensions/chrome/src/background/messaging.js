@@ -118,12 +118,18 @@ export function initMessaging() {
                         sendResponse({ ok: true });
                         return;
                     }
+                    let sourceHost = '';
+                    try {
+                        if (sender.tab.url) sourceHost = new URL(sender.tab.url).hostname;
+                        else if (sender.url) sourceHost = new URL(sender.url).hostname;
+                    } catch (_) {}
+                    const hosts = Array.isArray(message.hosts) ? message.hosts : [];
                     import('./ai.js').then(({ runAICheck, recordHostRef }) => {
-                        for (const host of message.hosts) {
-                            recordHostRef(host); // 📊 记录跨站引用次数
-                            runAICheck(host, sender.tab.id, true);
-                        }
-                        sendResponse({ ok: true });
+                        // 🛡️ 并发触发（addAiBlock 内 withLock 串行，不会产生 ID 竞态）
+                        Promise.all(hosts.map(host => {
+                            recordHostRef(host, sourceHost); // 📊 按来源站点去重
+                            return runAICheck(host, sender.tab.id, true).catch(() => {});
+                        })).then(() => sendResponse({ ok: true }));
                     }).catch(() => sendResponse({ ok: false }));
                 });
                 return true; // 异步，保持信道
