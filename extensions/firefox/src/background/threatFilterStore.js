@@ -68,7 +68,7 @@ export class HashSetFilter {
         if (dv.getUint32(0, false) !== 0x44455731) throw new Error('bad magic');
         this.h = dv.getUint8(4);
         this.n = dv.getUint32(5, true);
-        if (this.h < 6 || this.h > 8) throw new Error('bad h');
+        if (this.h < 5 || this.h > 8) throw new Error('bad h');
         if (ab.byteLength !== 9 + this.h * this.n) throw new Error('bad size');
         this.b = new Uint8Array(ab, 9);
     }
