@@ -137,7 +137,12 @@ export function initStatsListener() {
                         }
 
                         scheduleSave();
-                        addSavings(newRulesMatched.length).catch(e => console.warn('Savings error:', e));
+                        const details = newRulesMatched.map(info => ({ 
+                            domain: new URL(info.request.url).hostname, 
+                            url: info.request.url, 
+                            type: info.request.type || 'other' 
+                        }));
+                        addSavings(newRulesMatched.length, details).catch(e => console.warn('Savings error:', e));
                     }
                 }
                 lastFetchTime = now;
@@ -205,4 +210,6 @@ export async function recordBlock(url, type) {
     }
 
     scheduleSave();
+    // 🛡️ 修复: 同步记录流量节省，防止 recordBlock 提前消耗日志导致 addSavings 饿死
+    addSavings(1, [{ domain, url, type }]).catch(e => console.warn('Savings error:', e));
 }
