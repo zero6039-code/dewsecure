@@ -227,14 +227,20 @@ export async function updateUserUI(user) {
     if (upgradeBtn && upgradeText) {
         if (isPremium) {
             upgradeText.textContent = window.t('btn_upgraded') || 'Manage Subscription';
-            upgradeBtn.onclick = () => {
+            upgradeBtn.onclick = async () => {
                 const baseUrl = 'https://dewsecure.com/dashboard.html';
-                if (user.token) {
-                    const url = new URL(baseUrl);
-                    url.searchParams.set('token', user.token);
-                    if (user.refreshToken) url.searchParams.set('refresh', user.refreshToken);
-                    chrome.tabs.create({ url: url.toString() });
-                } else {
+                if (!user.token) { chrome.tabs.create({ url: baseUrl }); return; }
+                try {
+                    const r = await fetch('https://dewsecure.com/auth/handoff', {
+                        method: 'POST',
+                        headers: { 'Authorization': `Bearer ${user.token}` }
+                    });
+                    if (!r.ok) throw new Error('handoff failed: ' + r.status);
+                    const { code } = await r.json();
+                    if (!code) throw new Error('empty handoff code');
+                    chrome.tabs.create({ url: `${baseUrl}#code=${encodeURIComponent(code)}` });
+                } catch (e) {
+                    console.warn('⚠️ handoff 失败，回退到无令牌跳转', e);
                     chrome.tabs.create({ url: baseUrl });
                 }
             };

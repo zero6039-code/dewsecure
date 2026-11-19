@@ -28,6 +28,8 @@ function canonicalJSON(obj) {
 }
 const CACHE_KEY = 'dewsecure_intel_cache';
 const BROKEN_SITES_KEY = 'dewsecure_broken_sites'; // AD-8 缓存键
+const MAX_FILTER_VERSION_KEY = 'dewsecure_intel_max_version';
+const MAX_RULES_VERSION_KEY = 'dewsecure_rules_max_version';
 
 // AD-8: 获取当前误伤回退列表
 async function getBrokenSites() {
@@ -48,13 +50,13 @@ async function updateThreatFilterBinary(userToken) {
         const metaData = await metaRes.json();
 
         const cached = await loadFilterFromDB();
-        if (!metaData.purpose || metaData.purpose !== 'dewsecure/filter/v1') return;
-        if (metaData.valid_until && Date.now() > metaData.valid_until) return;
+
 
         if (cached && cached.meta && checkThreatFilter) {
-            if (metaData.version < cached.meta.version) return;
-            if (metaData.version === cached.meta.version) return;
+            if (metaData.version <= cached.meta.version) return;
         }
+        const { [MAX_FILTER_VERSION_KEY]: maxFilterVer } = await chrome.storage.local.get(MAX_FILTER_VERSION_KEY);
+        if (maxFilterVer && metaData.version <= maxFilterVer) return;
 
         const binRes = await fetch(`${baseUrl}/threat-filter.bin`, { cache: 'no-store', headers });
         if (!binRes.ok) return;
@@ -63,16 +65,15 @@ async function updateThreatFilterBinary(userToken) {
         const binHash = await crypto.subtle.digest('SHA-256', binBuffer).then(buf => Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, '0')).join(''));
         if (binHash !== metaData.sha256) return;
 
-        let msg = metaData.sig_version >= 2 
-            ? `${metaData.purpose}|${metaData.version}|${metaData.sha256}|${metaData.valid_until || 0}`
-            : `${metaData.purpose}:${metaData.version}:${metaData.sha256}`;
+        const msg = `${metaData.version}:${metaData.sha256}`;
         
         const sigBytes = Uint8Array.from(atob(metaData.signature.trim()), c => c.charCodeAt(0));
-        const pubKeyBytes = new Uint8Array(ED25519_PUBLIC_KEY_HEX.match(/.{1,2}/g).map(b => parseInt(b, 16)));
+        const pubKeyBytes = new Uint8Array(ED25519_PUBLIC_KEYS['v1'].match(/.{1,2}/g).map(b => parseInt(b, 16)));
 
         if (!(await ed.verifyAsync(sigBytes, new TextEncoder().encode(msg), pubKeyBytes))) return;
 
         await saveFilterToDB(binBuffer, metaData);
+        await chrome.storage.local.set({ [MAX_FILTER_VERSION_KEY]: metaData.version });
         const fmt = detectFormat(binBuffer);
         setThreatFilter(fmt === 'v2' ? new HashSetFilter(binBuffer) : new FastBloomFilter(binBuffer));
         console.log(`🛡️ [ThreatIntel] 成功更新 ${fmt} 过滤器 (Version: ${metaData.version})`);
@@ -127,13 +128,14 @@ export async function updateThreatIntel() {
         if (!sigRes.ok) throw new Error(`sig HTTP ${sigRes.status}`);
         const sigData = await sigRes.json();
 
-        if (!sigData.purpose || sigData.purpose !== 'dewsecure/rules/v1') return;
-        if (sigData.valid_until && Date.now() > sigData.valid_until) return;
+
 
         const { [CACHE_KEY]: localCache } = await chrome.storage.local.get(CACHE_KEY);
         if (localCache && localCache.sigData && localCache.sigData.version) {
             if (sigData.version <= localCache.sigData.version) return;
         }
+        const { [MAX_RULES_VERSION_KEY]: maxRulesVer } = await chrome.storage.local.get(MAX_RULES_VERSION_KEY);
+        if (maxRulesVer && sigData.version <= maxRulesVer) return;
 
         const rulesRes = await fetch(`${baseUrl}/threat-rules`, { cache: 'no-store', headers });
         if (!rulesRes.ok) throw new Error(`rules HTTP ${rulesRes.status}`);
@@ -142,12 +144,10 @@ export async function updateThreatIntel() {
         const actualHash = await crypto.subtle.digest('SHA-256', rulesBuffer).then(buf => Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, '0')).join(''));
         if (actualHash !== sigData.sha256) throw new Error('SHA-256 mismatch');
 
-        let msgStr = sigData.sig_version >= 2 
-            ? `${sigData.purpose}|${sigData.version}|${sigData.sha256}|${sigData.valid_until || 0}`
-            : `${sigData.purpose}:${sigData.version}:${sigData.sha256}`;
+        const msgStr = `${sigData.version}:${sigData.sha256}`;
         
         const sigBytes = Uint8Array.from(atob(sigData.signature.trim()), c => c.charCodeAt(0));
-        const pubKeyBytes = new Uint8Array(ED25519_PUBLIC_KEY_HEX.match(/.{1,2}/g).map(byte => parseInt(byte, 16)));
+        const pubKeyBytes = new Uint8Array(ED25519_PUBLIC_KEYS['v1'].match(/.{1,2}/g).map(byte => parseInt(byte, 16)));
 
         if (!(await ed.verifyAsync(sigBytes, new TextEncoder().encode(msgStr), pubKeyBytes))) {
             throw new Error('Ed25519 signature invalid');
@@ -155,7 +155,7 @@ export async function updateThreatIntel() {
 
         console.log('✅ [ThreatIntel] 签名校验通过，写入本地缓存...');
         const rulesData = JSON.parse(new TextDecoder().decode(rulesBuffer));
-        await chrome.storage.local.set({ [CACHE_KEY]: { rulesData, sigData } });
+        await chrome.storage.local.set({ [CACHE_KEY]: { rulesData, sigData }, [MAX_RULES_VERSION_KEY]: sigData.version });
         await applyRulesToDNR();
 
         if (sigData.scriptlets) await syncScriptlets(sigData);
