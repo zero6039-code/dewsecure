@@ -68,5 +68,5 @@ dependencies {
     implementation("net.java.dev.jna:jna:5.13.0@aar")
     implementation("io.github.jan-tennert.supabase:gotrue-kt:2.6.0")
     implementation("io.github.jan-tennert.supabase:postgrest-kt:2.6.0")
-    implementation("io.ktor:ktor-client-okhttp:2.3.12")
+    implementation("io.ktor:ktor-client-okhttp:3.6.1")
 }
